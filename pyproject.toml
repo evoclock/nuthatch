@@ -31,7 +31,10 @@ classifiers = [
 # and stays out of the requires list (documented in the install
 # section of the README; we error helpfully when the SBM backend is
 # requested without it).
-dependencies = []
+dependencies = [
+    "tomli-w>=1.0",
+    "watchdog>=4.0",
+]
 
 [project.optional-dependencies]
 # Vector-store + embeddings fallback (when SBM is unavailable).
@@ -39,6 +42,9 @@ embeddings = [
     "chromadb>=0.4",
     "sentence-transformers>=2.0",
 ]
+
+[project.scripts]
+nuthatch = "nuthatch.cli:main"
 
 [project.urls]
 Repository = "https://github.com/evoclock/nuthatch"
