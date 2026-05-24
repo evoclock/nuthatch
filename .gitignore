@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual envs
+.venv/
+venv/
+ENV/
+env/
+
+# uv
+.uv-cache/
+
+# Tooling
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# nuthatch-specific: corpus payloads stay on disk but out of git.
+# The corpus directory itself is shipped (so the structure is
+# discoverable) but the PDFs / extracted text / chunks / graph
+# artifacts are too big and too personal to commit. Use a separate
+# backup target (e.g. borg) for these.
+corpus/**/*.pdf
+corpus/**/*.txt
+corpus/**/*.json
+corpus/**/extracted/
+corpus/**/chunks/
+corpus/**/.kg/
+
+# Build artifacts from ingest pipeline (when those land).
+.nuthatch-cache/

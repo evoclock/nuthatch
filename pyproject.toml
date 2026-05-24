@@ -1,0 +1,114 @@
+[project]
+name = "nuthatch"
+version = "0.0.1"
+description = "Knowledge-graph tool for paper corpora and notes, with principled clustering (SBM) and explicit LLM context-token economy"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+authors = [
+    { name = "Julen Gamboa", email = "j.a.r.gamboa@gmail.com" },
+]
+keywords = [
+    "knowledge-graph",
+    "rag",
+    "sbm",
+    "graph-tool",
+    "obsidian",
+    "papers",
+    "research",
+]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+# Runtime deps are intentionally empty for the planning-stage skeleton.
+# As we land real surfaces they'll go here. graph-tool is conda-only
+# and stays out of the requires list (documented in the install
+# section of the README; we error helpfully when the SBM backend is
+# requested without it).
+dependencies = []
+
+[project.optional-dependencies]
+# Vector-store + embeddings fallback (when SBM is unavailable).
+embeddings = [
+    "chromadb>=0.4",
+    "sentence-transformers>=2.0",
+]
+
+[project.urls]
+Repository = "https://github.com/evoclock/nuthatch"
+Issues = "https://github.com/evoclock/nuthatch/issues"
+
+[build-system]
+requires = ["uv_build>=0.4"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.0",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
+    "SIM",
+    "RUF",
+]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["nuthatch"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+show_missing = true
