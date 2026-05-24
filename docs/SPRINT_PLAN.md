@@ -177,6 +177,12 @@ companion + chunks in a vector store.
   (BGE-large default). Pattern from PhD KB's `embed.py`.
 - `src/nuthatch/embed/chunk.py` — hybrid chunking (semantic +
   structure-aware: section / paragraph boundaries from Docling).
+  **Full-document coverage is mandatory** per `docs/DECISIONS.md`:
+  every byte of extracted text lands in at least one chunk
+  (abstract, body, references, appendices, footnotes, captions);
+  chunks may overlap but the *union* must cover the document. A
+  coverage check at the end of each ingest pass asserts this and
+  flags missing coverage to `.kg/audit/coverage_misses.jsonl`.
 - `src/nuthatch/render/card.py` — MD card with the canonical
   frontmatter from the schema profile + a short summary section.
   Pattern from PhD KB's `02_assemble_wiki_page.py`.

@@ -64,6 +64,25 @@ reason for the change; the old entry stays for the audit trail.
   ported from the PhD KB's `kb-reports.md` schema:
   `relevance(t) = max(backlinks, 1) · exp(-ln2 · Δt / half_life)`.
 
+## Chunking + embedding (Sprint 3)
+
+- **Full-document coverage is mandatory**, NOT partial / sampled /
+  summary-only. Every byte of text the extractor produces lands in
+  at least one chunk. This applies to: abstract, full body
+  (every section), references, appendices, footnotes, figure +
+  table captions, supplementary text when present.
+- Chunks may overlap (and should, per hybrid-chunking best practice
+  for retrieval recall), but the *union* of all chunks must cover
+  the document. A coverage check at the end of each ingest pass
+  asserts this invariant; missing-coverage events go to
+  `audit/coverage_misses.jsonl` and the offending file is flagged.
+- Rationale: a knowledge graph that surfaces "the relevant section"
+  to an LLM is only as honest as the chunks. Partial coverage means
+  a query could miss the one paragraph where the paper's actual
+  contribution is stated. The cost (more chunks, larger vector
+  store) is much lower than the cost (silently wrong answers from
+  the LLM) of partial coverage.
+
 ## Surfacing
 
 - **MCP stdio server** for agents (`nuthatch serve --corpus <name>`
