@@ -112,20 +112,27 @@ reason for the change; the old entry stays for the audit trail.
   4. Explicit override available via per-file `.kg/overrides.yaml`.
 - **Routing recommendation** (evidence in
   `docs/extraction-benchmarks/ocr-comparison.md`):
-  - **Difficult source material** (handwriting, complex tables,
-    math-heavy, multilingual, sparse-OCR scans, sidecar bundle
-    needed): **Chandra-OCR-2**. Gold standard. ~14× slower than
-    EasyOCR per page; pay the cost when accuracy matters. The
-    math-recall metric in
-    `docs/extraction-benchmarks/ocr-comparison.md` shows Chandra
-    emits 10× more inline math than Granite-Docling and 180× more
-    than EasyOCR on Wright 1931.
-  - **Everything else** (most scanned papers, body-text-heavy):
-    **Docling + EasyOCR**. ~14× faster, ties Chandra on key-facts
-    recovery on this benchmark, no GPU required. **Not for
-    math-heavy papers**: EasyOCR ducks out of equation rendering.
-  - **GPU available, prefer a smaller model**: Granite-Docling
-    258M. Matches Chandra on key facts on the test corpus.
+  - **Default for scientific papers**: **Chandra-OCR-2**. Most
+    research papers contain at least some math, scientific notation,
+    sub/superscripts, or formal tabular data. The math-recall
+    metric shows Chandra emits 10-180× more inline math than the
+    Docling backends on equation-heavy material; on body-text-only
+    papers it still produces the cleanest, most human-readable
+    output with the richest sidecar bundle. Slow (~30 s/page) but
+    the right choice when accuracy matters.
+  - **GPU available, throughput matters, content has math**: fall
+    back to **Granite-Docling 258M**. About 4× faster than Chandra
+    with usable math preservation (10× less than Chandra but still
+    real). The smaller-model option when paying Chandra's wall-clock
+    cost is not viable.
+  - **No GPU, content is plain prose** (no equations, no scientific
+    notation, no tables that matter): **Docling + EasyOCR**.
+    ~14× faster than Chandra; ties on key-facts on plain papers.
+    Skip for anything with equations: EasyOCR emits zero math
+    symbols and zero block math on equation-heavy material.
+  - **Never default**: SmolDocling 256M preview is unrecommended
+    (hallucinated GLYPH tokens, inconsistent quality across paper
+    types).
 - **Backend licensing posture.** nuthatch is a routing layer that
   calls user-installed OCR backends. nuthatch does not redistribute
   model weights and does not run inference as a service. Backend

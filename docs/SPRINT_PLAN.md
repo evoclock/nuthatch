@@ -152,18 +152,24 @@ semantic dedup with reranker.
   (`arxiv_paper`, `biorxiv_paper`, `patent`, `internal_doc`).
   Pattern from `~/project-planning-agent/conventions/kb-reports.md`
   frontmatter.
-- [PENDING] `src/nuthatch/ingest/metadata.py`: runs the active
-  extractor through the active `SchemaProfile`; returns
-  `(extracted_metadata, missing_fields)`. Pattern from PhD KB's
-  `01_extract_metadata.py`.
-- [PENDING] `src/nuthatch/ingest/quarantine.py`: moves schema-
-  failed files to `quarantine/<reason>/` with a sidecar
-  `.reason.json`.
-- [PENDING] `src/nuthatch/ingest/qc.py`: coverage check at each
-  pipeline stage. Pattern from PhD KB's `verify_coverage*.py`.
-- [PENDING] Wire extract + schema + dedup into the existing
-  `IngestOrchestrator` (currently uses Sprint 1 placeholder
-  extract).
+- [DONE] `src/nuthatch/ingest/metadata.py`: heuristic metadata
+  lift (title from H1, year, arXiv id, DOI, patent number) plus
+  `extract_and_validate(markdown, profile)` for the gate.
+- [DONE] `src/nuthatch/ingest/quarantine.py`: moves schema-failed
+  files to `quarantine/<reason-slug>/` with a sidecar
+  `.reason.json` capturing reason + details (UTC timestamp, stage,
+  original filename, extracted metadata).
+- [DONE] `src/nuthatch/ingest/qc.py`: `check_extract_yield`
+  asserts the extractor produced enough text (absolute floor +
+  per-page floor) before the schema gate runs.
+- [DONE] `IngestOrchestrator` wired through extract + qc +
+  metadata + schema + quarantine. Dependency-injection for
+  `extractor` and `schema_profile` so tests substitute fast mocks.
+- [DONE] `scripts/bench/math_recall.py`: math-notation metric
+  (inline math, block math, math symbols, per-paper equation
+  checklist). Shows Chandra emits 10-180× more inline math than
+  Docling backends on equation-heavy material; pinned in
+  DECISIONS.md routing.
 
 **Definition of done**
 
