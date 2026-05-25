@@ -44,8 +44,8 @@ agent loop can be held accountable to the inventory.
 | `cache.py` (semantic cache) | `nuthatch/ingest/cache.py` | Skip re-extraction of unchanged files |
 | `watch.py` (filesystem-event triggered ingest) | `nuthatch/ingest/watch.py` | Reads `inbox/`, writes a flag file |
 | `security.py` (URL validation, SSRF protection) | `nuthatch/ingest/security.py` | If we ever accept URL-based ingest |
-| `cluster.py:remap_communities_to_previous` (stable community IDs across refits) | `nuthatch/graph/cluster.py` | Critical for the bridge-mode UX between SBM refits |
-| Hub exclusion (`cluster.py:exclude_hubs_percentile`) | `nuthatch/graph/cluster.py` | Essential for paper KGs where one cited-everywhere paper dominates |
+| Stable community IDs across refits (greedy overlap match) | `nuthatch/clustering/stable_ids.py` | No direct equivalent in current kestrel; fresh implementation using set-overlap between successive partitions. Critical for the bridge-mode UX between SBM refits. |
+| `core_nodes` detection (high-degree percentile-rank hubs) | `nuthatch/clustering/hub_exclusion.py` | Pattern derived from kestrel's high-degree-node detection in `analyze.py`; nuthatch implements `core_nodes` as the neutral name. Essential for paper KGs where one cited-everywhere paper dominates a partition. |
 | Edge confidence labels (`EXTRACTED \| INFERRED \| AMBIGUOUS`) | `nuthatch/graph/edges.py` | On every edge |
 | `serve.py` (MCP stdio server) | `nuthatch/mcp/server.py` | Standalone MCP surface scoped to one corpus |
 | `benchmark.py` (corpus-vs-subgraph token comparison) | `nuthatch/token_econ/benchmark.py` + dashboard | Pattern is right; we surface it live rather than as a one-shot report |
@@ -284,11 +284,15 @@ fallback when neither runs.
   cluster (k-means on embeddings) for the bridge mode.
 - `src/nuthatch/clustering/router.py`: picks the highest-rigor
   available backend; surfaces downgrade-notes in the response.
-- `src/nuthatch/clustering/hub_exclusion.py`: port of kestrel's
-  `exclude_hubs_percentile` pattern. Essential.
+- `src/nuthatch/clustering/hub_exclusion.py`: identify and exclude
+  high-degree nodes (`core_nodes`) before partitioning; reattach
+  by majority neighbour community after. Pattern derived from
+  kestrel's high-degree-node detection in `analyze.py`; nuthatch's
+  function name + implementation are native.
 - `src/nuthatch/clustering/stable_ids.py`: community ID remapping
-  across refits via greedy overlap match. Pattern from kestrel's
-  `remap_communities_to_previous`.
+  across refits via greedy set-overlap match between successive
+  partitions. No kestrel equivalent in the currently-installed
+  version; fresh implementation.
 
 **Definition of done**
 
