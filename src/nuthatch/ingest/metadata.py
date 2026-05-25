@@ -3,83 +3,147 @@
 
 """Metadata extraction + schema validation.
 
-Purpose: take the markdown an extractor produced and lift the fields
-    a `SchemaProfile` requires out of it. The current implementation
-    is heuristic (regex + first-block parsing); a real Sprint 4
-    metadata layer would use the structured layout JSON Docling
-    produces. This module gives the orchestrator something to call
-    today while keeping the contract stable.
+Purpose: lift the metadata fields a `SchemaProfile` requires out of
+    an extractor's markdown, then run profile validation. Pluggable
+    so a richer extractor (LLM-driven, like PhD KB's
+    `01_extract_metadata.py` Claude-Code call) can replace the
+    heuristic default without changing the orchestrator surface.
 
-Inputs: extracted markdown (one paper's content) + an active
-    `SchemaProfile` subclass.
+Inputs: extracted markdown + an active `SchemaProfile`. Optional
+    `extractor` callable for plugin replacement.
 
 Outputs: `(extracted_metadata: dict, validation: ValidationResult)`.
 
-Assumptions: the markdown is one paper's worth, not a multi-doc
-    corpus. Heuristics target academic paper conventions (title in
-    `# heading`, `arXiv:` / `doi:` markers, year as a 4-digit number).
-    Subclass-specific overrides land in the profile, not here.
+Pattern reused from `~/PhD-knowledge-base/scripts/01_extract_metadata.py`:
+the JSON-schema shape (title, authors, year, doi, abstract,
+key_claims, topics, methods, relevance), the controlled-vocabulary
+discipline (topics drawn from a per-corpus list), and the
+separation of extract-then-validate. nuthatch's implementation is
+a fresh heuristic plus a plugin hook for richer extractors.
+
+The default heuristic extractor pulls what regex + first-block
+parsing can reliably get from a paper's markdown:
+
+- title from the first `# heading` or a `Title:` line
+- authors from a line below the title (heuristic; LLM extractor
+  would do better)
+- year from a 4-digit year token in the head
+- doi from a `10.NNNN/...` pattern anywhere
+- arxiv id from `arXiv:NNNN.NNNNN[vN]`
+- abstract from the first paragraph after an `## Abstract` heading
+  (or the first multi-sentence paragraph if no heading)
+- topics, key_claims, methods, relevance: heuristic stubs — the
+  default extractor leaves these empty for the schema gate to
+  flag if required. A user opting into the LLM extractor (Sprint
+  3+) fills them.
+
+Assumptions: markdown is one paper's worth, not a multi-doc corpus.
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from typing import Any
 
 from nuthatch.schema.profile import SchemaProfile, ValidationResult
 
-# Headers, identifiers, years. The patterns are deliberately broad;
-# false positives are preferable to missing real values, because the
-# schema validation step downstream will catch genuinely missing
-# fields with a clear reason.
-_TITLE_LINE_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
-_ARXIV_ID_RE = re.compile(r"arXiv\s*[:=]?\s*(\d{4}\.\d{4,5}(?:v\d+)?)", re.IGNORECASE)
+# Patterns.
+_HEADING_TITLE_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
+_TITLE_LABEL_RE = re.compile(r"^\s*Title:\s*(.+?)\s*$", re.MULTILINE)
+_ARXIV_ID_RE = re.compile(
+    r"arXiv\s*[:=]?\s*(\d{4}\.\d{4,5}(?:v\d+)?)", re.IGNORECASE
+)
 _DOI_RE = re.compile(r"\b(10\.\d{4,9}/[-._;()/:A-Z0-9]+)\b", re.IGNORECASE)
 _YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
 _PATENT_NUMBER_RE = re.compile(
     r"\b(US|EP|WO)\d{6,10}[A-Z]?\d?\b", re.IGNORECASE
 )
+_AUTHORS_LINE_RE = re.compile(
+    r"^\s*(?:Authors?:|By)\s*(.+?)\s*$", re.MULTILINE | re.IGNORECASE
+)
+_ABSTRACT_HEADING_RE = re.compile(
+    r"^#{1,3}\s*Abstract\s*\n+(.+?)(?:\n#{1,3}\s|\Z)",
+    re.DOTALL | re.IGNORECASE | re.MULTILINE,
+)
+
+# Signature for a metadata extractor; default is the heuristic below.
+# Sprint 3+ ships an LLM-driven extractor as an optional plugin.
+MetadataExtractor = Callable[[str], dict[str, Any]]
 
 
-def extract_metadata_heuristic(markdown: str) -> dict[str, object]:
-    """Best-effort metadata lift from a paper's extracted markdown.
+def _first_match(rx: re.Pattern[str], text: str, group: int = 1) -> str | None:
+    m = rx.search(text)
+    if not m:
+        return None
+    return m.group(group).strip()
 
-    The orchestrator combines this with a `SchemaProfile.validate()`
-    call to decide whether the doc passes the ingest gate.
+
+def _split_authors(raw: str) -> list[str]:
+    """Split an author string by common separators."""
+    if not raw:
+        return []
+    parts = re.split(r"\s*(?:,|;|\band\b|&)\s*", raw)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def extract_metadata_heuristic(markdown: str) -> dict[str, Any]:
+    """Heuristic metadata lift. Best-effort; conservative on false positives.
+
+    Fields populated: title, authors, year, doi, arxiv_id, patent_number,
+    abstract. Optional list fields (key_claims, methods, topics,
+    relevance) are left empty; a plugin extractor fills them.
     """
-    out: dict[str, object] = {}
+    out: dict[str, Any] = {}
 
-    title_match = _TITLE_LINE_RE.search(markdown)
-    if title_match:
-        out["title"] = title_match.group(1).strip()
+    title = _first_match(_TITLE_LABEL_RE, markdown) or _first_match(
+        _HEADING_TITLE_RE, markdown
+    )
+    if title:
+        out["title"] = title
 
-    arxiv_match = _ARXIV_ID_RE.search(markdown)
-    if arxiv_match:
-        out["arxiv_id"] = arxiv_match.group(1)
+    authors_raw = _first_match(_AUTHORS_LINE_RE, markdown)
+    if authors_raw:
+        out["authors"] = _split_authors(authors_raw)
 
-    doi_match = _DOI_RE.search(markdown)
-    if doi_match:
-        out["doi"] = doi_match.group(1)
+    arxiv = _first_match(_ARXIV_ID_RE, markdown)
+    if arxiv:
+        out["arxiv_id"] = arxiv
 
-    patent_match = _PATENT_NUMBER_RE.search(markdown)
-    if patent_match:
-        out["patent_number"] = patent_match.group(0).upper()
+    doi = _first_match(_DOI_RE, markdown)
+    if doi:
+        out["doi"] = doi
 
-    year_match = _YEAR_RE.search(markdown)
-    if year_match:
-        out["year"] = int(year_match.group(0))
+    patent = _first_match(_PATENT_NUMBER_RE, markdown, group=0)
+    if patent:
+        out["patent_number"] = patent.upper()
+
+    year = _first_match(_YEAR_RE, markdown, group=0)
+    if year:
+        out["year"] = int(year)
+
+    abstract_m = _ABSTRACT_HEADING_RE.search(markdown)
+    if abstract_m:
+        abstract = re.sub(r"\s+", " ", abstract_m.group(1)).strip()
+        if abstract:
+            out["abstract"] = abstract
 
     return out
 
 
 def extract_and_validate(
-    markdown: str, profile: type[SchemaProfile]
-) -> tuple[dict[str, object], ValidationResult]:
-    """Run heuristic extraction + profile validation in one call.
+    markdown: str,
+    profile: type[SchemaProfile],
+    *,
+    extractor: MetadataExtractor | None = None,
+) -> tuple[dict[str, Any], ValidationResult]:
+    """Run an extractor + profile validation in one call.
 
-    Returns the extracted metadata dict and the validation result.
-    The caller decides what to do on failure (typically quarantine
-    via `nuthatch.ingest.quarantine.quarantine_file`).
+    `extractor` defaults to `extract_metadata_heuristic`. A plugin
+    extractor (LLM-driven, per the PhD KB pattern) can be passed
+    when the corpus opts into richer metadata.
     """
-    extracted = extract_metadata_heuristic(markdown)
+    extract = extractor or extract_metadata_heuristic
+    extracted = extract(markdown)
     result = profile.validate(extracted)
     return extracted, result

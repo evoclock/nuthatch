@@ -31,8 +31,11 @@ import re
 from dataclasses import dataclass, field
 
 # Default chunking parameters. Tunable per-corpus via config.
-_DEFAULT_MAX_CHARS: int = 1500
-_DEFAULT_OVERLAP_CHARS: int = 200
+# Sized to match PhD KB's ~512-word/64-word overlap pattern at
+# ~6 chars/word, biased larger to preserve more context per chunk
+# for retrieval (per DECISIONS.md: "we go with more not less").
+_DEFAULT_MAX_CHARS: int = 3000
+_DEFAULT_OVERLAP_CHARS: int = 400
 
 # Boundary regex for structure-aware chunking. Order matters: try
 # strongest boundaries first (markdown headings, then paragraphs,

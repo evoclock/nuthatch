@@ -4,6 +4,14 @@
 """Chunking + embedding + vector storage (Sprint 3)."""
 
 from nuthatch.embed.chunk import Chunk, CoverageResult, check_coverage, chunk_text
-from nuthatch.embed.store import VectorStore
+from nuthatch.embed.store import ChromaVectorStore, Neighbour, VectorStore
 
-__all__ = ["Chunk", "CoverageResult", "VectorStore", "check_coverage", "chunk_text"]
+__all__ = [
+    "ChromaVectorStore",
+    "Chunk",
+    "CoverageResult",
+    "Neighbour",
+    "VectorStore",
+    "check_coverage",
+    "chunk_text",
+]

@@ -9,6 +9,13 @@ reason for the change; the old entry stays for the audit trail.
 - **Name**: nuthatch (working name as of 2026-05-24).
 - **Licence**: Apache 2.0 (enterprise-friendly; AGPL excluded
   because some enterprise procurement bans it outright).
+- **External-library alias**: `kestrel` is the coded alias used
+  throughout nuthatch's docs and code to refer to an MIT-licensed
+  external pipeline library nuthatch borrows architectural patterns
+  from. Real upstream identity is captured outside the public
+  surface; the alias keeps nuthatch's references neutral. Reuse
+  policy: pattern-only, never literal copy; credit `kestrel` in
+  docstrings.
 
 ## Architecture
 
@@ -165,6 +172,16 @@ reason for the change; the old entry stays for the audit trail.
   (~millions of vectors, strict latency); Pinecone for the
   future hosted-SaaS multi-tenant path. No FAISS or Pinecone
   install in the OSS default.
+- **Chunk size**: 3000 chars target, 400 chars overlap. Larger
+  than typical to preserve more context per chunk for retrieval
+  (matches PhD KB's ~512-word chunks at ~6 chars/word). Hybrid
+  chunker prefers structural boundaries (headings, paragraphs,
+  sentence ends) when they fit within the window.
+- **Embedding model default**: `BAAI/bge-m3` (multilingual, ~2 GB,
+  matches the semantic-dedup default). Alternative pinned for
+  English-paper corpora: `allenai/specter2_base` (PhD KB default;
+  paper-specific embeddings tuned for scientific abstracts/titles).
+  Users override via the corpus config `embedding.model` field.
 - **Full-document coverage is mandatory**, NOT partial / sampled /
   summary-only. Every byte of text the extractor produces lands in
   at least one chunk. This applies to: abstract, full body

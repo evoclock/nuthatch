@@ -8,11 +8,11 @@ The plan deliberately leans on existing code from two sources:
 
 - **PhD KB** (`/home/jgamboa/PhD-knowledge-base/`): production-tested
   patterns for an in-house knowledge-base / RAG store.
-- **Graphify** (pip-installed at
-  `/home/jgamboa/.pyenv/versions/3.11.8/lib/python3.11/site-packages/graphify/`,
-  source at <https://github.com/safishamsi/graphify>): patterns
-  only; **not** a fork. License is MIT so the patterns can be
-  re-implemented cleanly.
+- **kestrel** (coded alias for an MIT-licensed external pipeline
+  library; upstream identity pinned in `docs/DECISIONS.md`):
+  patterns only; **not** a fork. The licence permits clean
+  re-implementation; nuthatch borrows the architectural ideas and
+  writes its own code shaped by them.
 
 What's reused vs. what's new is called out per sprint so the
 agent loop can be held accountable to the inventory.
@@ -35,7 +35,7 @@ agent loop can be held accountable to the inventory.
 | Frontmatter schema from `~/project-planning-agent/conventions/kb-reports.md` | basis for `nuthatch/schema/*.py` profiles | Same metadata-contract pattern, applied per `SchemaProfile` |
 | Decay formula from `kb-reports.md` | basis for `nuthatch/graph/decay.py` | `relevance(t) = max(backlinks, 1) · exp(-ln2 · Δt / half_life)` |
 
-### Patterns to lift from Graphify (re-implement, not fork)
+### Patterns to lift from kestrel (re-implement, not fork)
 
 | Pattern | Where it shows up in nuthatch | Notes |
 | --- | --- | --- |
@@ -54,7 +54,7 @@ agent loop can be held accountable to the inventory.
 
 ### Explicitly NOT reused
 
-- Tree-sitter language extractors (Graphify's `extract.py` is 329KB
+- Tree-sitter language extractors (kestrel's `extract.py` is 329KB
   of these; not transferable to a paper-KG context).
 - SCIP ingestion (code-focused).
 - Call-flow HTML (code-focused).
@@ -91,14 +91,14 @@ trivial "extracted" payloads (e.g., file size + mtime).
 **Deliverables**
 
 - `src/nuthatch/ingest/watch.py`: filesystem watcher
-  (`watchdog` or polling fallback). Pattern from Graphify's
+  (`watchdog` or polling fallback). Pattern from kestrel's
   `watch.py`. Emits events to an in-process queue.
 - `src/nuthatch/ingest/dedup.py`: SHA256 hashing + lookup against
-  the manifest. Pattern from Graphify's `dedup.py`.
+  the manifest. Pattern from kestrel's `dedup.py`.
 - `src/nuthatch/ingest/manifest.py`: `.kg/manifest.jsonl` writer +
   reader. One line per ingest event: `{path, hash, status,
   reason, extractor_version, timestamp_utc}`. Pattern from
-  Graphify's `manifest.py`.
+  kestrel's `manifest.py`.
 - `src/nuthatch/ingest/state_machine.py`: orchestrator that walks
   files through `inbox → identify → hash dedup → (placeholder
   extract) → route(pass/fail) → manifest log`.
@@ -122,7 +122,7 @@ trivial "extracted" payloads (e.g., file size + mtime).
 
 **Reused / new split**
 
-- Reuse: Graphify watch/dedup/manifest patterns; PhD KB workflow
+- Reuse: kestrel watch/dedup/manifest patterns; PhD KB workflow
   shape (`workflows/incremental_embed.json`).
 - New: registry, corpus layout, state machine, CLI surface.
 
@@ -244,9 +244,9 @@ graph that can be serialised + reloaded across runs.
   Docling's reference list).
 - `src/nuthatch/graph/edges.py`: edge dataclasses + the
   `EXTRACTED | INFERRED | AMBIGUOUS` confidence label on every edge.
-  Pattern from Graphify's edge schema.
+  Pattern from kestrel's edge schema.
 - `src/nuthatch/graph/build.py`: `build_graph(corpus)` ->
-  `nx.MultiDiGraph`. Pattern from Graphify's `build.py`.
+  `nx.MultiDiGraph`. Pattern from kestrel's `build.py`.
 - `src/nuthatch/graph/io.py`: graph (de)serialisation to
   `.kg/graph/graph.json`. Round-trippable.
 - `src/nuthatch/graph/decay.py`: relevance decay formula from PhD
@@ -262,8 +262,8 @@ graph that can be serialised + reloaded across runs.
 
 **Reused / new split**
 
-- Reuse: Graphify edge-schema + build pattern; PhD KB decay formula.
-- New: entity extraction layer (Graphify has tree-sitter for code;
+- Reuse: kestrel edge-schema + build pattern; PhD KB decay formula.
+- New: entity extraction layer (kestrel has tree-sitter for code;
   for papers we need NER + citation parser).
 
 ## Sprint 5: Clustering (the principled-default differentiator)
@@ -284,10 +284,10 @@ fallback when neither runs.
   cluster (k-means on embeddings) for the bridge mode.
 - `src/nuthatch/clustering/router.py`: picks the highest-rigor
   available backend; surfaces downgrade-notes in the response.
-- `src/nuthatch/clustering/hub_exclusion.py`: port of Graphify's
+- `src/nuthatch/clustering/hub_exclusion.py`: port of kestrel's
   `exclude_hubs_percentile` pattern. Essential.
 - `src/nuthatch/clustering/stable_ids.py`: community ID remapping
-  across refits via greedy overlap match. Pattern from Graphify's
+  across refits via greedy overlap match. Pattern from kestrel's
   `remap_communities_to_previous`.
 
 **Definition of done**
@@ -301,7 +301,7 @@ fallback when neither runs.
 
 **Reused / new split**
 
-- Reuse: Graphify's hub-exclusion + stable-ID patterns; the
+- Reuse: kestrel's hub-exclusion + stable-ID patterns; the
   ClusteringBackend protocol from Sprint 0.
 - New: the three concrete backend implementations + the router.
 
@@ -320,9 +320,9 @@ corpus for agent integration.
   `corpus_search`, `subgraph_extract`, `card_get`, `community_get`,
   `token_econ_report`. Raw STDIO JSON-RPC handler, no `mcp` SDK
   dependency; pattern from Hillstar Orchestrator's
-  `mcp-server/minimax_server.py` and Graphify's `serve.py`.
+  `mcp-server/minimax_server.py` and kestrel's `serve.py`.
 - `nuthatch/AGENTS.md`: agent-facing docs for the MCP surface.
-  Pattern from Graphify's AGENTS.md convention.
+  Pattern from kestrel's AGENTS.md convention.
 - CLI subcommands: `nuthatch obsidian export <corpus>`,
   `nuthatch serve --corpus <name>`.
 
@@ -335,7 +335,7 @@ corpus for agent integration.
 
 **Reused / new split**
 
-- Reuse: PhD KB Obsidian vault patterns; Graphify MCP server
+- Reuse: PhD KB Obsidian vault patterns; kestrel MCP server
   shape.
 - New: the per-tool implementations + the AGENTS doc.
 
@@ -377,7 +377,7 @@ at the MCP boundary, not inside an LLM wrapper.
 
 **Reused / new split**
 
-- Reuse: Graphify's `benchmark.py` measurement pattern (rewritten
+- Reuse: kestrel's `benchmark.py` measurement pattern (rewritten
   per-query, not one-shot).
 - New: the JSONL log + aggregation layer + markdown export + MCP
   tool surface.
@@ -476,7 +476,7 @@ approach.
 - Decisions: `docs/DECISIONS.md`.
 - Planning history: `~/project-planning-agent/strands/nuthatch.md`.
 - PhD KB source patterns: `/home/jgamboa/PhD-knowledge-base/`.
-- Graphify source: <https://github.com/safishamsi/graphify> (MIT;
+- kestrel source: <https://github.com/safishamsi/kestrel> (MIT;
   patterns only, not a fork).
 - thermall as a precedent for the agent-assisted spec-driven
   development style: `<https://github.com/evoclock/thermall>`.

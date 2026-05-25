@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
-"""SchemaProfile: per-corpus metadata contract.
+"""SchemaProfile: per-corpus metadata contract aligned with kb-reports.md.
 
 Purpose: declare the metadata fields a document must yield to be
     admitted into a corpus's graph. Pluggable per corpus; the built-in
@@ -10,7 +10,15 @@ Purpose: declare the metadata fields a document must yield to be
     shipped out of the box. Users add their own via YAML or by
     subclassing `SchemaProfile`.
 
-Inputs: at validation time, a dict of extracted metadata (typically
+The field vocabulary aligns with the **kb-reports.md frontmatter
+contract** at `~/project-planning-agent/conventions/kb-reports.md`
+so that nuthatch's per-paper cards index alongside PhD KB reports
+and proposal notes in Obsidian Dataview queries with a single
+shared schema. Paper-specific fields (authors, doi, arxiv_id, year)
+extend the kb-reports vocabulary; operational fields (relevance,
+half_life_days, status) match it directly.
+
+Inputs at validation time: a dict of extracted metadata (typically
     from `nuthatch.ingest.metadata`).
 
 Outputs: `ValidationResult` with the list of missing required fields
@@ -61,6 +69,26 @@ class ValidationResult:
         return ";".join(parts)
 
 
+# Fields shared across all kb-reports-aligned profiles. Profiles
+# extend with paper-specific fields (authors, doi, arxiv_id) on top.
+_KB_REPORTS_SHARED_FIELDS: tuple[FieldSpec, ...] = (
+    # Required by kb-reports.md
+    FieldSpec("title", required=True, expected_type=str),
+    FieldSpec("date", required=False, expected_type=str),  # ingest-time default
+    FieldSpec("status", required=False, expected_type=str),  # default 'exploratory'
+    # Tags + committee_member: flat arrays, controlled vocab.
+    FieldSpec("tags", required=False, expected_type=(list, tuple)),
+    FieldSpec("committee_member", required=False, expected_type=(list, tuple)),
+    # Relevance + decay: numeric defaults set by the card renderer.
+    FieldSpec("relevance", required=False, expected_type=(int, float)),
+    FieldSpec("half_life_days", required=False, expected_type=int),
+    # Operational pointers.
+    FieldSpec("aim_ref", required=False, expected_type=str),
+    FieldSpec("parents", required=False, expected_type=(list, tuple)),
+    FieldSpec("supersedes", required=False, expected_type=(list, tuple)),
+)
+
+
 class SchemaProfile:
     """Base class for per-corpus schema profiles.
 
@@ -68,20 +96,36 @@ class SchemaProfile:
     in the manifest). The base class provides field-presence and
     type-check validation; subclasses may add cross-field checks by
     overriding `validate`.
+
+    All profiles inherit the kb-reports.md shared fields automatically
+    via `_KB_REPORTS_SHARED_FIELDS`; subclass `fields` is concatenated
+    with the shared set in `all_fields()`.
     """
 
     profile_name: ClassVar[str] = "base"
     fields: ClassVar[tuple[FieldSpec, ...]] = ()
 
     @classmethod
+    def all_fields(cls) -> tuple[FieldSpec, ...]:
+        """Per-class `fields` PLUS the kb-reports shared field set."""
+        # If a subclass declares 'title' in its own fields, prefer that
+        # (allows overriding required-ness or type). Dedup by name.
+        seen: dict[str, FieldSpec] = {}
+        for spec in cls.fields:
+            seen[spec.name] = spec
+        for spec in _KB_REPORTS_SHARED_FIELDS:
+            seen.setdefault(spec.name, spec)
+        return tuple(seen.values())
+
+    @classmethod
     def required_field_names(cls) -> list[str]:
-        return [f.name for f in cls.fields if f.required]
+        return [f.name for f in cls.all_fields() if f.required]
 
     @classmethod
     def validate(cls, extracted: dict[str, Any]) -> ValidationResult:
         missing: list[str] = []
         bad_types: list[tuple[str, str]] = []
-        for spec in cls.fields:
+        for spec in cls.all_fields():
             value = extracted.get(spec.name)
             if value is None or value == "":
                 if spec.required:

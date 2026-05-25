@@ -51,13 +51,16 @@ class TestThresholdBoundary:
     @pytest.mark.parametrize(
         "yield_value,expected",
         [
-            (199.9, ExtractionStrategy.SCANNED_CHANDRA),
-            (200.0, ExtractionStrategy.DIGITAL_DOCLING),
-            (200.1, ExtractionStrategy.DIGITAL_DOCLING),
+            (2999.9, ExtractionStrategy.SCANNED_CHANDRA),
+            (3000.0, ExtractionStrategy.DIGITAL_DOCLING),
+            (3000.1, ExtractionStrategy.DIGITAL_DOCLING),
             (0.0, ExtractionStrategy.SCANNED_CHANDRA),
+            (1660.0, ExtractionStrategy.SCANNED_CHANDRA),  # Mendel-class
+            (2382.0, ExtractionStrategy.SCANNED_CHANDRA),  # Wright-class
+            (4000.0, ExtractionStrategy.DIGITAL_DOCLING),  # modern preprint floor
         ],
     )
-    def test_threshold_at_200_chars_per_page(
+    def test_threshold_at_3000_chars_per_page(
         self, yield_value: float, expected: ExtractionStrategy
     ) -> None:
         assert pick_strategy(yield_value, has_gpu=True) is expected

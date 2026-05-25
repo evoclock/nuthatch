@@ -32,12 +32,23 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
-# Threshold below which a PDF is classified as scanned (image-based).
-# Source: the McDonald-Kreitman benchmark; the only verifiably image-
-# only paper in the test corpus yielded ~106 chars/page, all other
-# papers yielded > 1500 chars/page. The threshold sits well above the
-# scanned floor and well below any plausible digital-text content.
-_SCANNED_TEXT_YIELD_PER_PAGE: float = 200.0
+# Threshold below which a PDF is treated as needing real OCR.
+#
+# Argument for the value (3000 chars/page):
+# - Truly image-only scans yield near-zero text (MK 1991 = 106).
+# - Archive-style scans (JSTOR / Internet Archive) often have an
+#   embedded OCR text layer at 1500-2500 chars/page, but that layer
+#   is poor quality: Mendel-Bateson (1660 chars/page embedded) drops
+#   commas to periods, mangles italics, loses table structure. We
+#   benchmarked Chandra-OCR-2 on the page images and got dramatically
+#   cleaner output for those same files.
+# - Modern digital-born preprints (arXiv, bioRxiv) yield > 3900
+#   chars/page on every paper measured.
+# So below 3000 the file is either truly scanned or carries a
+# degraded embedded OCR layer and benefits from running fresh OCR
+# over the page images; above 3000 the file is reliably digital-born
+# and Docling can read the embedded text cleanly without OCR.
+_SCANNED_TEXT_YIELD_PER_PAGE: float = 3000.0
 
 
 class ExtractionStrategy(StrEnum):
