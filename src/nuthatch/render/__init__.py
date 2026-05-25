@@ -5,5 +5,6 @@
 
 from nuthatch.render.card import render_card
 from nuthatch.render.html import render_html
+from nuthatch.render.obsidian import ExportResult, export_vault
 
-__all__ = ["render_card", "render_html"]
+__all__ = ["ExportResult", "export_vault", "render_card", "render_html"]
