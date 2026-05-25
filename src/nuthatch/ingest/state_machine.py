@@ -3,46 +3,75 @@
 
 """Ingest orchestrator: walks files from `inbox/` to `papers/` via the spine.
 
-The spine for Sprint 1:
+The Sprint 2 spine:
 
-    inbox file -> hash + dedup -> placeholder extract -> manifest log -> route
+    inbox file
+      -> hash dedup
+      -> preflight (suffix + non-zero size)
+      -> extract (real OCR via `ingest.extract` for PDFs;
+                  `read_text` for `.txt` / `.md` / `.html`)
+      -> qc (`ingest.qc.check_extract_yield`)
+      -> metadata + schema (`ingest.metadata.extract_and_validate`)
+      -> route(pass/fail)
+      -> manifest log
 
 `route` moves the file to one of:
 
 - `papers/`           on success (`IngestStatus.INGESTED`)
 - (left in inbox)     on byte-exact dedup hit (`IngestStatus.DUPLICATE`)
-- `quarantine/`       on placeholder-extract failure (`IngestStatus.QUARANTINED`)
+- `quarantine/<reason>/` on any pipeline-stage failure
+  (`IngestStatus.QUARANTINED`); a `.reason.json` sidecar lands next
+  to the file (see `ingest.quarantine`)
 
-The "placeholder extract" stage is a deliberate no-op for Sprint 1:
-it returns `True` for any file with a non-zero size and one of the
-known suffixes (`.pdf`, `.html`, `.txt`, `.md`). Real extraction
-(Docling / Chandra-OCR / metadata schema validation) lands in
-Sprint 2 by replacing `_placeholder_extract` with a proper pipeline
-stage. The orchestrator shape stays the same.
+The extractor is dependency-injected so tests can substitute a
+fast no-op while the real path runs Docling / Chandra-OCR / EasyOCR
+under the routing decision pinned in `docs/DECISIONS.md`.
 """
 
 from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from nuthatch.corpus.layout import CorpusLayout
 from nuthatch.ingest.dedup import hash_file
 from nuthatch.ingest.manifest import IngestStatus, ManifestEntry, ManifestStore
+from nuthatch.ingest.metadata import extract_and_validate
+from nuthatch.ingest.qc import check_extract_yield
+from nuthatch.ingest.quarantine import quarantine_file
+from nuthatch.schema.profile import SchemaProfile
+from nuthatch.schema.profiles import ArxivPaperProfile
 
-# Sentinel marking the Sprint 1 placeholder. Once Sprint 2 lands
-# Docling + Chandra-OCR, bump to a real version string like
-# `docling-2.5.0+chandra-2.1.0` so the manifest distinguishes
-# files extracted under different toolchains.
-_PLACEHOLDER_EXTRACTOR_VERSION: str = "placeholder-v0"
+# Sentinel marking the Sprint 2 default extractor version. Bumped
+# when the routing logic or backend versions change so the manifest
+# distinguishes files extracted under different toolchains.
+_EXTRACTOR_VERSION: str = "router-v1"
 
-# File suffixes the placeholder extract accepts. Anything else is
-# quarantined with reason `unsupported_format`.
+# File suffixes the preflight accepts. Anything else is quarantined
+# with reason `unsupported_format`.
 _SUPPORTED_SUFFIXES: frozenset[str] = frozenset({".pdf", ".html", ".htm", ".txt", ".md"})
 
+# Callable signature for an extractor: `(path) -> markdown_string`.
+Extractor = Callable[[Path], str]
+
 _LOG = logging.getLogger(__name__)
+
+
+def _default_extractor(path: Path) -> str:
+    """Default extractor: routes PDFs through `ingest.extract`, reads text otherwise.
+
+    Heavy-import the OCR machinery only when first invoked on a PDF
+    so test runs that never touch PDFs do not pull torch into memory.
+    """
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        from nuthatch.ingest.extract import extract  # noqa: PLC0415
+
+        return extract(path).text
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 @dataclass(slots=True, frozen=True)
@@ -56,19 +85,35 @@ class IngestResult:
 
 
 class IngestOrchestrator:
-    """Drive the Sprint 1 ingest spine against a `CorpusLayout`.
+    """Drive the Sprint 2 ingest pipeline against a `CorpusLayout`.
 
     `ingest_inbox()` processes every file currently under
     `<corpus>/inbox/` once and returns the per-file results. Files
     that fail dedup are LEFT in the inbox (so the user can decide
-    to delete them); files that pass extract are MOVED to `papers/`.
+    to delete them); files that pass the full pipeline are MOVED to
+    `papers/`; files that fail extract / qc / schema land in
+    `quarantine/<reason>/` with a `.reason.json` sidecar.
+
+    Dependency-injection:
+    - `extractor`: callable `(Path) -> str` returning markdown.
+      Defaults to the real PDF router + plain-text reader.
+    - `schema_profile`: subclass of `SchemaProfile` to validate
+      extracted metadata against. Defaults to `ArxivPaperProfile`.
     """
 
-    __slots__ = ("_layout", "_manifest")
+    __slots__ = ("_layout", "_manifest", "_extractor", "_profile")
 
-    def __init__(self, layout: CorpusLayout) -> None:
+    def __init__(
+        self,
+        layout: CorpusLayout,
+        *,
+        extractor: Extractor | None = None,
+        schema_profile: type[SchemaProfile] | None = None,
+    ) -> None:
         self._layout = layout
         self._manifest = ManifestStore(layout.manifest_path)
+        self._extractor = extractor or _default_extractor
+        self._profile = schema_profile or ArxivPaperProfile
 
     @property
     def layout(self) -> CorpusLayout:
@@ -77,6 +122,10 @@ class IngestOrchestrator:
     @property
     def manifest(self) -> ManifestStore:
         return self._manifest
+
+    @property
+    def schema_profile(self) -> type[SchemaProfile]:
+        return self._profile
 
     def ingest_inbox(self) -> list[IngestResult]:
         """Process every file currently in `inbox/`. Returns per-file results.
@@ -98,79 +147,165 @@ class IngestOrchestrator:
             except OSError as exc:
                 _LOG.warning("Could not read %s: %s", source, exc)
                 results.append(
-                    IngestResult(
-                        source_filename=source.name,
+                    self._fail(
+                        source,
+                        file_hash="",
                         status=IngestStatus.FAILED,
                         reason=f"read_error: {exc}",
                         destination=None,
                     )
                 )
-                self._record(
-                    file_hash="",
-                    source=source,
-                    destination=None,
-                    status=IngestStatus.FAILED,
-                    reason=f"read_error: {exc}",
-                )
                 continue
 
             if file_hash in known:
                 results.append(
-                    IngestResult(
-                        source_filename=source.name,
+                    self._record_and_result(
+                        source=source,
+                        file_hash=file_hash,
+                        destination=None,
                         status=IngestStatus.DUPLICATE,
                         reason=f"existing_hash:{file_hash[:12]}",
-                        destination=None,
                     )
-                )
-                self._record(
-                    file_hash=file_hash,
-                    source=source,
-                    destination=None,
-                    status=IngestStatus.DUPLICATE,
-                    reason=f"existing_hash:{file_hash[:12]}",
                 )
                 continue
 
-            ok, reason = _placeholder_extract(source)
+            # Preflight: suffix + size. Cheap reject for obvious
+            # garbage before paying the OCR / extract cost.
+            ok, preflight_reason = _preflight(source)
             if not ok:
-                dest = self._move(source, self._layout.quarantine / source.name)
+                dest = quarantine_file(
+                    source,
+                    self._layout.quarantine,
+                    reason=preflight_reason or "preflight_failed",
+                    details={"stage": "preflight"},
+                )
                 results.append(
-                    IngestResult(
-                        source_filename=source.name,
-                        status=IngestStatus.QUARANTINED,
-                        reason=reason,
+                    self._record_and_result(
+                        source=source,
+                        file_hash=file_hash,
                         destination=dest,
+                        status=IngestStatus.QUARANTINED,
+                        reason=preflight_reason,
                     )
                 )
-                self._record(
-                    file_hash=file_hash,
-                    source=source,
-                    destination=dest,
-                    status=IngestStatus.QUARANTINED,
-                    reason=reason,
+                continue
+
+            # Real extraction. Failures here are infrastructure
+            # problems (OCR crash, model unavailable). Fail-not-
+            # quarantine: the user should retry, not lose the file.
+            try:
+                markdown = self._extractor(source)
+            except Exception as exc:
+                _LOG.exception("Extractor crashed on %s", source)
+                results.append(
+                    self._fail(
+                        source,
+                        file_hash=file_hash,
+                        status=IngestStatus.FAILED,
+                        reason=f"extract_error: {exc!s}",
+                        destination=None,
+                    )
+                )
+                continue
+
+            qc = check_extract_yield(markdown)
+            if not qc.passed:
+                dest = quarantine_file(
+                    source,
+                    self._layout.quarantine,
+                    reason=qc.reason or "extract_yield_failed",
+                    details={"stage": "qc", "qc": qc.details},
+                )
+                results.append(
+                    self._record_and_result(
+                        source=source,
+                        file_hash=file_hash,
+                        destination=dest,
+                        status=IngestStatus.QUARANTINED,
+                        reason=qc.reason,
+                    )
+                )
+                continue
+
+            extracted, validation = extract_and_validate(markdown, self._profile)
+            if not validation.passed:
+                dest = quarantine_file(
+                    source,
+                    self._layout.quarantine,
+                    reason=validation.reason or "schema_invalid",
+                    details={
+                        "stage": "schema",
+                        "profile": self._profile.profile_name,
+                        "extracted": extracted,
+                        "missing_required": validation.missing_required,
+                        "type_mismatches": validation.type_mismatches,
+                    },
+                )
+                results.append(
+                    self._record_and_result(
+                        source=source,
+                        file_hash=file_hash,
+                        destination=dest,
+                        status=IngestStatus.QUARANTINED,
+                        reason=validation.reason,
+                    )
                 )
                 continue
 
             dest = self._move(source, self._layout.papers / source.name)
             results.append(
-                IngestResult(
-                    source_filename=source.name,
+                self._record_and_result(
+                    source=source,
+                    file_hash=file_hash,
+                    destination=dest,
                     status=IngestStatus.INGESTED,
                     reason=None,
-                    destination=dest,
                 )
-            )
-            self._record(
-                file_hash=file_hash,
-                source=source,
-                destination=dest,
-                status=IngestStatus.INGESTED,
-                reason=None,
             )
             known.add(file_hash)
 
         return results
+
+    def _fail(
+        self,
+        source: Path,
+        *,
+        file_hash: str,
+        status: IngestStatus,
+        reason: str | None,
+        destination: Path | None,
+    ) -> IngestResult:
+        """Record a manifest failure entry and return the matching result."""
+        return self._record_and_result(
+            source=source,
+            file_hash=file_hash,
+            destination=destination,
+            status=status,
+            reason=reason,
+        )
+
+    def _record_and_result(
+        self,
+        *,
+        source: Path,
+        file_hash: str,
+        destination: Path | None,
+        status: IngestStatus,
+        reason: str | None,
+    ) -> IngestResult:
+        self._record(
+            file_hash=file_hash,
+            source=source,
+            destination=destination,
+            status=status,
+            reason=reason,
+        )
+        return IngestResult(
+            source_filename=source.name,
+            status=status,
+            reason=reason,
+            destination=destination,
+        )
 
     def _iter_inbox_files(self) -> list[Path]:
         """Sorted, deterministic walk over real files in `inbox/`."""
@@ -211,16 +346,17 @@ class IngestOrchestrator:
             destination=rel_dest,
             status=status,
             reason=reason,
-            extractor_version=_PLACEHOLDER_EXTRACTOR_VERSION,
+            extractor_version=_EXTRACTOR_VERSION,
         )
         self._manifest.append(entry)
 
 
-def _placeholder_extract(path: Path) -> tuple[bool, str | None]:
-    """Sprint 1 placeholder. Returns (ok, reason_when_not_ok).
+def _preflight(path: Path) -> tuple[bool, str | None]:
+    """Cheap pre-extraction check: suffix + non-zero size.
 
-    Accepts any file with a known suffix and non-zero size. Real
-    extraction lands in Sprint 2.
+    Returns `(ok, reason_when_not_ok)`. Fail-fast for obvious garbage
+    so the orchestrator doesn't pay OCR cost on 0-byte files or files
+    with formats nuthatch isn't built to handle.
     """
 
     suffix = path.suffix.lower()

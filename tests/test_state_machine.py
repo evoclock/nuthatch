@@ -1,15 +1,41 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for `nuthatch.ingest.state_machine.IngestOrchestrator`."""
+"""Tests for `nuthatch.ingest.state_machine.IngestOrchestrator` (Sprint 2 pipeline)."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from nuthatch.corpus.layout import CorpusLayout, init_corpus
 from nuthatch.ingest.manifest import IngestStatus
 from nuthatch.ingest.state_machine import IngestOrchestrator
+from nuthatch.schema.profile import FieldSpec, SchemaProfile
+
+
+class _AcceptAnyProfile(SchemaProfile):
+    """Test profile: passes any non-empty document."""
+
+    profile_name = "test_accept_any"
+    fields = (FieldSpec("title", required=True, expected_type=str),)
+
+
+_DEFAULT_TEST_MARKDOWN = (
+    "# Sample title\n\n"
+    + "Body paragraph with enough text to clear the qc.check_extract_yield "
+    "floor of 200 chars. Lorem ipsum dolor sit amet consectetur adipiscing "
+    "elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n"
+)
+
+
+def _make_extractor(text: str = _DEFAULT_TEST_MARKDOWN):
+    """Return a callable that yields fixed markdown regardless of input path."""
+
+    def _extract(path: Path) -> str:
+        return text
+
+    return _extract
 
 
 def _seed_inbox(layout: CorpusLayout, filename: str, content: bytes) -> Path:
@@ -19,17 +45,30 @@ def _seed_inbox(layout: CorpusLayout, filename: str, content: bytes) -> Path:
     return p
 
 
+def _make_orchestrator(
+    layout: CorpusLayout,
+    *,
+    extractor=None,
+    text: str = _DEFAULT_TEST_MARKDOWN,
+) -> IngestOrchestrator:
+    return IngestOrchestrator(
+        layout,
+        extractor=extractor or _make_extractor(text),
+        schema_profile=_AcceptAnyProfile,
+    )
+
+
 class TestIngestInboxBasics:
     def test_empty_inbox_returns_no_results(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
-        results = IngestOrchestrator(layout).ingest_inbox()
+        results = _make_orchestrator(layout).ingest_inbox()
         assert results == []
 
     def test_single_pdf_moves_to_papers(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
-        source = _seed_inbox(layout, "attention.pdf", b"fake-pdf-bytes-but-non-zero")
+        source = _seed_inbox(layout, "attention.pdf", b"fake-pdf-bytes")
 
-        results = IngestOrchestrator(layout).ingest_inbox()
+        results = _make_orchestrator(layout).ingest_inbox()
 
         assert len(results) == 1
         r = results[0]
@@ -41,33 +80,84 @@ class TestIngestInboxBasics:
 
     def test_unsupported_format_goes_to_quarantine(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
-        source = _seed_inbox(layout, "weird.xyz", b"x")
+        _seed_inbox(layout, "weird.xyz", b"x")
 
-        results = IngestOrchestrator(layout).ingest_inbox()
+        results = _make_orchestrator(layout).ingest_inbox()
 
         assert results[0].status is IngestStatus.QUARANTINED
         assert results[0].reason is not None
         assert "unsupported_format" in results[0].reason
-        assert (layout.quarantine / "weird.xyz").exists()
-        assert not source.exists()
+        # New quarantine layout: <quarantine>/<reason-slug>/<file>
+        assert any(
+            p.name == "weird.xyz" for p in layout.quarantine.rglob("weird.xyz")
+        )
 
     def test_empty_file_goes_to_quarantine(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
         _seed_inbox(layout, "empty.pdf", b"")
-        results = IngestOrchestrator(layout).ingest_inbox()
+        results = _make_orchestrator(layout).ingest_inbox()
         assert results[0].status is IngestStatus.QUARANTINED
         assert results[0].reason == "empty_file"
+
+
+class TestQuarantineSidecar:
+    def test_quarantine_writes_reason_sidecar(self, tmp_path: Path) -> None:
+        layout = init_corpus(tmp_path / "c")
+        _seed_inbox(layout, "bad.xyz", b"content")
+        _make_orchestrator(layout).ingest_inbox()
+        sidecars = list(layout.quarantine.rglob("*.reason.json"))
+        assert len(sidecars) == 1
+        payload = json.loads(sidecars[0].read_text())
+        assert payload["original_filename"] == "bad.xyz"
+        assert "unsupported_format" in payload["reason"]
+        assert "stage" in payload["details"]
+
+
+class TestSchemaGate:
+    def test_extractor_yields_too_little_text_quarantines(self, tmp_path: Path) -> None:
+        layout = init_corpus(tmp_path / "c")
+        _seed_inbox(layout, "thin.pdf", b"non-zero")
+        # Extractor returns near-empty markdown → qc fails.
+        results = _make_orchestrator(layout, text="x").ingest_inbox()
+        assert results[0].status is IngestStatus.QUARANTINED
+        assert results[0].reason is not None
+        assert "extract_yield_too_low" in results[0].reason
+
+    def test_schema_failure_quarantines(self, tmp_path: Path) -> None:
+        layout = init_corpus(tmp_path / "c")
+        _seed_inbox(layout, "headless.pdf", b"non-zero")
+        # Extractor returns markdown with no `# Title` heading → schema fails.
+        body = "Lorem ipsum " * 50
+        results = _make_orchestrator(layout, text=body).ingest_inbox()
+        assert results[0].status is IngestStatus.QUARANTINED
+        assert results[0].reason is not None
+        assert "missing" in results[0].reason
+
+    def test_extractor_crash_marks_failed_not_quarantine(self, tmp_path: Path) -> None:
+        layout = init_corpus(tmp_path / "c")
+        _seed_inbox(layout, "p.pdf", b"non-zero")
+
+        def boom(_path: Path) -> str:
+            raise RuntimeError("OCR died")
+
+        results = IngestOrchestrator(
+            layout, extractor=boom, schema_profile=_AcceptAnyProfile
+        ).ingest_inbox()
+        assert results[0].status is IngestStatus.FAILED
+        assert results[0].reason is not None
+        assert "extract_error" in results[0].reason
+        # File NOT moved; user should retry, not lose it.
+        assert (layout.inbox / "p.pdf").exists()
 
 
 class TestDedup:
     def test_second_run_with_same_file_is_a_noop(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
         _seed_inbox(layout, "p.pdf", b"abc")
-        orchestrator = IngestOrchestrator(layout)
+        orchestrator = _make_orchestrator(layout)
         first = orchestrator.ingest_inbox()
         assert first[0].status is IngestStatus.INGESTED
 
-        # Drop a fresh copy of the same content (different filename even):
         _seed_inbox(layout, "p-copy.pdf", b"abc")
         second = orchestrator.ingest_inbox()
         assert len(second) == 1
@@ -76,10 +166,9 @@ class TestDedup:
     def test_dedup_uses_content_not_filename(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
         _seed_inbox(layout, "first.pdf", b"unique-bytes-1")
-        IngestOrchestrator(layout).ingest_inbox()
-        # Same name, different content; should be a brand-new ingest.
+        _make_orchestrator(layout).ingest_inbox()
         _seed_inbox(layout, "first.pdf", b"unique-bytes-2")
-        results = IngestOrchestrator(layout).ingest_inbox()
+        results = _make_orchestrator(layout).ingest_inbox()
         assert results[0].status is IngestStatus.INGESTED
 
 
@@ -90,7 +179,7 @@ class TestRecursiveWalk:
         (layout.inbox / "bioarxiv").mkdir()
         (layout.inbox / "arxiv" / "a.pdf").write_bytes(b"a")
         (layout.inbox / "bioarxiv" / "b.pdf").write_bytes(b"b")
-        results = IngestOrchestrator(layout).ingest_inbox()
+        results = _make_orchestrator(layout).ingest_inbox()
         assert len(results) == 2
         assert all(r.status is IngestStatus.INGESTED for r in results)
 
@@ -100,7 +189,7 @@ class TestHiddenFilesSkipped:
         layout = init_corpus(tmp_path / "c")
         _seed_inbox(layout, ".gitkeep", b"")
         _seed_inbox(layout, ".DS_Store", b"x")
-        results = IngestOrchestrator(layout).ingest_inbox()
+        results = _make_orchestrator(layout).ingest_inbox()
         assert results == []
 
 
@@ -109,7 +198,7 @@ class TestManifestSideEffects:
         layout = init_corpus(tmp_path / "c")
         _seed_inbox(layout, "good.pdf", b"abc")
         _seed_inbox(layout, "bad.xyz", b"abc")
-        orch = IngestOrchestrator(layout)
+        orch = _make_orchestrator(layout)
         orch.ingest_inbox()
         entries = list(orch.manifest.iter_entries())
         statuses = {e.status for e in entries}
@@ -120,12 +209,10 @@ class TestManifestSideEffects:
 class TestNameCollisionUnderPapers:
     def test_collision_appends_counter(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
-        # A file with the same target name already exists (not from ingest).
         (layout.papers / "p.pdf").write_bytes(b"existing-content")
         _seed_inbox(layout, "p.pdf", b"new-content")
-        results = IngestOrchestrator(layout).ingest_inbox()
+        results = _make_orchestrator(layout).ingest_inbox()
         assert results[0].status is IngestStatus.INGESTED
         assert results[0].destination is not None
         assert results[0].destination.name == "p-1.pdf"
-        # Original file untouched
         assert (layout.papers / "p.pdf").read_bytes() == b"existing-content"
