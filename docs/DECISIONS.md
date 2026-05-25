@@ -95,25 +95,47 @@ reason for the change; the old entry stays for the audit trail.
 
 ## Extraction (Sprint 2)
 
-- **Two extractors, one router.** Digital PDFs and `.txt` / `.md` /
-  `.html` go through Docling (fast, structured layout parsing,
-  RAG-ready output). Scanned PDFs, handwriting, complex tables,
-  math, and multilingual documents go through Chandra-OCR-2 (Datalab,
-  state-of-the-art open-weight OCR via HuggingFace transformers).
+- **Multi-backend orchestrator.** nuthatch routes between Docling
+  (for digital-text PDFs and most scanned papers via EasyOCR) and
+  Chandra-OCR-2 (for difficult scanned source material). Granite-
+  Docling 258M VLM is a GPU-accelerated middle option. SmolDocling
+  256M preview is not recommended (hallucinated `GLYPH` tokens,
+  inconsistent quality).
 - **Routing criteria** (live in `src/nuthatch/ingest/extract.py`):
-  1. Run Docling first.
-  2. If Docling returns empty text, very-low-token output, or fails
-     the schema-validate gate, route to Chandra-OCR-2.
-  3. Explicit override available via per-file `.kg/overrides.yaml`
-     for files known to need OCR up-front.
-- **GPU requirement.** Chandra-OCR-2 needs a CUDA GPU for inference.
-  On hosts without GPU, scanned/complex files quarantine with reason
-  `no_ocr_available`; Docling-extractable files still process.
-- **Licence.** Chandra-OCR-2 ships under OpenRAIL (responsible-AI
-  licence): permits commercial + OSS use, prohibits surveillance /
-  weapons / illegal use. Compatible with nuthatch's Apache 2.0.
-- **Monetisation impact.** None. Both extractors stay in the OSS
-  path. Paid tier remains at the graph-tool / SBM refit step.
+  1. Detect text yield via `pdfminer.six`. Threshold:
+     `_SCANNED_TEXT_YIELD_PER_PAGE = 200.0` chars/page.
+  2. Above threshold: Docling without OCR (digital path).
+  3. Below threshold: route by user preference and host
+     capabilities. Default with GPU + `prefer_max_quality=True`:
+     Chandra-OCR-2. Default with GPU + `prefer_max_quality=False`:
+     Granite-Docling VLM. No GPU: Docling + EasyOCR.
+  4. Explicit override available via per-file `.kg/overrides.yaml`.
+- **Routing recommendation** (evidence in
+  `docs/extraction-benchmarks/ocr-comparison.md`):
+  - **Difficult source material** (handwriting, complex tables,
+    math-heavy, multilingual, sparse-OCR scans, sidecar bundle
+    needed): **Chandra-OCR-2**. Gold standard. ~14× slower than
+    EasyOCR per page; pay the cost when accuracy matters.
+  - **Everything else** (most scanned papers, body-text-heavy):
+    **Docling + EasyOCR**. ~14× faster, ties Chandra on key-facts
+    recovery on this benchmark, no GPU required. **Not for
+    math-heavy papers**: EasyOCR ducks out of equation rendering.
+  - **GPU available, prefer a smaller model**: Granite-Docling
+    258M. Matches Chandra on key facts on the test corpus.
+- **Backend licensing posture.** nuthatch is a routing layer that
+  calls user-installed OCR backends. nuthatch does not redistribute
+  model weights and does not run inference as a service. Backend
+  licences attach to the end user's runtime:
+  - Chandra-OCR-2: OpenRAIL (responsible-AI; permits commercial +
+    OSS use, prohibits surveillance / weapons / illegal use). End
+    user accepts these terms by installing and running Chandra.
+  - Docling + EasyOCR / Granite-Docling / SmolDocling: permissive
+    (MIT / Apache / similar). End user accepts each by installing.
+  Users install backends themselves (`sfw uv add chandra-ocr[hf]`,
+  etc.) and choose their stack. nuthatch stays Apache 2.0
+  regardless of backend choice.
+- **Monetisation impact.** None. All backends stay in the OSS path.
+  Paid tier remains at the graph-tool / SBM refit step.
 
 ## Chunking + embedding (Sprint 3)
 

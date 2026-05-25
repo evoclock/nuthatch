@@ -65,3 +65,4 @@ corpus/**/.kg/
 
 # Build artifacts from ingest pipeline (when those land).
 .nuthatch-cache/
+pipeline_output/

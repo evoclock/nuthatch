@@ -128,37 +128,42 @@ trivial "extracted" payloads (e.g., file size + mtime).
 
 ## Sprint 2: Extract + schema validate
 
-**Goal**: replace the placeholder extraction with real Docling +
-Chandra-OCR-2 adapters; gate ingest on metadata schema; add
-embedding-based semantic dedup with reranker.
+**Goal**: replace the placeholder extraction with real OCR-backend
+routing; gate ingest on metadata schema; add embedding-based
+semantic dedup with reranker.
 
 **Deliverables**
 
-- `src/nuthatch/ingest/extract.py`: Docling adapter (primary, for
-  digital PDFs and `.txt` / `.md` / `.html`); Chandra-OCR-2
-  adapter (Datalab, OpenRAIL-licensed, GPU-required) for scanned
-  PDFs, handwriting, complex tables, math, and multilingual
-  documents. Router decides per file: Docling first, fall back to
-  Chandra-OCR-2 on empty / very-low-token output or schema-gate
-  failure. Pattern from PhD KB's `00_extract_text.py`.
-- `src/nuthatch/dedup/semantic.py`: sentence-transformers
+- [DONE] `src/nuthatch/ingest/extract.py`: routing extractor.
+  Detects scanned vs digital PDFs via pdfminer text-yield
+  (threshold 200 chars/page) and dispatches to one of four
+  backends: Docling (digital), Chandra-OCR-2 (scanned + high
+  quality preferred), Docling+Granite-Docling VLM (scanned + GPU
+  + smaller model preferred), Docling+EasyOCR (scanned + no GPU).
+  Empirical benchmark in
+  `docs/extraction-benchmarks/ocr-comparison.md`.
+- [DONE] `src/nuthatch/dedup/semantic.py`: sentence-transformers
   `BAAI/bge-m3` for bi-encoder similarity; `BAAI/bge-reranker-v2-m3`
   cross-encoder for borderline pairs. Both model IDs configurable
-  via `dedup.embedding_model` and `dedup.reranker` in corpus config.
-  No chat LLM in the dedup path.
-- `src/nuthatch/schema/profile.py`: `SchemaProfile` base class +
-  YAML-config loader.
-- `src/nuthatch/schema/profiles/{arxiv_paper,biorxiv_paper,patent,internal_doc}.py`
- : four built-in profiles. Pattern from
-  `~/project-planning-agent/conventions/kb-reports.md` frontmatter.
-- `src/nuthatch/ingest/metadata.py`: runs Docling extraction
-  through the active `SchemaProfile`; returns
+  via `dedup.embedding_model` and `dedup.reranker` in corpus
+  config. No chat LLM in the dedup path.
+- [DONE] `src/nuthatch/schema/profile.py` + `schema/profiles/*.py`:
+  `SchemaProfile` base + four built-in profiles
+  (`arxiv_paper`, `biorxiv_paper`, `patent`, `internal_doc`).
+  Pattern from `~/project-planning-agent/conventions/kb-reports.md`
+  frontmatter.
+- [PENDING] `src/nuthatch/ingest/metadata.py`: runs the active
+  extractor through the active `SchemaProfile`; returns
   `(extracted_metadata, missing_fields)`. Pattern from PhD KB's
   `01_extract_metadata.py`.
-- `src/nuthatch/ingest/quarantine.py`: moves schema-failed files
-  to `quarantine/<reason>/` with a sidecar `.reason.json`.
-- `src/nuthatch/ingest/qc.py`: coverage check at each pipeline
-  stage. Pattern from PhD KB's `verify_coverage*.py`.
+- [PENDING] `src/nuthatch/ingest/quarantine.py`: moves schema-
+  failed files to `quarantine/<reason>/` with a sidecar
+  `.reason.json`.
+- [PENDING] `src/nuthatch/ingest/qc.py`: coverage check at each
+  pipeline stage. Pattern from PhD KB's `verify_coverage*.py`.
+- [PENDING] Wire extract + schema + dedup into the existing
+  `IngestOrchestrator` (currently uses Sprint 1 placeholder
+  extract).
 
 **Definition of done**
 
