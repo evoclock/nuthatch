@@ -115,7 +115,11 @@ reason for the change; the old entry stays for the audit trail.
   - **Difficult source material** (handwriting, complex tables,
     math-heavy, multilingual, sparse-OCR scans, sidecar bundle
     needed): **Chandra-OCR-2**. Gold standard. ~14× slower than
-    EasyOCR per page; pay the cost when accuracy matters.
+    EasyOCR per page; pay the cost when accuracy matters. The
+    math-recall metric in
+    `docs/extraction-benchmarks/ocr-comparison.md` shows Chandra
+    emits 10× more inline math than Granite-Docling and 180× more
+    than EasyOCR on Wright 1931.
   - **Everything else** (most scanned papers, body-text-heavy):
     **Docling + EasyOCR**. ~14× faster, ties Chandra on key-facts
     recovery on this benchmark, no GPU required. **Not for
