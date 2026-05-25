@@ -39,6 +39,12 @@ from nuthatch.corpus import (
 from nuthatch.ingest import IngestOrchestrator, IngestResult
 from nuthatch.ingest.manifest import IngestStatus, ManifestStore
 from nuthatch.ingest.watch import InboxWatcher
+from nuthatch.token_econ.log import TokenLog
+from nuthatch.token_econ.report import (
+    aggregate,
+    render_markdown_report,
+    summary_as_dict,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -80,6 +86,58 @@ def build_parser() -> argparse.ArgumentParser:
     corpus_sub = corpus_p.add_subparsers(dest="corpus_command", required=True)
     corpus_sub.add_parser("list", help="list registered corpora")
 
+    report_p = subparsers.add_parser(
+        "token-report",
+        help="aggregate the token-economy log into stats + markdown",
+    )
+    _add_corpus_arg(report_p)
+    report_p.add_argument(
+        "--since",
+        type=str,
+        default=None,
+        help="ISO-8601 UTC lower bound (e.g. 2026-05-01 or 2026-05-01T00:00:00Z)",
+    )
+    report_p.add_argument(
+        "--until",
+        type=str,
+        default=None,
+        help="ISO-8601 UTC upper bound (inclusive)",
+    )
+    report_p.add_argument(
+        "--group-by",
+        type=str,
+        choices=("tool", "day", "surface"),
+        default="tool",
+        help="grouping axis for the per-row breakdown",
+    )
+    report_p.add_argument(
+        "--tool",
+        type=str,
+        default=None,
+        help="filter to one tool name",
+    )
+    report_p.add_argument(
+        "--surface-id",
+        type=str,
+        default=None,
+        help="filter to one surface (e.g. 'mcp', 'cli')",
+    )
+    report_p.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help=(
+            "write the markdown report to this path. "
+            "Default: <corpus>/reports/token-economy-<YYYY-MM-DD>.md. "
+            "Pass '-' to print to stdout instead of writing."
+        ),
+    )
+    report_p.add_argument(
+        "--json",
+        action="store_true",
+        help="print the JSON summary to stdout in addition to writing markdown",
+    )
+
     return parser
 
 
@@ -114,6 +172,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_status(args)
     if args.subcommand == "corpus" and args.corpus_command == "list":
         return _cmd_corpus_list()
+    if args.subcommand == "token-report":
+        return _cmd_token_report(args)
 
     parser.print_help()
     return 2
@@ -238,6 +298,47 @@ def _resolve_layout_or_die(args: argparse.Namespace) -> CorpusLayout:
         raise SystemExit(2)
 
     return CorpusLayout(root=candidate.resolve())
+
+
+def _cmd_token_report(args: argparse.Namespace) -> int:
+    import json as _json
+    from datetime import UTC, datetime
+
+    layout = _resolve_layout_or_die(args)
+    log_path = layout.kg / "token_log.jsonl"
+    token_log = TokenLog(log_path)
+    records = list(
+        token_log.iter_records(
+            since=args.since,
+            until=args.until,
+            tool=args.tool,
+            surface_id=args.surface_id,
+        )
+    )
+    summary = aggregate(records, group_by=args.group_by)
+
+    md = render_markdown_report(summary, corpus_name=layout.root.name)
+
+    if args.out is not None and str(args.out) == "-":
+        sys.stdout.write(md)
+    else:
+        out_path = args.out
+        if out_path is None:
+            date_str = datetime.now(UTC).strftime("%Y-%m-%d")
+            out_path = layout.root / "reports" / f"token-economy-{date_str}.md"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(md, encoding="utf-8")
+        print(f"[OK] wrote token-economy report to {out_path}")
+        print(
+            f"     {summary.n_queries} queries; "
+            f"{summary.tokens_served_total:,} served vs "
+            f"{summary.tokens_counterfactual_total:,} counterfactual "
+            f"({summary.pct_saved}% saved)."
+        )
+
+    if args.json:
+        sys.stdout.write(_json.dumps(summary_as_dict(summary), indent=2) + "\n")
+    return 0
 
 
 def _print_results(results: list[IngestResult]) -> None:

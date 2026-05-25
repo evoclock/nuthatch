@@ -47,6 +47,13 @@ from pathlib import Path
 from typing import Any
 
 from nuthatch.corpus.layout import CorpusLayout
+from nuthatch.token_econ.log import TokenLog, TokenRecord
+from nuthatch.token_econ.measure import measure_query
+from nuthatch.token_econ.report import (
+    GroupBy,
+    aggregate,
+    summary_as_dict,
+)
 
 
 class MCPServer:
@@ -181,6 +188,9 @@ class NuthatchMCPServer(MCPServer):
         card_reader: Any = None,
         community_reader: Any = None,
         token_econ_reporter: Any = None,
+        token_log: TokenLog | None = None,
+        counterfactual_tokens: int | None = None,
+        surface_id: str = "mcp",
     ) -> None:
         log_path = layout.kg / "mcp" / "mcp.log"
         super().__init__("nuthatch", log_path=log_path)
@@ -189,7 +199,13 @@ class NuthatchMCPServer(MCPServer):
         self._graph_loader = graph_loader
         self._card_reader = card_reader or _default_card_reader(layout)
         self._community_reader = community_reader or _default_community_reader(layout)
-        self._token_econ_reporter = token_econ_reporter
+        self._token_log = token_log
+        self._counterfactual_tokens = counterfactual_tokens
+        self._surface_id = surface_id
+        # Default reporter reads the bound token_log if no override given.
+        self._token_econ_reporter = token_econ_reporter or (
+            _default_token_econ_reporter(token_log) if token_log is not None else None
+        )
         self.tools = _tool_registry()
 
     def call_tool(
@@ -206,6 +222,35 @@ class NuthatchMCPServer(MCPServer):
         if tool_name == "token_econ_report":
             return self._token_econ_report(arguments)
         return _error(f"unknown tool: {tool_name}")
+
+    def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
+        response = super().handle_request(request)
+        # Instrument only successful tool calls; do not log token_econ_report
+        # itself (its own served bytes are not corpus-derived).
+        if (
+            self._token_log is None
+            or request.get("method") != "tools/call"
+        ):
+            return response
+        params = request.get("params", {}) or {}
+        tool_name = str(params.get("name", ""))
+        if tool_name in ("", "token_econ_report"):
+            return response
+        result = response.get("result") if "result" in response else response
+        if not isinstance(result, dict) or result.get("isError"):
+            return response
+        try:
+            served_text = _extract_text(result)
+            record_dict = measure_query(
+                tool=tool_name,
+                served_text=served_text,
+                counterfactual_tokens=self._counterfactual_tokens,
+                surface_id=self._surface_id,
+            )
+            self._token_log.append(TokenRecord.from_dict(record_dict))
+        except Exception:  # noqa: BLE001
+            self._log.exception("token-econ logging failed for %s", tool_name)
+        return response
 
     # -- tool handlers ----------------------------------------------------
 
@@ -293,7 +338,7 @@ class NuthatchMCPServer(MCPServer):
 
     def _token_econ_report(self, args: dict[str, Any]) -> dict[str, Any]:
         if self._token_econ_reporter is None:
-            return _error("token_econ_reporter not configured (Sprint 7)")
+            return _error("token_econ_reporter not configured (no token_log bound)")
         report = self._token_econ_reporter(args)
         return _text(json.dumps(report, indent=2, default=str))
 
@@ -307,6 +352,41 @@ def _error(message: str) -> dict[str, Any]:
 
 def _text(message: str) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": message}]}
+
+
+def _extract_text(result: dict[str, Any]) -> str:
+    """Concatenate text payloads from an MCP success response."""
+    parts: list[str] = []
+    for item in result.get("content", []) or []:
+        if isinstance(item, dict) and item.get("type") == "text":
+            text_val = item.get("text", "")
+            if isinstance(text_val, str):
+                parts.append(text_val)
+    return "\n".join(parts)
+
+
+def _default_token_econ_reporter(token_log: TokenLog):
+    """Build a reporter closure that aggregates the bound `token_log`."""
+
+    def _report(args: dict[str, Any]) -> dict[str, Any]:
+        since = args.get("since")
+        until = args.get("until")
+        group_by_raw = str(args.get("group_by", "tool"))
+        group_by: GroupBy = (
+            group_by_raw if group_by_raw in ("tool", "day", "surface") else "tool"
+        )  # type: ignore[assignment]
+        tool_filter = args.get("tool")
+        surface_filter = args.get("surface_id")
+        records = token_log.iter_records(
+            since=since,
+            until=until,
+            tool=tool_filter,
+            surface_id=surface_filter,
+        )
+        summary = aggregate(records, group_by=group_by)
+        return summary_as_dict(summary)
+
+    return _report
 
 
 def _default_card_reader(layout: CorpusLayout):
