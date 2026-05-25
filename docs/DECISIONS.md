@@ -1,4 +1,4 @@
-# nuthatch — locked-in decisions
+# nuthatch: locked-in decisions
 
 Choices that should not be relitigated without specific new evidence.
 Decisions worth changing get a new entry below the originals with the
@@ -6,8 +6,7 @@ reason for the change; the old entry stays for the audit trail.
 
 ## Identity
 
-- **Name**: nuthatch (working name as of 2026-05-24, from the bird
-  genus *Sitta* that navigates trees head-first in any direction).
+- **Name**: nuthatch (working name as of 2026-05-24).
 - **Licence**: Apache 2.0 (enterprise-friendly; AGPL excluded
   because some enterprise procurement bans it outright).
 
@@ -28,10 +27,22 @@ reason for the change; the old entry stays for the audit trail.
 - **Auth**: OSS is single-user (filesystem-permissions only). Paid
   tier adds SSO / RBAC / audit logs on top via the same `actor`
   abstraction surfaced at every state-changing call site.
+- **Supported platforms**: macOS (Apple Silicon), Linux (any),
+  Windows (only with a CUDA GPU). Windows CPU-only is unsupported:
+  the Python + ML stack on Windows without GPU acceleration is too
+  slow for the local-inference path and Windows packaging fragility
+  is not worth the maintenance cost.
+- **LLM boundary**. nuthatch never calls LLMs internally. Any
+  LLM work happens at the consuming surface: any process speaking
+  MCP consumes nuthatch's tools. Claude Code Opus 4.7, Codex,
+  Hermes, a user's own local model on a 128 GB workstation are
+  all equivalent from nuthatch's perspective. No special
+  integration required or planned. Semantic dedup uses embedding
+  models, not chat LLMs (see Ingest).
 
 ## Clustering
 
-- **SBM is the principled default**: Peixoto's nested
+- **SBM is the principled default**: Tiago Peixoto's nested
   degree-corrected SBM via `graph-tool` (conda-only; no pure-Python
   reimplementation). Pluggable backend via the `ClusteringBackend`
   protocol in `src/nuthatch/clustering.py`.
@@ -52,7 +63,25 @@ reason for the change; the old entry stays for the audit trail.
 
 - **Hash-based file dedup** at inbox (same paper dropped twice).
 - **Semantic dedup** for papers (preprint vs published, multiple
-  PDF revisions, OCR rebuild of same paper).
+  PDF revisions, OCR rebuild of same paper). Embedding-model
+  cosine similarity via `sentence-transformers`; no chat LLM
+  involved.
+  - *Default embedding model*: `BAAI/bge-m3` (~2 GB, multilingual,
+    state-of-the-art on retrieval benchmarks). Picked as default
+    because paper corpora may have any non-English content and the
+    multilingual coverage is free.
+  - *Configurable*: user overrides `dedup.embedding_model` to any
+    sentence-transformers model. Alternatives worth knowing:
+    `sentence-transformers/all-MiniLM-L6-v2` (~22 MB, CPU,
+    English-leaning) for the lightest path;
+    `intfloat/e5-mistral-7b-instruct` (~7 GB Q4, GPU) for
+    English-only maximum-accuracy paths.
+  - *Reranker* (enabled by default): `dedup.reranker` =
+    `BAAI/bge-reranker-v2-m3` rescores borderline pairs the
+    bi-encoder cosine flags in a "maybe" band. Cross-encoder,
+    multilingual, matches BGE-M3 language coverage. Adds latency
+    only on borderline pairs (the rest pass / fail on cosine
+    alone); accuracy gain on dedup is worth the cost.
 - **Watched directory** for ingest, plus an explicit `nuthatch
   import` command for batch / scripted use.
 - **Manifest file** as authoritative ingest record: `.kg/manifest.jsonl`
@@ -64,8 +93,38 @@ reason for the change; the old entry stays for the audit trail.
   ported from the PhD KB's `kb-reports.md` schema:
   `relevance(t) = max(backlinks, 1) · exp(-ln2 · Δt / half_life)`.
 
+## Extraction (Sprint 2)
+
+- **Two extractors, one router.** Digital PDFs and `.txt` / `.md` /
+  `.html` go through Docling (fast, structured layout parsing,
+  RAG-ready output). Scanned PDFs, handwriting, complex tables,
+  math, and multilingual documents go through Chandra-OCR-2 (Datalab,
+  state-of-the-art open-weight OCR via HuggingFace transformers).
+- **Routing criteria** (live in `src/nuthatch/ingest/extract.py`):
+  1. Run Docling first.
+  2. If Docling returns empty text, very-low-token output, or fails
+     the schema-validate gate, route to Chandra-OCR-2.
+  3. Explicit override available via per-file `.kg/overrides.yaml`
+     for files known to need OCR up-front.
+- **GPU requirement.** Chandra-OCR-2 needs a CUDA GPU for inference.
+  On hosts without GPU, scanned/complex files quarantine with reason
+  `no_ocr_available`; Docling-extractable files still process.
+- **Licence.** Chandra-OCR-2 ships under OpenRAIL (responsible-AI
+  licence): permits commercial + OSS use, prohibits surveillance /
+  weapons / illegal use. Compatible with nuthatch's Apache 2.0.
+- **Monetisation impact.** None. Both extractors stay in the OSS
+  path. Paid tier remains at the graph-tool / SBM refit step.
+
 ## Chunking + embedding (Sprint 3)
 
+- **VectorStore protocol** abstracts the embedding store. ChromaDB
+  is the default (embedded, SQLite-backed, batteries-included
+  with sentence-transformers, local-first). FAISS and Pinecone
+  drop in behind the same protocol when they make sense: FAISS
+  for single-corpus scale beyond ChromaDB's practical limits
+  (~millions of vectors, strict latency); Pinecone for the
+  future hosted-SaaS multi-tenant path. No FAISS or Pinecone
+  install in the OSS default.
 - **Full-document coverage is mandatory**, NOT partial / sampled /
   summary-only. Every byte of text the extractor produces lands in
   at least one chunk. This applies to: abstract, full body
@@ -86,7 +145,13 @@ reason for the change; the old entry stays for the audit trail.
 ## Surfacing
 
 - **MCP stdio server** for agents (`nuthatch serve --corpus <name>`
-  scopes the agent to one corpus).
+  scopes the agent to one corpus). Raw STDIO JSON-RPC handler,
+  no `mcp` SDK dependency; pattern from Hillstar Orchestrator's
+  `mcp-server/minimax_server.py`.
+- **Any MCP-speaking process is a first-class consumer.** Claude
+  Code, Codex, Hermes, an Obsidian plugin, the future Vogelkop UI,
+  and a user-run local LLM script all interact through the same
+  MCP tools. No special integration path for any of them.
 - **Per-paper MD card** (schema-compliant, queryable).
 - **Per-paper HTML companion** (figures, equations, rich content).
 - **Obsidian render** for humans.
@@ -119,6 +184,6 @@ reason for the change; the old entry stays for the audit trail.
 
 ## References
 
-- `docs/SPEC.md` — architecture spine.
-- `~/project-planning-agent/strands/nuthatch.md` — planning history
+- `docs/SPEC.md`: architecture spine.
+- `~/project-planning-agent/strands/nuthatch.md`: planning history
   with full design discussion.

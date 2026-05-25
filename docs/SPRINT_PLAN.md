@@ -1,4 +1,4 @@
-# nuthatch — prospective sprint plan
+# nuthatch: prospective sprint plan
 
 Sprint plan from planning-stage scaffold (`v0.0.1`) to first public
 release candidate (`v0.1.0`). Each sprint is sized roughly 1–2 weeks
@@ -6,11 +6,11 @@ of focused work and delivers something vertically usable.
 
 The plan deliberately leans on existing code from two sources:
 
-- **PhD KB** (`/home/jgamboa/PhD-knowledge-base/`) — production-tested
+- **PhD KB** (`/home/jgamboa/PhD-knowledge-base/`): production-tested
   patterns for an in-house knowledge-base / RAG store.
 - **Graphify** (pip-installed at
   `/home/jgamboa/.pyenv/versions/3.11.8/lib/python3.11/site-packages/graphify/`,
-  source at <https://github.com/safishamsi/graphify>) — patterns
+  source at <https://github.com/safishamsi/graphify>): patterns
   only; **not** a fork. License is MIT so the patterns can be
   re-implemented cleanly.
 
@@ -61,25 +61,25 @@ agent loop can be held accountable to the inventory.
 - Symbol resolution (code-focused).
 - PR / GitHub-integration (code-focused).
 
-## Sprint 0 — Foundations (DONE: in initial scaffold)
+## Sprint 0: Foundations (DONE: in initial scaffold)
 
 **Goal**: planning-stage skeleton + first concrete spec artifact.
 
 **Deliverables (already shipped in `v0.0.1`)**
 
 - README, LICENSE (Apache-2.0), pyproject.toml.
-- `src/nuthatch/clustering.py` — the `ClusteringBackend` protocol
+- `src/nuthatch/clustering.py`: the `ClusteringBackend` protocol
   with `Rigor` and `BackendLocation` enums.
-- `tests/test_clustering.py` — shape tests pinning the protocol.
+- `tests/test_clustering.py`: shape tests pinning the protocol.
 - `docs/SPEC.md`, `docs/DECISIONS.md`.
-- `corpus/{arxiv,bioarxiv}/` — 147 seed PDFs (gitignored).
+- `corpus/{arxiv,bioarxiv}/`: 147 seed PDFs (gitignored).
 - SPDX Apache-2.0 headers on all Python files.
 - CI-ready (uv + ruff + mypy strict + pytest infrastructure pinned
   in pyproject.toml; no `.github/workflows/` yet).
 
 **Status**: complete.
 
-## Sprint 1 — Corpus state machine
+## Sprint 1: Corpus state machine
 
 **Goal**: an unattended ingest pipeline that watches `inbox/`,
 hashes + dedupes incoming files, writes a manifest, and routes
@@ -90,21 +90,21 @@ trivial "extracted" payloads (e.g., file size + mtime).
 
 **Deliverables**
 
-- `src/nuthatch/ingest/watch.py` — filesystem watcher
+- `src/nuthatch/ingest/watch.py`: filesystem watcher
   (`watchdog` or polling fallback). Pattern from Graphify's
   `watch.py`. Emits events to an in-process queue.
-- `src/nuthatch/ingest/dedup.py` — SHA256 hashing + lookup against
+- `src/nuthatch/ingest/dedup.py`: SHA256 hashing + lookup against
   the manifest. Pattern from Graphify's `dedup.py`.
-- `src/nuthatch/ingest/manifest.py` — `.kg/manifest.jsonl` writer +
+- `src/nuthatch/ingest/manifest.py`: `.kg/manifest.jsonl` writer +
   reader. One line per ingest event: `{path, hash, status,
   reason, extractor_version, timestamp_utc}`. Pattern from
   Graphify's `manifest.py`.
-- `src/nuthatch/ingest/state_machine.py` — orchestrator that walks
+- `src/nuthatch/ingest/state_machine.py`: orchestrator that walks
   files through `inbox → identify → hash dedup → (placeholder
   extract) → route(pass/fail) → manifest log`.
-- `src/nuthatch/corpus/registry.py` — `~/.config/nuthatch/registry.toml`
+- `src/nuthatch/corpus/registry.py`: `~/.config/nuthatch/registry.toml`
   reader + writer.
-- `src/nuthatch/corpus/layout.py` — discovers `.kg/` markers,
+- `src/nuthatch/corpus/layout.py`: discovers `.kg/` markers,
   creates the standard subdirs (`inbox/`, `quarantine/`, `papers/`,
   `cards/`, etc.) on `nuthatch init`.
 - CLI subcommand: `nuthatch init <path>`, `nuthatch ingest`,
@@ -126,56 +126,71 @@ trivial "extracted" payloads (e.g., file size + mtime).
   shape (`workflows/incremental_embed.json`).
 - New: registry, corpus layout, state machine, CLI surface.
 
-## Sprint 2 — Extract + schema validate
+## Sprint 2: Extract + schema validate
 
 **Goal**: replace the placeholder extraction with real Docling +
-Chandra-OCR adapters; gate ingest on metadata schema.
+Chandra-OCR-2 adapters; gate ingest on metadata schema; add
+embedding-based semantic dedup with reranker.
 
 **Deliverables**
 
-- `src/nuthatch/ingest/extract.py` — Docling adapter; Chandra-OCR
-  adapter (fallback for scanned PDFs); plain-text passthrough for
-  `.txt` / `.md`. Pattern from PhD KB's `00_extract_text.py`.
-- `src/nuthatch/schema/profile.py` — `SchemaProfile` base class +
+- `src/nuthatch/ingest/extract.py`: Docling adapter (primary, for
+  digital PDFs and `.txt` / `.md` / `.html`); Chandra-OCR-2
+  adapter (Datalab, OpenRAIL-licensed, GPU-required) for scanned
+  PDFs, handwriting, complex tables, math, and multilingual
+  documents. Router decides per file: Docling first, fall back to
+  Chandra-OCR-2 on empty / very-low-token output or schema-gate
+  failure. Pattern from PhD KB's `00_extract_text.py`.
+- `src/nuthatch/dedup/semantic.py`: sentence-transformers
+  `BAAI/bge-m3` for bi-encoder similarity; `BAAI/bge-reranker-v2-m3`
+  cross-encoder for borderline pairs. Both model IDs configurable
+  via `dedup.embedding_model` and `dedup.reranker` in corpus config.
+  No chat LLM in the dedup path.
+- `src/nuthatch/schema/profile.py`: `SchemaProfile` base class +
   YAML-config loader.
 - `src/nuthatch/schema/profiles/{arxiv_paper,biorxiv_paper,patent,internal_doc}.py`
-  — four built-in profiles. Pattern from
+ : four built-in profiles. Pattern from
   `~/project-planning-agent/conventions/kb-reports.md` frontmatter.
-- `src/nuthatch/ingest/metadata.py` — runs Docling extraction
+- `src/nuthatch/ingest/metadata.py`: runs Docling extraction
   through the active `SchemaProfile`; returns
   `(extracted_metadata, missing_fields)`. Pattern from PhD KB's
   `01_extract_metadata.py`.
-- `src/nuthatch/ingest/quarantine.py` — moves schema-failed files
+- `src/nuthatch/ingest/quarantine.py`: moves schema-failed files
   to `quarantine/<reason>/` with a sidecar `.reason.json`.
-- `src/nuthatch/ingest/qc.py` — coverage check at each pipeline
+- `src/nuthatch/ingest/qc.py`: coverage check at each pipeline
   stage. Pattern from PhD KB's `verify_coverage*.py`.
 
 **Definition of done**
 
 - Drop a real arxiv PDF into inbox, see it land in `papers/` with
   a fully-populated metadata sidecar.
-- Drop a low-quality scanned PDF, see it route to Chandra-OCR
+- Drop a low-quality scanned PDF, see it route to Chandra-OCR-2
   fallback (or to quarantine with the missing-field reason).
 - Schema profile is hot-swappable: switching corpus from `arxiv_paper`
   to `internal_doc` changes which fields are required.
+- Drop a near-duplicate revision of an already-ingested paper, see
+  the semantic-dedup pipeline catch it: bi-encoder cosine flags
+  the candidate, reranker confirms, manifest records both scores
+  and the dedup decision.
 
 **Reused / new split**
 
 - Reuse: PhD KB's three-stage extract pattern; Hillstar workflow
   `workflows/ocr_reextract.json` shape.
 - New: `SchemaProfile` abstraction, the four built-in profiles, the
-  quarantine path with sidecar reasons.
+  quarantine path with sidecar reasons, the bi-encoder + reranker
+  semantic-dedup pipeline.
 
-## Sprint 3 — Chunk + embed + per-paper artifacts
+## Sprint 3: Chunk + embed + per-paper artifacts
 
 **Goal**: each ingested paper produces a queryable MD card + an HTML
 companion + chunks in a vector store.
 
 **Deliverables**
 
-- `src/nuthatch/embed/embed.py` — ChromaDB + sentence-transformers
+- `src/nuthatch/embed/embed.py`: ChromaDB + sentence-transformers
   (BGE-large default). Pattern from PhD KB's `embed.py`.
-- `src/nuthatch/embed/chunk.py` — hybrid chunking (semantic +
+- `src/nuthatch/embed/chunk.py`: hybrid chunking (semantic +
   structure-aware: section / paragraph boundaries from Docling).
   **Full-document coverage is mandatory** per `docs/DECISIONS.md`:
   every byte of extracted text lands in at least one chunk
@@ -183,12 +198,12 @@ companion + chunks in a vector store.
   chunks may overlap but the *union* must cover the document. A
   coverage check at the end of each ingest pass asserts this and
   flags missing coverage to `.kg/audit/coverage_misses.jsonl`.
-- `src/nuthatch/render/card.py` — MD card with the canonical
+- `src/nuthatch/render/card.py`: MD card with the canonical
   frontmatter from the schema profile + a short summary section.
   Pattern from PhD KB's `02_assemble_wiki_page.py`.
-- `src/nuthatch/render/html.py` — HTML companion: rich figures +
+- `src/nuthatch/render/html.py`: HTML companion: rich figures +
   equations + reference list. Uses Docling's structured output.
-- `src/nuthatch/retrieve/vector.py` — vector-similarity query
+- `src/nuthatch/retrieve/vector.py`: vector-similarity query
   against the ChromaDB store. The "bridge mode" retrieval path
   that runs without a graph. Pattern from PhD KB's `retrieve.py`.
 
@@ -206,24 +221,24 @@ companion + chunks in a vector store.
 - New: HTML companion render, hybrid-chunking refinement, the
   cards/ + html/ split.
 
-## Sprint 4 — Graph integration
+## Sprint 4: Graph integration
 
 **Goal**: extracted entities + relations land in a NetworkX
 graph that can be serialised + reloaded across runs.
 
 **Deliverables**
 
-- `src/nuthatch/graph/entities.py` — entity extraction from chunks
+- `src/nuthatch/graph/entities.py`: entity extraction from chunks
   (NER via sentence-transformers / spaCy; citation extraction from
   Docling's reference list).
-- `src/nuthatch/graph/edges.py` — edge dataclasses + the
+- `src/nuthatch/graph/edges.py`: edge dataclasses + the
   `EXTRACTED | INFERRED | AMBIGUOUS` confidence label on every edge.
   Pattern from Graphify's edge schema.
-- `src/nuthatch/graph/build.py` — `build_graph(corpus)` ->
+- `src/nuthatch/graph/build.py`: `build_graph(corpus)` ->
   `nx.MultiDiGraph`. Pattern from Graphify's `build.py`.
-- `src/nuthatch/graph/io.py` — graph (de)serialisation to
+- `src/nuthatch/graph/io.py`: graph (de)serialisation to
   `.kg/graph/graph.json`. Round-trippable.
-- `src/nuthatch/graph/decay.py` — relevance decay formula from PhD
+- `src/nuthatch/graph/decay.py`: relevance decay formula from PhD
   KB's kb-reports schema.
 
 **Definition of done**
@@ -240,7 +255,7 @@ graph that can be serialised + reloaded across runs.
 - New: entity extraction layer (Graphify has tree-sitter for code;
   for papers we need NER + citation parser).
 
-## Sprint 5 — Clustering (the principled-default differentiator)
+## Sprint 5: Clustering (the principled-default differentiator)
 
 **Goal**: ship the three clustering backends behind the
 `ClusteringBackend` protocol from Sprint 0. SBM via `graph-tool`
@@ -249,18 +264,18 @@ fallback when neither runs.
 
 **Deliverables**
 
-- `src/nuthatch/clustering/backends/sbm.py` — Peixoto's nested
+- `src/nuthatch/clustering/backends/sbm.py`: Tiago Peixoto's nested
   degree-corrected SBM via `graph-tool`. Conda-only; documented in
   README install section.
-- `src/nuthatch/clustering/backends/leiden.py` — Leiden via
+- `src/nuthatch/clustering/backends/leiden.py`: Leiden via
   `graspologic`. Fallback when SBM unavailable.
-- `src/nuthatch/clustering/backends/embeddings.py` — vector-based
+- `src/nuthatch/clustering/backends/embeddings.py`: vector-based
   cluster (k-means on embeddings) for the bridge mode.
-- `src/nuthatch/clustering/router.py` — picks the highest-rigor
+- `src/nuthatch/clustering/router.py`: picks the highest-rigor
   available backend; surfaces downgrade-notes in the response.
-- `src/nuthatch/clustering/hub_exclusion.py` — port of Graphify's
+- `src/nuthatch/clustering/hub_exclusion.py`: port of Graphify's
   `exclude_hubs_percentile` pattern. Essential.
-- `src/nuthatch/clustering/stable_ids.py` — community ID remapping
+- `src/nuthatch/clustering/stable_ids.py`: community ID remapping
   across refits via greedy overlap match. Pattern from Graphify's
   `remap_communities_to_previous`.
 
@@ -279,21 +294,23 @@ fallback when neither runs.
   ClusteringBackend protocol from Sprint 0.
 - New: the three concrete backend implementations + the router.
 
-## Sprint 6 — Surfaces (Obsidian + MCP)
+## Sprint 6: Surfaces (Obsidian + MCP)
 
-**Goal**: two human / agent surfaces — an Obsidian vault that
+**Goal**: two human / agent surfaces: an Obsidian vault that
 renders the corpus + graph, and an MCP stdio server scoped to a
 corpus for agent integration.
 
 **Deliverables**
 
-- `src/nuthatch/render/obsidian.py` — exports cards + community
+- `src/nuthatch/render/obsidian.py`: exports cards + community
   pages + graph view + Dataview queries. Pattern from PhD KB's
   Obsidian vault layout.
-- `src/nuthatch/mcp/server.py` — MCP stdio server. Tools:
+- `src/nuthatch/mcp/server.py`: MCP stdio server. Tools:
   `corpus_search`, `subgraph_extract`, `card_get`, `community_get`,
-  `token_econ_explain`. Pattern from Graphify's `serve.py`.
-- `nuthatch/AGENTS.md` — agent-facing docs for the MCP surface.
+  `token_econ_report`. Raw STDIO JSON-RPC handler, no `mcp` SDK
+  dependency; pattern from Hillstar Orchestrator's
+  `mcp-server/minimax_server.py` and Graphify's `serve.py`.
+- `nuthatch/AGENTS.md`: agent-facing docs for the MCP surface.
   Pattern from Graphify's AGENTS.md convention.
 - CLI subcommands: `nuthatch obsidian export <corpus>`,
   `nuthatch serve --corpus <name>`.
@@ -311,46 +328,59 @@ corpus for agent integration.
   shape.
 - New: the per-tool implementations + the AGENTS doc.
 
-## Sprint 7 — Token-economy instrumentation
+## Sprint 7: Token-economy instrumentation
 
-**Goal**: every LLM-bound query surfaces actual vs counterfactual
-tokens. The user-facing differentiator.
+**Goal**: every MCP query the surface makes surfaces actual vs
+counterfactual tokens, so users see what the subgraph extraction is
+saving. The user-facing differentiator.
+
+nuthatch never calls an LLM itself; the consuming surface (Claude
+Code / Codex / Hermes / Obsidian plugin / Vogelkop UI) calls its
+own LLM with the subgraph nuthatch served. Instrumentation lives
+at the MCP boundary, not inside an LLM wrapper.
 
 **Deliverables**
 
-- `src/nuthatch/token_econ/wrapper.py` — wraps any LLM call:
-  records `prompt_tokens_actual`, `prompt_tokens_full_corpus`,
-  `completion_tokens`, and the delta. Pattern from Graphify's
-  `benchmark.py` but live, not one-shot.
-- `src/nuthatch/token_econ/dashboard.py` — minimal TUI (Textual)
-  showing per-query rows: timestamp, query, tokens_used,
-  tokens_saved, backend_used.
-- `src/nuthatch/llm/local.py` — Ollama adapter (Jan-Code-4B /
-  Devstral-small-2). Pattern from PhD KB's `ask.py`. Plus a
-  remote-API adapter for OpenAI / Anthropic if configured.
+- `src/nuthatch/token_econ/measure.py`: per-MCP-query measurement.
+  Records `tokens_subgraph` (what the surface actually received),
+  `tokens_full_corpus` (counterfactual), `tool`, `timestamp`,
+  `surface_id`. Uses `tiktoken` cl100k as the universal tokenizer
+  approximation (documented as such; per-model precision is a later
+  extension).
+- `.kg/token_log.jsonl`: append-only per-query log.
+- `src/nuthatch/token_econ/report.py`: aggregates the log into
+  summary stats (per-day, per-tool, per-corpus). Exports markdown
+  to `<corpus>/reports/token-economy-<date>.md` for Obsidian
+  Dataview rendering. JSON-shaped for programmatic consumers.
+- MCP tool `token_econ_report(time_range, group_by)` registered in
+  the Sprint 6 server; returns the same aggregates as JSON.
+- CLI: `nuthatch token-report [--since DATE] [--out PATH]`.
 
 **Definition of done**
 
-- `nuthatch ask "what's the consensus on attention scaling laws?"`
-  returns an answer + a token-savings line ("48 tokens used; 14,200
-  tokens saved vs full corpus").
-- The dashboard logs every query for inspection.
+- After a session of MCP queries, `nuthatch token-report` shows
+  a real reduction: "1,240 tokens served vs 84,200 full-corpus
+  tokens over 18 queries; 98.5% saved."
+- Obsidian renders the markdown report with a Dataview table.
+- The MCP `token_econ_report` tool returns the same data as JSON.
 
 **Reused / new split**
 
-- Reuse: Graphify benchmark pattern; PhD KB Ollama integration.
-- New: live-dashboard widget; multi-provider LLM adapter.
+- Reuse: Graphify's `benchmark.py` measurement pattern (rewritten
+  per-query, not one-shot).
+- New: the JSONL log + aggregation layer + markdown export + MCP
+  tool surface.
 
-## Sprint 8 — Decay + supersession
+## Sprint 8: Decay + supersession
 
-**Goal**: the outbound flow from SPEC.md — relevance decays over
+**Goal**: the outbound flow from SPEC.md: relevance decays over
 time; user-marked supersedes downweight predecessors.
 
 **Deliverables**
 
-- `src/nuthatch/graph/decay_pass.py` — periodic pass recomputes
+- `src/nuthatch/graph/decay_pass.py`: periodic pass recomputes
   relevance; flags low-score / zero-backlink nodes for archive.
-- `src/nuthatch/graph/supersede.py` — `nuthatch supersede <old>
+- `src/nuthatch/graph/supersede.py`: `nuthatch supersede <old>
   --by <new>` adds the supersedes edge + downweights predecessor.
 - CLI: `nuthatch decay run`, `nuthatch supersede`.
 
@@ -366,7 +396,7 @@ time; user-marked supersedes downweight predecessors.
 - Reuse: PhD KB decay formula (already ported in Sprint 4).
 - New: the decay pass orchestrator + the supersede command.
 
-## Sprint 9 — Polish + first release
+## Sprint 9: Polish + first release
 
 **Goal**: ship `v0.1.0` to the public repo with screenshots, docs,
 and CI green on Python 3.11/3.12.
@@ -406,7 +436,7 @@ the queryable surface).
 
 After Sprint 3 there's parallelism:
 
-- Sprint 4 (graph) + Sprint 5 (clustering) chain in series — both
+- Sprint 4 (graph) + Sprint 5 (clustering) chain in series: both
   required for the differentiator story but neither blocks the
   user-facing card / embed surface from Sprint 3.
 - Sprint 6 (surfaces) can start after Sprint 3 (Obsidian works on

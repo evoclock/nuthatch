@@ -58,7 +58,7 @@ class Registry:
     Backed by a TOML file on disk. `load` reads from a path (the
     default is `default_registry_path()`); `save` writes the
     current in-memory state back atomically. `add`, `remove`, and
-    `set_default` mutate the in-memory state — call `save`
+    `set_default` mutate the in-memory state: call `save`
     explicitly to persist.
     """
 

@@ -4,7 +4,7 @@
 """Content-hash deduplication for inbox files.
 
 Two files with the same SHA256 are treated as the same paper even
-if filenames differ — common when the user re-downloads an arxiv
+if filenames differ: common when the user re-downloads an arxiv
 PDF or saves a preprint twice. Semantic dedup (preprint vs published,
 multiple revisions of the same paper) is Sprint 3 work; this module
 only handles the cheap byte-exact case.
@@ -30,7 +30,7 @@ def hash_file(path: Path) -> str:
 
     Streams the file rather than reading it all into memory. Raises
     `FileNotFoundError` if `path` does not exist (callers should
-    handle this — typically by treating the file as gone and
+    handle this: typically by treating the file as gone and
     skipping it).
     """
 

@@ -1,13 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
-"""Clustering backend protocol — the first concrete spec artifact.
+"""Clustering backend protocol; the first concrete spec artifact.
 
 Defines the abstraction that lets nuthatch route a clustering request
 to any of three backend kinds at runtime:
 
 - **principled**: Bayesian Stochastic Block Model via
-  Peixoto's `graph-tool`. The intended default when graph-tool is
+  Tiago Peixoto's `graph-tool`. The intended default when graph-tool is
   installed and the graph is small enough to fit local compute.
 - **heuristic**: Leiden / Louvain via `networkx` or `graspologic`.
   Faster, but inherits the modularity resolution-limit + false-
@@ -23,7 +23,7 @@ on a remote service. The OSS path always supports `local`; remote
 backends (hosted SaaS, managed-on-customer-cloud) ship as separate
 packages that register additional `ClusteringBackend` implementations.
 
-No implementation lives here yet — only the protocol. Implementations
+No implementation lives here yet: only the protocol. Implementations
 land as separate modules once we have an ingested graph to cluster.
 """
 
@@ -58,7 +58,7 @@ class ClusteringRequest:
     """Payload sent to a clustering backend.
 
     Carries the graph snapshot (serialised; backend-agnostic format
-    TBD — likely GraphML or a custom compact form) plus the
+    TBD: likely GraphML or a custom compact form) plus the
     requested rigor and any backend-specific hints.
 
     Concrete shape will harden once the graph schema is settled; for

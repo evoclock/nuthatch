@@ -1,4 +1,4 @@
-# nuthatch — architecture spec
+# nuthatch: architecture spec
 
 Working spec as of the project scaffolding. Settled choices land in
 `DECISIONS.md`; this file describes the architecture they shape.
@@ -8,7 +8,7 @@ Working spec as of the project scaffolding. Settled choices land in
 Knowledge-graph tool over a user-curated corpus of papers and notes.
 Three differentiators in combination (none novel alone):
 
-1. **Stochastic Block Model** clustering (Peixoto, via `graph-tool`)
+1. **Stochastic Block Model** clustering (Tiago Peixoto, via `graph-tool`)
    as the principled default; Leiden / vector fallback when SBM is
    unavailable.
 2. **Strict ingest-time schema gate**: papers whose metadata can't

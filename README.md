@@ -16,7 +16,7 @@ keeps the graph honest with a strict ingest-time metadata schema.
 The differentiating choices, none of which is novel alone but the
 combination of which is under-served:
 
-1. **Stochastic Block Model** (Peixoto's degree-corrected nested SBM
+1. **Stochastic Block Model** (Tiago Peixoto's degree-corrected nested SBM
    via [graph-tool](https://graph-tool.skewed.de/)) as the principled
    default clustering backend. Falls back to Leiden + vector
    similarity when graph-tool is unavailable or the corpus exceeds
@@ -30,13 +30,6 @@ combination of which is under-served:
 3. **Explicit token-economy instrumentation.** Every LLM query
    surfaces actual tokens used vs. the counterfactual full-context
    size, so users see what the subgraph extraction is saving.
-
-## Why "nuthatch"
-
-A small bird (genus *Sitta*) known for navigating tree trunks
-head-first — descending and ascending with equal facility. The image
-fits a graph-traversal tool that walks the nodes of a knowledge
-corpus in whichever direction the query demands.
 
 ## Status / roadmap
 
