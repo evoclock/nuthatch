@@ -107,29 +107,48 @@ and math symbols (Greek letters + LaTeX commands + operators).
 Wright 1931 is the discriminator paper because it is
 equation-heavy throughout.
 
+The raw inline-math count overstates what the Docling backends do
+with math. Many of their `$...$` spans are broken LaTeX fragments
+(`\_{s}`, `^{6}`) where the host variable was dropped by the VLM.
+The classifier in `math_recall.score` separates real equations
+(have an operator or multiple variables) from broken fragments.
+
 **Wright 1931 (63 pages, math-heavy):**
 
-| Tool | Inline math | Block math | Math symbols | Equation recall |
-| --- | --- | --- | --- | --- |
-| **Chandra** | **726** | 72 | **529** | 6/6 |
-| Granite | 70 | 73 | 248 | 6/6 |
-| SmolDocling | 43 | 66 | 222 | 6/6 |
-| **EasyOCR** | **4** | **0** | **0** | **4/6** |
+| Tool | Inline (real) | Inline (broken) | Block math | Math symbols | Equation recall |
+| --- | --- | --- | --- | --- | --- |
+| **Chandra** | **513** | 213 | 72 | **529** | 6/6 |
+| Granite | 12 | 58 | 73 | 248 | 6/6 |
+| SmolDocling | 12 | 31 | 66 | 222 | 6/6 |
+| EasyOCR | 4 | 0 | 0 | 0 | 4/6 |
 
-Chandra emits **10× more inline math than Granite**, **180× more
-than EasyOCR**. EasyOCR has zero math symbols and zero block math:
-that is the "ducks out of decoding formulae" pattern made
-measurable.
+**Chandra dominates real equations 42× over Granite** on Wright. The
+Docling VLMs (Granite and SmolDocling) emit lots of LaTeX-shaped
+spans but the vast majority are mangled subscript/superscript
+fragments with the host variable stripped. Examples from Granite
+Wright: `\_{ab}`, `\_{a}`, `^{6}`, `^{s}` — un-renderable. Chandra's
+spans on the same paper: `[(1-q)a+qA]`, `\Delta q = -uq + v(1-q)`,
+`\Delta q = 0` — full equations the way the original paper laid them
+out.
 
-**MK 1991 and Mendel** show the same direction: Chandra has 8 math
-symbols on MK (all others 0); 141 inline-math spans on Mendel (all
-others 0). Even where the key-facts scores tie, the math
-preservation tells a much sharper story in Chandra's favour.
+**MK 1991:**
 
-This is the metric that confirms Chandra as the gold standard for
-any material with equations, scientific notation, sub/superscripts,
-or formal mathematical content. The key-facts and char-count metrics
-underweighted the gap.
+| Tool | Inline (real) | Inline (broken) | Math symbols |
+| --- | --- | --- | --- |
+| **Chandra** | **16** | 2 | 8 |
+| Granite | 1 | 17 | 0 |
+| EasyOCR | 0 | 0 | 0 |
+| SmolDocling | 0 | 0 | 0 |
+
+Granite's 17 broken fragments on a 3-page paper: `\_{s}`, `\_{t}`,
+`\_{r}`, `\_{b}`. Chandra's 16 real spans include `G=7.43`,
+`P=0.006`, `M_r`, `T_b(\mu/3)M_r`. **Chandra is the only tool that
+actually reads math.**
+
+The metric that matters: real equations per page, on math-bearing
+material. On Wright, Chandra is ~8 real equations per page; Granite
+is 0.2; EasyOCR is 0.06. There is no middle option that closes that
+gap.
 
 ### Output volume (chars)
 

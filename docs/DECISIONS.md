@@ -112,27 +112,34 @@ reason for the change; the old entry stays for the audit trail.
   4. Explicit override available via per-file `.kg/overrides.yaml`.
 - **Routing recommendation** (evidence in
   `docs/extraction-benchmarks/ocr-comparison.md`):
-  - **Default for scientific papers**: **Chandra-OCR-2**. Most
-    research papers contain at least some math, scientific notation,
-    sub/superscripts, or formal tabular data. The math-recall
-    metric shows Chandra emits 10-180× more inline math than the
-    Docling backends on equation-heavy material; on body-text-only
-    papers it still produces the cleanest, most human-readable
-    output with the richest sidecar bundle. Slow (~30 s/page) but
-    the right choice when accuracy matters.
-  - **GPU available, throughput matters, content has math**: fall
-    back to **Granite-Docling 258M**. About 4× faster than Chandra
-    with usable math preservation (10× less than Chandra but still
-    real). The smaller-model option when paying Chandra's wall-clock
-    cost is not viable.
-  - **No GPU, content is plain prose** (no equations, no scientific
-    notation, no tables that matter): **Docling + EasyOCR**.
-    ~14× faster than Chandra; ties on key-facts on plain papers.
-    Skip for anything with equations: EasyOCR emits zero math
-    symbols and zero block math on equation-heavy material.
+  - **Digital-born papers** (modern arXiv / bioRxiv / LaTeX-source
+    PDFs): pdfminer text yield > 200 chars/page → Docling without
+    OCR. Reads embedded text + structure directly, including math
+    typeset as text. No GPU, fast (<1 s/page), full math preserved.
+    The common case for typical modern preprint corpora.
+  - **Scanned papers with math content** (equations, sub/superscripts,
+    formal scientific notation): **Chandra-OCR-2**. The math-recall
+    metric shows Chandra produces 42× more real equations than
+    Granite-Docling on Wright 1931 (513 vs 12). Docling-VLM
+    backends emit mostly broken LaTeX fragments (`\_{s}`, `^{6}`);
+    EasyOCR emits no LaTeX. There is no middle option that closes
+    this gap. Chandra costs ~30 s/page on the test hardware; a
+    100-page paper takes ~55 minutes. Pay the time when math
+    matters.
+  - **Scanned papers with no math** (plain-prose archival material,
+    historical letters, body-text-only old books): **Docling +
+    EasyOCR**. ~14× faster than Chandra, ties on key-facts on
+    plain-prose papers, no GPU. Skip Chandra here; the time cost
+    buys nothing.
+  - **Commercial-publisher PDFs with image-embedded math** (Nature,
+    Cell, Science occasionally embed equations as PNG/SVG in
+    otherwise-digital PDFs): the router currently sends these to
+    Docling-without-OCR because text yield passes the threshold,
+    but the image-only equations are silently lost. Detect-and-
+    escalate to Chandra for these cases is a Sprint 4+ refinement.
   - **Never default**: SmolDocling 256M preview is unrecommended
-    (hallucinated GLYPH tokens, inconsistent quality across paper
-    types).
+    (hallucinated GLYPH tokens, broken LaTeX, inconsistent quality
+    across paper types).
 - **Backend licensing posture.** nuthatch is a routing layer that
   calls user-installed OCR backends. nuthatch does not redistribute
   model weights and does not run inference as a service. Backend

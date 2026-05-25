@@ -100,9 +100,43 @@ def _normalise_for_equations(text: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
+def _classify_inline_math(text: str) -> tuple[int, int]:
+    """Return (real_equations, broken_fragments) inside inline-math spans.
+
+    A real equation has either an operator (`=`, `+`, `-`, `*`, `/`,
+    `^`, `<`, `>`) or contains more than one alphabetic variable. A
+    fragment is something like `\\_{s}`, `^{6}`, or just a stray
+    `\\mu` — common Docling-VLM failure modes where LaTeX subscripts
+    or superscripts get emitted without the host variable.
+    """
+    real = 0
+    broken = 0
+    operator_re = re.compile(r"[=+\-*/^<>≤≥≈]")
+    for m in _INLINE_MATH_RE.finditer(text):
+        span = m.group(1).strip()
+        if not span:
+            broken += 1
+            continue
+        # Bare subscript-only / superscript-only LaTeX: broken.
+        if span.startswith(("\\_", "_{", "^{")) and not operator_re.search(span):
+            broken += 1
+            continue
+        # Has an operator OR multiple distinct variable letters: real.
+        var_chars = re.findall(r"[A-Za-z]", span)
+        if operator_re.search(span) or len(set(var_chars)) >= 2:
+            real += 1
+        else:
+            # Single variable or short fragment: treat as fragment.
+            broken += 1
+    return real, broken
+
+
 def score(text: str, paper: str | None = None) -> dict[str, object]:
+    real, broken = _classify_inline_math(text)
     out: dict[str, object] = {
         "inline_math": _count(_INLINE_MATH_RE, text),
+        "inline_math_real": real,
+        "inline_math_broken": broken,
         "block_math": _count(_BLOCK_MATH_RE, text),
         "math_symbols": _count(_MATH_SYMBOLS_RE, text),
     }
@@ -139,7 +173,11 @@ def main(argv: list[str]) -> int:
         text = Path(path).read_text(encoding="utf-8", errors="replace")
         result = score(text, paper=args.paper)
         print(f"== {path}")
-        print(f"  inline_math:  {result['inline_math']}")
+        print(
+            f"  inline_math:  {result['inline_math']} "
+            f"(real: {result['inline_math_real']}, "
+            f"broken: {result['inline_math_broken']})"
+        )
         print(f"  block_math:   {result['block_math']}")
         print(f"  math_symbols: {result['math_symbols']}")
         if args.paper:
