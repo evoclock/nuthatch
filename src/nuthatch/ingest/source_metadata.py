@@ -244,18 +244,47 @@ def enrich_from_source(
     The orchestrator-facing entrypoint. Returns None when the
     filename doesn't match any known publisher pattern (e.g. the
     user's internal PDFs, hand-titled scans, etc.).
+
+    When the filename DOES match a publisher pattern but the publisher
+    API has nothing (recent preprint not yet indexed, network failure),
+    falls back to a stub `SourceMetadata` carrying only the identifier
+    (`arxiv_id` or `doi`) and the year parseable from the filename.
+    This lets the schema gate accept the identifier requirement on
+    documents whose richer metadata will be filled by body extraction.
     """
     arxiv_id = extract_arxiv_id_from_filename(source_filename)
     if arxiv_id:
-        return fetch_arxiv_metadata(
+        meta = fetch_arxiv_metadata(
             arxiv_id, cache_dir=cache_dir, url_validator=url_validator
         )
+        if meta is not None:
+            return meta
+        return SourceMetadata(arxiv_id=arxiv_id, source="arxiv_filename_fallback")
     biorxiv_doi = extract_biorxiv_doi_from_filename(source_filename)
     if biorxiv_doi:
-        return fetch_biorxiv_metadata(
+        meta = fetch_biorxiv_metadata(
             biorxiv_doi, cache_dir=cache_dir, url_validator=url_validator
         )
+        if meta is not None:
+            return meta
+        year = _year_from_biorxiv_doi(biorxiv_doi)
+        return SourceMetadata(
+            doi=biorxiv_doi,
+            year=year,
+            source="biorxiv_filename_fallback",
+        )
     return None
+
+
+def _year_from_biorxiv_doi(doi: str) -> int | None:
+    """Extract the four-digit year from a bioRxiv DOI tail (`10.1101/YYYY.MM.DD.NNNNNN`)."""
+    m = re.search(r"/(\d{4})\.\d{2}\.\d{2}\.", doi)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
 
 
 # -- parsers --------------------------------------------------------------

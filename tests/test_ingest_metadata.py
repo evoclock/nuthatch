@@ -22,6 +22,49 @@ class TestExtractMetadataHeuristic:
         md = "# A great paper\n\nBody text."
         assert extract_metadata_heuristic(md)["title"] == "A great paper"
 
+    def test_pulls_title_from_h2_docling_style(self) -> None:
+        # Docling emits ## for paper titles, not #. The heuristic must
+        # cope with that or every Docling-converted PDF loses its title.
+        md = "## FORGE: Self-Evolving Agent Memory\n\nBody text."
+        assert (
+            extract_metadata_heuristic(md)["title"]
+            == "FORGE: Self-Evolving Agent Memory"
+        )
+
+    def test_pulls_authors_from_leading_orcid_links(self) -> None:
+        md = (
+            "## My Paper\n\n"
+            "## [Alice Smith](https://orcid.org/0000-0001-2345-6789)\n\n"
+            "alice@example.org University of Foo\n\n"
+            "[Bob Jones](https://orcid.org/0000-0002-3456-7890)\n\n"
+            "## Abstract\n\n"
+            "We did stuff.\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == ["Alice Smith", "Bob Jones"]
+
+    def test_authors_label_still_takes_precedence(self) -> None:
+        # Explicit `Authors:` line wins over the leading-link heuristic
+        # when both are present.
+        md = (
+            "## My Paper\n\n"
+            "Authors: Carol Lin, Dave Park\n\n"
+            "[Bob Jones](https://orcid.org/0000-0002-3456-7890)\n\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == ["Carol Lin", "Dave Park"]
+
+    def test_leading_link_authors_stop_at_abstract(self) -> None:
+        # Links inside the abstract / body must NOT be parsed as authors.
+        md = (
+            "## My Paper\n\n"
+            "[Alice Smith](https://orcid.org/0000-0001-2345-6789)\n\n"
+            "## Abstract\n\n"
+            "See related work by [Eve Watson](https://orcid.org/9999).\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == ["Alice Smith"]
+
     def test_pulls_year(self) -> None:
         md = "Published in 2017 in Nature."
         assert extract_metadata_heuristic(md)["year"] == 2017

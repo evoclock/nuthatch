@@ -43,10 +43,11 @@ from nuthatch.corpus.layout import CorpusLayout
 from nuthatch.ingest.dedup import hash_file
 from nuthatch.ingest.manifest import IngestStatus, ManifestEntry, ManifestStore
 from nuthatch.ingest.metadata import extract_and_validate
+from nuthatch.ingest.profile_routing import select_profile_for_filename
 from nuthatch.ingest.qc import check_extract_yield
 from nuthatch.ingest.quarantine import quarantine_file
 from nuthatch.schema.profile import SchemaProfile
-from nuthatch.schema.profiles import ArxivPaperProfile
+from nuthatch.schema.profiles import ArxivPaperProfile, InternalDocProfile
 
 # Sentinel marking the Sprint 2 default extractor version. Bumped
 # when the routing logic or backend versions change so the manifest
@@ -120,11 +121,23 @@ class IngestOrchestrator:
     Dependency-injection:
     - `extractor`: callable `(Path) -> str` returning markdown.
       Defaults to the real PDF router + plain-text reader.
-    - `schema_profile`: subclass of `SchemaProfile` to validate
-      extracted metadata against. Defaults to `ArxivPaperProfile`.
+    - `schema_profile`: subclass of `SchemaProfile` used as a HARD
+      OVERRIDE. When set, every file in the corpus is validated
+      against this profile regardless of filename pattern. When
+      unset (the default), the orchestrator routes per-file via
+      `select_profile_for_filename`: arxiv preprints validate
+      against `ArxivPaperProfile`, bioRxiv preprints against
+      `BiorxivPaperProfile`, everything else falls back to
+      `InternalDocProfile`.
     """
 
-    __slots__ = ("_extractor", "_layout", "_manifest", "_profile", "_skip_chandra")
+    __slots__ = (
+        "_extractor",
+        "_layout",
+        "_manifest",
+        "_profile_override",
+        "_skip_chandra",
+    )
 
     def __init__(
         self,
@@ -142,7 +155,7 @@ class IngestOrchestrator:
             self._extractor = _make_skip_chandra_extractor()
         else:
             self._extractor = _default_extractor
-        self._profile = schema_profile or ArxivPaperProfile
+        self._profile_override = schema_profile
         self._skip_chandra = skip_chandra
 
     @property
@@ -155,7 +168,19 @@ class IngestOrchestrator:
 
     @property
     def schema_profile(self) -> type[SchemaProfile]:
-        return self._profile
+        """Return the configured override, or `ArxivPaperProfile` as a stable default
+        for back-compat with callers that introspect the profile at construction time.
+
+        Per-file routing happens inside `_iter_processed`; this accessor is
+        for tests and external introspection.
+        """
+        return self._profile_override or ArxivPaperProfile
+
+    def _resolve_profile(self, filename: str) -> type[SchemaProfile]:
+        """Pick the profile to validate `filename` against."""
+        if self._profile_override is not None:
+            return self._profile_override
+        return select_profile_for_filename(filename, fallback=InternalDocProfile)
 
     def ingest_corpus(
         self,
@@ -284,9 +309,10 @@ class IngestOrchestrator:
                 )
                 continue
 
+            profile = self._resolve_profile(source.name)
             extracted, validation = extract_and_validate(
                 markdown,
-                self._profile,
+                profile,
                 source_filename=source.name,
                 metadata_cache_dir=self._layout.kg / "metadata_cache",
             )
@@ -297,7 +323,7 @@ class IngestOrchestrator:
                     reason=validation.reason or "schema_invalid",
                     details={
                         "stage": "schema",
-                        "profile": self._profile.profile_name,
+                        "profile": profile.profile_name,
                         "extracted": extracted,
                         "missing_required": validation.missing_required,
                         "type_mismatches": validation.type_mismatches,

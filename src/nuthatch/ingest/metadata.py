@@ -49,7 +49,11 @@ from typing import Any
 from nuthatch.schema.profile import SchemaProfile, ValidationResult
 
 # Patterns.
-_HEADING_TITLE_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
+# Title: accept #, ##, or ### so we match Docling output (which uses
+# `##` for paper titles, not `#`). Take the FIRST heading at any of
+# those levels. Body of a paper rarely has multiple top headings
+# before the first content section, so this is safe.
+_HEADING_TITLE_RE = re.compile(r"^#{1,3}\s+(.+?)\s*$", re.MULTILINE)
 _TITLE_LABEL_RE = re.compile(r"^\s*Title:\s*(.+?)\s*$", re.MULTILINE)
 _ARXIV_ID_RE = re.compile(
     r"arXiv\s*[:=]?\s*(\d{4}\.\d{4,5}(?:v\d+)?)", re.IGNORECASE
@@ -65,6 +69,24 @@ _AUTHORS_LINE_RE = re.compile(
 _ABSTRACT_HEADING_RE = re.compile(
     r"^#{1,3}\s*Abstract\s*\n+(.+?)(?:\n#{1,3}\s|\Z)",
     re.DOTALL | re.IGNORECASE | re.MULTILINE,
+)
+
+# Author lift from Docling-style author lines: `## [Name](url)` or
+# `[Name](url)` immediately after the title. Filter out obvious non-
+# author URLs (CC licence badges, ORCID images, etc.) by requiring
+# the link target be an orcid.org URL or a mailto:, since author
+# names in scholarly PDFs typically link to one of those.
+_LEADING_MD_LINK_AUTHOR_RE = re.compile(
+    r"^\s*(?:#{1,3}\s+)?\[([^\]\n]+)\]\((?:https?://orcid\.org/|mailto:)[^)]+\)\s*$",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+# Cap how far into the document we scan for the author block. After
+# the Abstract or Introduction heading is reached we stop; author
+# lines never live below that.
+_AUTHOR_SCAN_HEADING_RE = re.compile(
+    r"^#{1,3}\s+(?:Abstract|Introduction|Background|Keywords|Summary)\b",
+    re.MULTILINE | re.IGNORECASE,
 )
 
 # Signature for a metadata extractor; default is the heuristic below.
@@ -87,6 +109,23 @@ def _split_authors(raw: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+def _extract_leading_authors(markdown: str) -> list[str]:
+    """Lift authors from leading `[Name](orcid|mailto:...)` lines.
+
+    Scans from the start of the document down to the first content
+    section heading (Abstract / Introduction / ...) so we only consider
+    the author block. Deduplicates while preserving order.
+    """
+    cutoff = _AUTHOR_SCAN_HEADING_RE.search(markdown)
+    region = markdown[: cutoff.start()] if cutoff else markdown[:5000]
+    seen: dict[str, None] = {}
+    for m in _LEADING_MD_LINK_AUTHOR_RE.finditer(region):
+        name = re.sub(r"\s+", " ", m.group(1)).strip()
+        if name and name not in seen:
+            seen[name] = None
+    return list(seen)
+
+
 def extract_metadata_heuristic(markdown: str) -> dict[str, Any]:
     """Heuristic metadata lift. Best-effort; conservative on false positives.
 
@@ -105,6 +144,10 @@ def extract_metadata_heuristic(markdown: str) -> dict[str, Any]:
     authors_raw = _first_match(_AUTHORS_LINE_RE, markdown)
     if authors_raw:
         out["authors"] = _split_authors(authors_raw)
+    else:
+        leading = _extract_leading_authors(markdown)
+        if leading:
+            out["authors"] = leading
 
     arxiv = _first_match(_ARXIV_ID_RE, markdown)
     if arxiv:
