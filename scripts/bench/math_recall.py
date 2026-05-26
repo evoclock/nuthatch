@@ -22,7 +22,7 @@ Outputs: stdout per file, with three counters and (when `--paper` is
 
     inline_math:     <count>   # `$...$` spans
     block_math:      <count>   # `$$...$$` or fenced math blocks
-    math_symbols:    <count>   # Δ Σ ∫ ≤ ≥ ≈ ∂ ∇ ∞ α β γ ... + LaTeX commands
+    math_symbols:    <count>   # math operators, Greek letters, LaTeX commands
     [ok|miss]  equation: <label>
     ...
     equation_recall: N/M
@@ -78,10 +78,10 @@ EQUATION_CHECKLISTS: dict[str, list[tuple[str, str]]] = {
     ],
     "wright1931": [
         ("rate of loss 1/2N", r"1\s*/\s*2\s*\$?\s*N\s*\$?"),
-        ("selection ratio (1-s):1", r"\(\s*1\s*[-−]\s*s\s*\)\s*:\s*1"),
+        ("selection ratio (1-s):1", r"\(\s*1\s*[-−]\s*s\s*\)\s*:\s*1"),  # noqa: RUF001
         ("change in q (Δq formula)", r"\\Delta\s*q|Δ\s*q"),
         ("gene-array expression with q and A",
-         r"q\s*A|\(\s*1\s*[-−]\s*q\s*\)\s*a"),
+         r"q\s*A|\(\s*1\s*[-−]\s*q\s*\)\s*a"),  # noqa: RUF001
         ("subscript N_m (male population size)", r"N\s*[_]?\s*m\b|N\$?_\{?m\}?"),
         ("squared term q^2 / q\\^2", r"q\s*\^?\s*2|q\^2|q\$\^2"),
     ],

@@ -168,8 +168,10 @@ class TestSemanticDeduperCheck:
         assert scores == sorted(scores, reverse=True)
 
     def test_neighbour_dataclass_immutable(self) -> None:
+        from dataclasses import FrozenInstanceError
+
         n = Neighbour(doc_id="x", cosine=0.5)
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             n.cosine = 0.6  # type: ignore[misc]
 
 

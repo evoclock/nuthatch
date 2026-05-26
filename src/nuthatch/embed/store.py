@@ -74,7 +74,7 @@ class ChromaVectorStore:
     delete-by-doc works as a metadata-filter delete.
     """
 
-    __slots__ = ("_collection", "_collection_name", "_client", "_root")
+    __slots__ = ("_client", "_collection", "_collection_name", "_root")
 
     def __init__(
         self,
@@ -90,7 +90,7 @@ class ChromaVectorStore:
     def _ensure_collection(self) -> Any:
         if self._collection is not None:
             return self._collection
-        import chromadb  # noqa: PLC0415
+        import chromadb
 
         self._root.mkdir(parents=True, exist_ok=True)
         self._client = chromadb.PersistentClient(path=str(self._root))

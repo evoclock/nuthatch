@@ -81,10 +81,7 @@ def aggregate(
         n = len(group_records)
         served = sum(r.tokens_served for r in group_records)
         counter = sum(r.tokens_counterfactual for r in group_records)
-        if served > 0:
-            ratio_avg = round(counter / served, 2)
-        else:
-            ratio_avg = 1.0
+        ratio_avg = round(counter / served, 2) if served > 0 else 1.0
         groups.append(
             GroupRow(
                 key=key,
@@ -191,7 +188,7 @@ def render_markdown_report(
         f"**{summary.tokens_served_total:,} tokens** "
         f"vs **{summary.tokens_counterfactual_total:,} full-corpus tokens** "
         f"= **{summary.pct_saved}% saved** "
-        f"({summary.reduction_ratio_overall}× reduction)."
+        f"({summary.reduction_ratio_overall}x reduction)."
     )
     lines.append("")
     lines.append(f"## Per-{summary.group_by} breakdown")
@@ -201,7 +198,7 @@ def render_markdown_report(
         lines.append("")
     else:
         lines.append(
-            "| key | queries | served | counterfactual | reduction× |"
+            "| key | queries | served | counterfactual | reductionx |"
         )
         lines.append("| --- | ---: | ---: | ---: | ---: |")
         for g in summary.groups:

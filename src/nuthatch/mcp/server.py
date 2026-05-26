@@ -141,7 +141,7 @@ class MCPServer:
                         {"type": "text", "text": f"unknown method: {method}"}
                     ],
                 }
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._log.exception("handler error on %s", method)
             result = {
                 "isError": True,
@@ -261,7 +261,7 @@ class NuthatchMCPServer(MCPServer):
                 surface_id=self._surface_id,
             )
             self._token_log.append(TokenRecord.from_dict(record_dict))
-        except Exception:  # noqa: BLE001
+        except Exception:
             self._log.exception("token-econ logging failed for %s", tool_name)
         return response
 

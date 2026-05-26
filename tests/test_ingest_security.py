@@ -49,7 +49,7 @@ class TestPrivateAddressRejection:
             "nuthatch.ingest.security.socket.getaddrinfo",
             return_value=[(2, 1, 0, "", (addr, 0))],
         ):
-            r = validate_url(f"http://target.example.com/x")
+            r = validate_url("http://target.example.com/x")
             assert not r.allowed
             assert r.reason is not None
             assert "blocked_ip" in r.reason

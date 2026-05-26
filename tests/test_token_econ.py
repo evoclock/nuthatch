@@ -37,7 +37,6 @@ from nuthatch.token_econ.report import (
     summary_as_dict,
 )
 
-
 # -- measure ---------------------------------------------------------------
 
 

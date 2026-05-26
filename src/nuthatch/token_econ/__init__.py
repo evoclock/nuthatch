@@ -23,10 +23,10 @@ from nuthatch.token_econ.report import (
 )
 
 __all__ = [
+    "DEFAULT_ENCODING",
     "BM25Counterfactual",
     "CardTokenIndex",
     "CounterfactualEstimator",
-    "DEFAULT_ENCODING",
     "PerToolEstimator",
     "ReportSummary",
     "TokenLog",

@@ -15,7 +15,7 @@ from nuthatch.retrieve.vector import VectorRetriever
 class _FakeEmbedder:
     """Returns a fixed vector regardless of input."""
 
-    def encode(self, texts):  # noqa: ANN001
+    def encode(self, texts):
         return [[0.5, 0.5, 0.5, 0.5] for _ in texts]
 
 

@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import networkx as nx
-import pytest
 
 from nuthatch.corpus.layout import init_corpus
 from nuthatch.mcp.server import NuthatchMCPServer
@@ -25,7 +24,7 @@ class _FakeHit:
 
 
 class _FakeRetriever:
-    def search(self, query: str, *, k: int = 5):  # noqa: ARG002
+    def search(self, query: str, *, k: int = 5):
         return [
             _FakeHit(
                 chunk_id="paper::p1::chunk_0",

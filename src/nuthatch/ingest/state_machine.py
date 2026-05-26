@@ -68,7 +68,7 @@ def _default_extractor(path: Path) -> str:
     """
     suffix = path.suffix.lower()
     if suffix == ".pdf":
-        from nuthatch.ingest.extract import extract  # noqa: PLC0415
+        from nuthatch.ingest.extract import extract
 
         return extract(path).text
     return path.read_text(encoding="utf-8", errors="replace")
@@ -101,7 +101,7 @@ class IngestOrchestrator:
       extracted metadata against. Defaults to `ArxivPaperProfile`.
     """
 
-    __slots__ = ("_layout", "_manifest", "_extractor", "_profile")
+    __slots__ = ("_extractor", "_layout", "_manifest", "_profile")
 
     def __init__(
         self,

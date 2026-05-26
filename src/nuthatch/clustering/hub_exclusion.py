@@ -59,7 +59,7 @@ def core_nodes(
     }
     sorted_degrees = sorted(degrees.values())
     # Percentile cutoff via linear interpolation rank.
-    rank = int(round((percentile / 100.0) * (len(sorted_degrees) - 1)))
+    rank = round((percentile / 100.0) * (len(sorted_degrees) - 1))
     cutoff = sorted_degrees[rank]
     return [node for node, d in degrees.items() if d >= cutoff]
 

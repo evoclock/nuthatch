@@ -35,7 +35,6 @@ import socket
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-
 _BLOCKED_HOST_LITERAL: frozenset[str] = frozenset(
     {"localhost", "ip6-localhost", "ip6-loopback", "metadata", "metadata.google.internal"}
 )
@@ -59,9 +58,7 @@ def _is_blocked_address(addr: str) -> bool:
     if ip.is_multicast or ip.is_reserved or ip.is_unspecified:
         return True
     # AWS / GCP / Azure metadata service IPs.
-    if str(ip) in {"169.254.169.254", "fd00:ec2::254"}:
-        return True
-    return False
+    return str(ip) in {"169.254.169.254", "fd00:ec2::254"}
 
 
 def validate_url(

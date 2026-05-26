@@ -39,7 +39,7 @@ from nuthatch.clustering.protocol import (
 
 def _import_sklearn() -> Any:
     try:
-        from sklearn.cluster import KMeans  # noqa: PLC0415
+        from sklearn.cluster import KMeans
 
         return KMeans
     except ImportError:
@@ -110,7 +110,7 @@ class EmbeddingsBackend:
         if self.n_clusters is not None:
             return max(1, min(self.n_clusters, n_points))
         # Heuristic: sqrt(n / 2), capped at `max_clusters`, floored at 2.
-        import math  # noqa: PLC0415
+        import math
 
         k = max(2, min(self.max_clusters, int(math.sqrt(max(n_points / 2, 1)))))
         return min(k, n_points)

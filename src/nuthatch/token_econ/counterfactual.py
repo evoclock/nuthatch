@@ -69,7 +69,7 @@ class CounterfactualEstimator(Protocol):
 class CardTokenIndex:
     """Cache `doc_id -> tokens(card markdown)` reads from `<corpus>/cards/`."""
 
-    __slots__ = ("_cards_dir", "_cache")
+    __slots__ = ("_cache", "_cards_dir")
 
     def __init__(self, cards_dir: Path) -> None:
         self._cards_dir = cards_dir
@@ -99,7 +99,7 @@ class BM25Counterfactual:
     default wiring this is `ChromaVectorStore.iter_chunks()`.
     """
 
-    __slots__ = ("_chunks_provider", "_bm25", "_texts", "_built")
+    __slots__ = ("_bm25", "_built", "_chunks_provider", "_texts")
 
     def __init__(
         self,
@@ -114,7 +114,7 @@ class BM25Counterfactual:
         if self._built:
             return
         self._built = True
-        from rank_bm25 import BM25Okapi  # noqa: PLC0415
+        from rank_bm25 import BM25Okapi
 
         texts: list[str] = []
         tokenized: list[list[str]] = []

@@ -46,7 +46,7 @@ from nuthatch.clustering.protocol import (
 
 def _import_graph_tool() -> Any:
     try:
-        import graph_tool.all as gt  # noqa: PLC0415
+        import graph_tool.all as gt
 
         return gt
     except ImportError:

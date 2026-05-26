@@ -77,16 +77,16 @@ class Embedder:
 
     def _ensure(self) -> Any:
         if self._model is None:
-            import logging  # noqa: PLC0415
-            import os  # noqa: PLC0415
-            import warnings  # noqa: PLC0415
+            import logging
+            import os
+            import warnings
 
             os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
             os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
             logging.disable(logging.WARNING)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                from sentence_transformers import SentenceTransformer  # noqa: PLC0415
+                from sentence_transformers import SentenceTransformer
 
                 self._model = SentenceTransformer(self.model_id, device=self.device)
             logging.disable(logging.NOTSET)

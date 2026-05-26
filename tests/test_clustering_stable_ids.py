@@ -32,7 +32,7 @@ class TestRemapToPrevious:
     def test_no_overlap_gets_fresh_id_avoiding_reserved(self) -> None:
         previous = {"a": 0, "b": 1, "c": 2}
         new = {"x": 7, "y": 7}
-        remapped, id_map = remap_to_previous(new, previous)
+        _remapped, id_map = remap_to_previous(new, previous)
         # Fresh ID should not collide with 0, 1, 2.
         assert id_map[7] not in {0, 1, 2}
 
@@ -42,6 +42,6 @@ class TestRemapToPrevious:
         new = {"a": 5, "b": 5, "c": 5, "d": 5, "e": 6, "f": 6}
         # New community 5 (4 members, overlaps old 0) should map to 0;
         # new community 6 (2 members, overlaps old 1) should map to 1.
-        remapped, id_map = remap_to_previous(new, previous)
+        _remapped, id_map = remap_to_previous(new, previous)
         assert id_map[5] == 0
         assert id_map[6] == 1

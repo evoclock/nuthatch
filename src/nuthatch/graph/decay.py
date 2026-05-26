@@ -86,12 +86,9 @@ def apply_decay(
     today = now or date.today()
     for node_id, attrs in g.nodes(data=True):
         touched = _parse_iso_date(attrs.get("last_touched"))
-        if touched is None:
-            # Treat untouched nodes as zero-age so they don't get
-            # silently decayed because the date field was missing.
-            days = 0.0
-        else:
-            days = float((today - touched).days)
+        # Treat untouched nodes as zero-age so they don't get silently
+        # decayed when the date field is missing.
+        days = 0.0 if touched is None else float((today - touched).days)
 
         half_life_raw = attrs.get("half_life_days", default_half_life_days)
         half_life: int | None

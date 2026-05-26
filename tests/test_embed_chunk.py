@@ -9,7 +9,6 @@ import pytest
 
 from nuthatch.embed.chunk import (
     Chunk,
-    CoverageResult,
     check_coverage,
     chunk_text,
 )

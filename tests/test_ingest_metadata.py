@@ -52,12 +52,12 @@ class TestExtractAndValidate:
 
     def test_missing_title_fails(self) -> None:
         md = "No heading here. Year 2024."
-        extracted, validation = extract_and_validate(md, _TitleAndYearProfile)
+        _extracted, validation = extract_and_validate(md, _TitleAndYearProfile)
         assert not validation.passed
         assert "title" in validation.missing_required
 
     def test_missing_year_fails(self) -> None:
         md = "# Headed but no year"
-        extracted, validation = extract_and_validate(md, _TitleAndYearProfile)
+        _extracted, validation = extract_and_validate(md, _TitleAndYearProfile)
         assert not validation.passed
         assert "year" in validation.missing_required

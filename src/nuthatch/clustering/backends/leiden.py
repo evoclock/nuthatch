@@ -38,8 +38,8 @@ from nuthatch.clustering.protocol import (
 
 def _import_or_none() -> tuple[Any, Any]:
     try:
-        import igraph  # noqa: PLC0415
-        import leidenalg  # noqa: PLC0415
+        import igraph
+        import leidenalg
 
         return leidenalg, igraph
     except ImportError:

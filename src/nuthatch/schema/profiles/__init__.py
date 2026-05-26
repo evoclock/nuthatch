@@ -16,9 +16,9 @@ BUILTIN_PROFILES: dict[str, type] = {
 }
 
 __all__ = [
+    "BUILTIN_PROFILES",
     "ArxivPaperProfile",
     "BiorxivPaperProfile",
-    "BUILTIN_PROFILES",
     "InternalDocProfile",
     "PatentProfile",
 ]

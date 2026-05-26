@@ -47,7 +47,7 @@ _CHARS_PER_TOKEN_FALLBACK: int = 4
 
 def _import_tiktoken() -> Any:
     try:
-        import tiktoken  # noqa: PLC0415
+        import tiktoken
 
         return tiktoken
     except ImportError:
@@ -107,10 +107,11 @@ def measure_query(
     if counterfactual_tokens is None:
         counterfactual_tokens = 0
 
-    if served_tokens > 0:
-        reduction_ratio = round(counterfactual_tokens / served_tokens, 2)
-    else:
-        reduction_ratio = 1.0
+    reduction_ratio = (
+        round(counterfactual_tokens / served_tokens, 2)
+        if served_tokens > 0
+        else 1.0
+    )
 
     ts = timestamp or datetime.now(UTC)
     return {

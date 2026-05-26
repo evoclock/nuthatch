@@ -47,6 +47,8 @@ class TestEdge:
         assert attrs["provenance"] == {"paper_node_id": "paper::001"}
 
     def test_immutable(self) -> None:
+        from dataclasses import FrozenInstanceError
+
         e = Edge(source="a", target="b", relation="cites")
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             e.relation = "rewritten"  # type: ignore[misc]

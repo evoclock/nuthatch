@@ -101,7 +101,7 @@ class VectorRetriever:
             noun-phrase queries that dense models underweight.
     """
 
-    __slots__ = ("_store", "_embedder")
+    __slots__ = ("_embedder", "_store")
 
     def __init__(
         self,
