@@ -1,0 +1,116 @@
+# Nuthatch module graph, D2 source.
+# Palette: thermall-power-station; edges colored per source module.
+#
+# Render via:
+#   scripts/ops/render_d2_diagrams.sh
+#
+# Edge-color key (by source module):
+#   apricot   #ee9b69 - cli (operator entry)
+#   rust      #e77843 - ingest    (matches Stage 1 in data lifecycle)
+#   sage      #79c39e - embed     (Stage 2)
+#   cream     #ead1b5 - graph     (Stage 3)
+#   ochre     #c98a4a - clustering (Stage 4)
+#   dim sage  #5a957a - render    (Stage 5) and mcp (agent read surface)
+#   brick     #9a3a25 - decay     (Sprint-8 cross-cutting)
+
+direction: down
+
+style.fill: "#1a1816"
+
+classes: {
+  entry: {
+    shape: rectangle
+    style: {
+      fill: "#5c564f"
+      stroke: "#ee9b69"
+      stroke-width: 4
+      border-radius: 14
+      shadow: true
+      font-color: "#ead1b5"
+      bold: true
+    }
+  }
+  stage: {
+    shape: rectangle
+    style: {
+      fill: "#4a4540"
+      stroke: "#e77843"
+      stroke-width: 3
+      border-radius: 14
+      shadow: true
+      font-color: "#ead1b5"
+      bold: true
+    }
+  }
+  support: {
+    shape: rectangle
+    style: {
+      fill: "#383431"
+      stroke: "#ead1b5"
+      stroke-width: 2
+      border-radius: 14
+      shadow: true
+      font-color: "#ead1b5"
+    }
+  }
+}
+
+cli: "nuthatch.cli\n(operator)" { class: entry }
+mcp: "nuthatch.mcp\n(agent, read-only)" { class: entry }
+
+ingest_m: "ingest" { class: stage }
+embed_m: "embed" { class: stage }
+graph_m: "graph" { class: stage }
+clustering_m: "clustering" { class: stage }
+render_m: "render" { class: stage }
+
+corpus: "corpus" { class: support }
+schema: "schema" { class: support }
+dedup: "dedup" { class: support }
+retrieve: "retrieve\n(BM25 + Chroma + rerank)" { class: support }
+decay: "decay" { class: support }
+token_econ: "token_econ" { class: support }
+
+# CLI fans out to every stage + support module (apricot)
+cli -> ingest_m: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> embed_m: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> graph_m: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> clustering_m: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> render_m: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> decay: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> token_econ: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> corpus: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+
+# Stage 1 (rust)
+ingest_m -> schema: "" { style.stroke: "#e77843"; style.stroke-width: 2 }
+ingest_m -> corpus: "" { style.stroke: "#e77843"; style.stroke-width: 2 }
+ingest_m -> token_econ: "" { style.stroke: "#e77843"; style.stroke-width: 2 }
+
+# Stage 2 (sage)
+embed_m -> corpus: "" { style.stroke: "#79c39e"; style.stroke-width: 2 }
+embed_m -> dedup: "" { style.stroke: "#79c39e"; style.stroke-width: 2 }
+embed_m -> token_econ: "" { style.stroke: "#79c39e"; style.stroke-width: 2 }
+
+# Stage 3 (cream)
+graph_m -> corpus: "" { style.stroke: "#ead1b5"; style.stroke-width: 2 }
+graph_m -> retrieve: "" { style.stroke: "#ead1b5"; style.stroke-width: 2 }
+
+# Stage 4 (ochre)
+clustering_m -> corpus: "" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
+clustering_m -> graph_m: "" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
+
+# Stage 5 (dim sage)
+render_m -> corpus: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+render_m -> clustering_m: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+render_m -> graph_m: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+
+# MCP read surface (dim sage; shares hue with render — both are "read"
+# orchestration from a build perspective, but the entry-class fill
+# distinguishes mcp visually)
+mcp -> retrieve: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+mcp -> corpus: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+mcp -> token_econ: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+
+# Decay (cross-cutting, brick)
+decay -> corpus: "" { style.stroke: "#9a3a25"; style.stroke-width: 2 }
+decay -> token_econ: "" { style.stroke: "#9a3a25"; style.stroke-width: 2 }

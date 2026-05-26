@@ -1,0 +1,219 @@
+# Nuthatch data lifecycle, D2 source.
+# Palette: thermall-power-station with derived shades for distinct
+# outcome categories. Edge colors are per-stage so each pipeline
+# transition has its own hue.
+#
+# Render via:
+#   scripts/ops/render_d2_diagrams.sh
+#
+# Color key:
+#   apricot   #ee9b69 - inputs -> Stage 1
+#   rust      #e77843 - Stage 1 outgoing
+#   sage      #79c39e - Stage 2 outgoing (and: success outcome)
+#   cream     #ead1b5 - Stage 3 outgoing
+#   ochre     #c98a4a - Stage 4 outgoing (and: quarantine outcome)
+#   dim sage  #5a957a - Stage 5 outgoing
+#   brick     #9a3a25 - rejected outcome
+
+direction: down
+
+style.fill: "#1a1816"
+
+classes: {
+  src: {
+    shape: rectangle
+    style: {
+      fill: "#383431"
+      stroke: "#ee9b69"
+      stroke-width: 3
+      border-radius: 14
+      shadow: true
+      font-color: "#ee9b69"
+    }
+  }
+  stage: {
+    shape: rectangle
+    style: {
+      fill: "#4a4540"
+      stroke: "#e77843"
+      stroke-width: 3
+      border-radius: 14
+      shadow: true
+      font-color: "#ead1b5"
+      bold: true
+    }
+  }
+  substep: {
+    shape: rectangle
+    style: {
+      fill: "#383431"
+      stroke: "#e77843"
+      stroke-width: 2
+      border-radius: 10
+      font-color: "#ead1b5"
+    }
+  }
+  artifact: {
+    shape: rectangle
+    style: {
+      fill: "#5c564f"
+      stroke: "#ead1b5"
+      stroke-width: 2
+      border-radius: 14
+      shadow: true
+      font-color: "#ead1b5"
+    }
+  }
+  processed: {
+    shape: rectangle
+    style: {
+      fill: "#1a1816"
+      stroke: "#79c39e"
+      stroke-width: 4
+      border-radius: 14
+      shadow: true
+      font-color: "#79c39e"
+      bold: true
+    }
+  }
+  quarantine: {
+    shape: rectangle
+    style: {
+      fill: "#383431"
+      stroke: "#c98a4a"
+      stroke-width: 3
+      border-radius: 14
+      shadow: true
+      font-color: "#c98a4a"
+      bold: true
+    }
+  }
+  rejected: {
+    shape: rectangle
+    style: {
+      fill: "#2a1d17"
+      stroke: "#9a3a25"
+      stroke-width: 3
+      border-radius: 14
+      shadow: true
+      font-color: "#d68c70"
+      bold: true
+    }
+  }
+}
+
+sources: "Source files (any user layout)" {
+  style: {
+    fill: "#1a1816"
+    stroke: "#5c564f"
+    font-color: "#ee9b69"
+    border-radius: 8
+  }
+
+  arxiv: "inputs/arxiv/" { class: src }
+  bioarxiv: "inputs/bioarxiv/" { class: src }
+  bench: "inputs/benchmark_test/" { class: src }
+  inbox: "inputs/inbox/" { class: src }
+}
+
+ingest: "Stage 1\ningest\n(Docling / Chandra / EasyOCR)" { class: stage }
+
+embed: "Stage 2\nembed" {
+  class: stage
+  style: {
+    fill: "#4a4540"
+    stroke: "#e77843"
+    stroke-width: 3
+    border-radius: 14
+    shadow: true
+    font-color: "#ead1b5"
+    bold: true
+  }
+
+  chunker: "chunker\n(hybrid; full-doc coverage)" { class: substep }
+  bge: "BGE-M3 embed" { class: substep }
+  dedup: "semantic dedup" { class: substep }
+  chroma: "Chroma store" { class: substep }
+
+  chunker -> bge -> dedup -> chroma
+}
+
+graph: "Stage 3\ngraph\n(NetworkX build, persisted)" { class: stage }
+
+cluster: "Stage 4\ncluster" {
+  class: stage
+  style: {
+    fill: "#4a4540"
+    stroke: "#e77843"
+    stroke-width: 3
+    border-radius: 14
+    shadow: true
+    font-color: "#ead1b5"
+    bold: true
+  }
+
+  router: "router" { class: substep }
+  sbm: "SBM\n(graph-tool, primary)" { class: substep }
+  leiden: "Leiden\n(leidenalg, fallback)" { class: substep }
+  hub: "hub exclusion +\nstable cluster IDs" { class: substep }
+
+  router -> sbm: "if graph-tool present"
+  router -> leiden: "fallback"
+  sbm -> hub
+  leiden -> hub
+}
+
+render: "Stage 5\nrender\n(cards, HTML, exports)" { class: stage }
+
+processed: "processed/\n<original_subdir>/" { class: processed }
+quarantine: "quarantine/\n<reason>/" { class: quarantine }
+rejected: "rejected/\n<reason>/" { class: rejected }
+
+extracted: ".kg/extracted/\nmarkdown + meta" { class: artifact }
+embeddings: ".kg/embeddings/\nChroma persistent" { class: artifact }
+graphdir: "graph/\nnodes + edges" { class: artifact }
+communities: "communities/\nblock ids" { class: artifact }
+cards: "cards/" { class: artifact }
+html_out: "html/" { class: artifact }
+exports: "exports/" { class: artifact }
+mathretry: ".kg/math_retry.jsonl\n(deferred Chandra patch)" { class: artifact }
+
+# Inputs -> Stage 1 (apricot)
+sources.arxiv -> ingest: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+sources.bioarxiv -> ingest: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+sources.bench -> ingest: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+sources.inbox -> ingest: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+
+# Stage 1 outgoing (rust for pipeline forward + artifacts; outcome-colored for processed/quarantine)
+ingest -> processed: "success" { style.stroke: "#79c39e"; style.stroke-width: 3 }
+ingest -> quarantine: "schema / qc fail" { style.stroke: "#c98a4a"; style.stroke-width: 3 }
+ingest -> mathretry: "math-heavy" { style.stroke: "#e77843"; style.stroke-width: 2 }
+ingest -> extracted: "markdown" { style.stroke: "#e77843"; style.stroke-width: 2 }
+
+# Quarantine transitions (dashed, colored by destination)
+quarantine -> processed: "fixed" { style.stroke: "#79c39e"; style.stroke-dash: 4; style.stroke-width: 2 }
+quarantine -> rejected: "declared unfixable" { style.stroke: "#9a3a25"; style.stroke-dash: 4; style.stroke-width: 2 }
+
+# Stage 1 -> Stage 2 (rust, continues stage-1 outgoing)
+extracted -> embed: "" { style.stroke: "#e77843"; style.stroke-width: 3 }
+
+# Stage 2 outgoing (sage)
+embed.chroma -> embeddings: "" { style.stroke: "#79c39e"; style.stroke-width: 2 }
+embeddings -> graph: "" { style.stroke: "#79c39e"; style.stroke-width: 3 }
+
+# Stage 3 outgoing (cream)
+graph -> graphdir: "" { style.stroke: "#ead1b5"; style.stroke-width: 2 }
+graphdir -> cluster: "" { style.stroke: "#ead1b5"; style.stroke-width: 3 }
+
+# Stage 4 outgoing (ochre)
+cluster.hub -> communities: "" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
+communities -> render: "" { style.stroke: "#c98a4a"; style.stroke-width: 3 }
+
+# Cross-stage shortcuts into render
+graphdir -> render: "" { style.stroke: "#ead1b5"; style.stroke-width: 2 }
+extracted -> render: "" { style.stroke: "#e77843"; style.stroke-width: 2 }
+
+# Stage 5 outgoing (dim sage)
+render -> cards: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+render -> html_out: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+render -> exports: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }

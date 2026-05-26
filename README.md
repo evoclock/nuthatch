@@ -18,10 +18,22 @@ Aider, Pi, Hermes, an Obsidian plugin, or your own client). The
 agent queries the graph through five read-only MCP tools; the
 operator drives the build pipeline through a five-stage CLI.
 
+The rendered corpus opens as an Obsidian-compatible vault: per-paper
+cards live under `cards/`, per-community pages under `communities/`,
+with `dashboard.md` / `index.md` / `log.md` at the top. Wikilinks
+between cards drive Obsidian's graph view; Dataview queries in the
+dashboard filter by tag / year / community.
+
 The architecture is documented in
 [`docs/Design_Decisions.md`](docs/Design_Decisions.md) and the
-operator workflow in [`docs/HOWTO.md`](docs/HOWTO.md). A flow
-diagram of the pipeline will be added later.
+operator workflow in [`docs/HOWTO.md`](docs/HOWTO.md). The diagram
+below is the data lifecycle; the corresponding module graph and the
+full architecture set are at
+[`docs/architecture/`](docs/architecture/).
+
+<p align="center">
+  <img src="docs/architecture/nuthatch_data_lifecycle.svg" alt="Nuthatch data lifecycle" width="720">
+</p>
 
 ## Why it exists
 
