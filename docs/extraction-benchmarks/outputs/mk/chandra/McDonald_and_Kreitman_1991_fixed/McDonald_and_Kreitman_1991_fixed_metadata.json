@@ -1,0 +1,45 @@
+{
+  "file_name": "McDonald_and_Kreitman_1991_fixed.pdf",
+  "num_pages": 3,
+  "total_token_count": 18936,
+  "total_chunks": 42,
+  "total_images": 0,
+  "pages": [
+    {
+      "page_num": 0,
+      "page_box": [
+        0,
+        0,
+        1648,
+        2208
+      ],
+      "token_count": 3322,
+      "num_chunks": 23,
+      "num_images": 0
+    },
+    {
+      "page_num": 1,
+      "page_box": [
+        0,
+        0,
+        1648,
+        2208
+      ],
+      "token_count": 12384,
+      "num_chunks": 3,
+      "num_images": 0
+    },
+    {
+      "page_num": 2,
+      "page_box": [
+        0,
+        0,
+        1648,
+        2206
+      ],
+      "token_count": 3230,
+      "num_chunks": 16,
+      "num_images": 0
+    }
+  ]
+}
