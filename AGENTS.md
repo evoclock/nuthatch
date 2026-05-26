@@ -53,6 +53,7 @@ A corpus carries these on-disk directories under its root:
   navigation surface for humans.
 
 Node-id conventions for `subgraph_extract`:
+
 - Documents: `doc::<doc_id>` (papers, patents, internal docs, notes all share this prefix)
 - Authors: `author::<slug>`
 - Citations: `citation::<surname>_<year>` or `citation::doi_<slug>`

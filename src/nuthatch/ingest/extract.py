@@ -109,6 +109,7 @@ def pick_strategy(
     *,
     has_gpu: bool,
     prefer_max_quality: bool = True,
+    skip_chandra: bool = False,
 ) -> ExtractionStrategy:
     """Decide which backend handles the file.
 
@@ -116,10 +117,16 @@ def pick_strategy(
     to Chandra-OCR-2 when GPU is present and maximum quality is the
     priority, to Granite-Docling when GPU is present but a smaller
     model is preferred, and to Docling+EasyOCR on CPU-only hosts.
+
+    `skip_chandra=True` removes Chandra from the candidate set entirely.
+    Used by `nuthatch ingest --skip-chandra` to bypass slow OCR for a
+    fast first pass; math-heavy papers whose Docling output has broken
+    LaTeX are flagged for a later batch-Chandra patch via
+    `<corpus>/.kg/math_retry.jsonl` (see `IngestOrchestrator`).
     """
     if chars_per_page >= _SCANNED_TEXT_YIELD_PER_PAGE:
         return ExtractionStrategy.DIGITAL_DOCLING
-    if has_gpu and prefer_max_quality:
+    if has_gpu and prefer_max_quality and not skip_chandra:
         return ExtractionStrategy.SCANNED_CHANDRA
     if has_gpu:
         return ExtractionStrategy.SCANNED_GRANITE
@@ -188,6 +195,7 @@ def extract(
     *,
     strategy: ExtractionStrategy | None = None,
     prefer_max_quality: bool = True,
+    skip_chandra: bool = False,
 ) -> ExtractResult:
     """Extract text from a PDF, auto-routing when `strategy` is None."""
     chars_per_page, n_pages = detect_text_yield(pdf_path)
@@ -196,6 +204,7 @@ def extract(
             chars_per_page,
             has_gpu=has_cuda(),
             prefer_max_quality=prefer_max_quality,
+            skip_chandra=skip_chandra,
         )
 
     t0 = time.perf_counter()

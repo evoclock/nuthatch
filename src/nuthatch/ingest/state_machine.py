@@ -77,6 +77,26 @@ def _default_extractor(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
+def _make_skip_chandra_extractor() -> Extractor:
+    """Default extractor variant that forces non-Chandra routing.
+
+    Used by `IngestOrchestrator(skip_chandra=True)`. Math-heavy
+    papers will have broken `$...$` spans which the orchestrator
+    captures into `<corpus>/.kg/math_retry.jsonl` for the
+    post-Thursday batch-Chandra patching pass.
+    """
+
+    def _extract(path: Path) -> str:
+        suffix = path.suffix.lower()
+        if suffix == ".pdf":
+            from nuthatch.ingest.extract import extract
+
+            return extract(path, skip_chandra=True).text
+        return path.read_text(encoding="utf-8", errors="replace")
+
+    return _extract
+
+
 @dataclass(slots=True, frozen=True)
 class IngestResult:
     """Per-file outcome of an `ingest_inbox` run."""
@@ -104,7 +124,7 @@ class IngestOrchestrator:
       extracted metadata against. Defaults to `ArxivPaperProfile`.
     """
 
-    __slots__ = ("_extractor", "_layout", "_manifest", "_profile")
+    __slots__ = ("_extractor", "_layout", "_manifest", "_profile", "_skip_chandra")
 
     def __init__(
         self,
@@ -112,11 +132,18 @@ class IngestOrchestrator:
         *,
         extractor: Extractor | None = None,
         schema_profile: type[SchemaProfile] | None = None,
+        skip_chandra: bool = False,
     ) -> None:
         self._layout = layout
         self._manifest = ManifestStore(layout.manifest_path)
-        self._extractor = extractor or _default_extractor
+        if extractor is not None:
+            self._extractor = extractor
+        elif skip_chandra:
+            self._extractor = _make_skip_chandra_extractor()
+        else:
+            self._extractor = _default_extractor
         self._profile = schema_profile or ArxivPaperProfile
+        self._skip_chandra = skip_chandra
 
     @property
     def layout(self) -> CorpusLayout:
@@ -130,7 +157,11 @@ class IngestOrchestrator:
     def schema_profile(self) -> type[SchemaProfile]:
         return self._profile
 
-    def ingest_corpus(self) -> list[IngestResult]:
+    def ingest_corpus(
+        self,
+        *,
+        on_progress: Callable[[int, int, IngestResult], None] | None = None,
+    ) -> list[IngestResult]:
         """Process every source file anywhere in the corpus tree.
 
         Walks `<corpus>/` recursively, skipping the
@@ -142,20 +173,37 @@ class IngestOrchestrator:
 
         Lesson from PhD KB: corpora are not flat. Forcing
         `<corpus>/inbox/*.pdf` would lose the user's organisation.
-        """
 
+        `on_progress(index, total, result)` is called after each file
+        is processed (index is 1-based; total is the count of files
+        the scan found). Used by the CLI to print per-file progress
+        so the operator sees what's happening on a 100+-file run.
+        """
+        results: list[IngestResult] = []
+        all_sources = self._gather_source_files()
+        total = len(all_sources)
+        for i, result in enumerate(self._iter_processed(all_sources), start=1):
+            results.append(result)
+            if on_progress is not None:
+                on_progress(i, total, result)
+        return results
+
+    def _gather_source_files(self) -> list[Path]:
+        """Return the sorted list of files the orchestrator will process."""
         if not self._layout.root.is_dir():
             return []
+        return self._iter_source_files()
 
+    def _iter_processed(self, all_sources: list[Path]):
+        """Yield an `IngestResult` per source, in scan order."""
         known = self._manifest.known_hashes()
-        results: list[IngestResult] = []
 
-        for source in self._iter_source_files():
+        for source in all_sources:
             try:
                 file_hash = hash_file(source)
             except OSError as exc:
                 _LOG.warning("Could not read %s: %s", source, exc)
-                results.append(
+                yield (
                     self._fail(
                         source,
                         file_hash="",
@@ -167,7 +215,7 @@ class IngestOrchestrator:
                 continue
 
             if file_hash in known:
-                results.append(
+                yield (
                     self._record_and_result(
                         source=source,
                         file_hash=file_hash,
@@ -188,7 +236,7 @@ class IngestOrchestrator:
                     reason=preflight_reason or "preflight_failed",
                     details={"stage": "preflight"},
                 )
-                results.append(
+                yield (
                     self._record_and_result(
                         source=source,
                         file_hash=file_hash,
@@ -206,7 +254,7 @@ class IngestOrchestrator:
                 markdown = self._extractor(source)
             except Exception as exc:
                 _LOG.exception("Extractor crashed on %s", source)
-                results.append(
+                yield (
                     self._fail(
                         source,
                         file_hash=file_hash,
@@ -225,7 +273,7 @@ class IngestOrchestrator:
                     reason=qc.reason or "extract_yield_failed",
                     details={"stage": "qc", "qc": qc.details},
                 )
-                results.append(
+                yield (
                     self._record_and_result(
                         source=source,
                         file_hash=file_hash,
@@ -250,7 +298,7 @@ class IngestOrchestrator:
                         "type_mismatches": validation.type_mismatches,
                     },
                 )
-                results.append(
+                yield (
                     self._record_and_result(
                         source=source,
                         file_hash=file_hash,
@@ -274,7 +322,15 @@ class IngestOrchestrator:
                 markdown=markdown,
                 metadata=extracted,
             )
-            results.append(
+            # When --skip-chandra is on, Docling handles every PDF
+            # (including math-heavy ones). Docling's math output for
+            # those is typically broken LaTeX fragments. Validate and
+            # flag for a later batch-Chandra patch pass.
+            if self._skip_chandra:
+                self._maybe_flag_math_retry(
+                    doc_id=doc_id, source_filename=source.name, markdown=markdown
+                )
+            yield (
                 self._record_and_result(
                     source=source,
                     file_hash=file_hash,
@@ -284,8 +340,6 @@ class IngestOrchestrator:
                 )
             )
             known.add(file_hash)
-
-        return results
 
     def _fail(
         self,
@@ -345,6 +399,41 @@ class IngestOrchestrator:
         same thing now.
         """
         return self.ingest_corpus()
+
+    def _maybe_flag_math_retry(
+        self, *, doc_id: str, source_filename: str, markdown: str
+    ) -> None:
+        """Append a JSONL line to `.kg/math_retry.jsonl` if Docling's
+        math output is broken enough to warrant a later Chandra retry.
+
+        Called only when `skip_chandra=True`. The retry log is the
+        input for the post-Thursday batch-Chandra patching pass (see
+        `docs/DECISIONS.md` § Execution model and the strand doc
+        post-Thursday section).
+        """
+        from nuthatch.ingest.math_validator import validate_math
+
+        result = validate_math(markdown)
+        if not result.needs_retry:
+            return
+        retry_path = self._layout.kg / "math_retry.jsonl"
+        retry_path.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "doc_id": doc_id,
+            "source_filename": source_filename,
+            "broken_count": result.broken_count,
+            "real_count": result.real_count,
+            "broken_ratio": round(result.broken_ratio, 3),
+            "broken_spans_sample": result.broken_spans,
+            "extracted_md_path": str(
+                (self._layout.extracted_dir / f"{doc_id}.md").relative_to(
+                    self._layout.root
+                )
+            ),
+            "deferred_at": datetime.now(UTC).isoformat(),
+        }
+        with retry_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry, default=str) + "\n")
 
     def _persist_extracted(
         self,

@@ -21,6 +21,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+codebase_inventory.jsonl
 
 # Virtual envs
 .venv/
@@ -67,3 +68,6 @@ inputs/**/.kg/
 .nuthatch-cache/
 pipeline_output/
 HANDOVER.md
+DECISIONS.md
+SPRINT_PLAN.md
+OPERATIONS.md

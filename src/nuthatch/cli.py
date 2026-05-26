@@ -78,6 +78,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     ingest_p = subparsers.add_parser("ingest", help="one-shot: process inbox/")
     _add_corpus_arg(ingest_p)
+    ingest_p.add_argument(
+        "--skip-chandra",
+        action="store_true",
+        help=(
+            "bypass Chandra-OCR routing entirely; route every PDF through "
+            "Docling (with EasyOCR fallback for genuinely-scanned PDFs). "
+            "Math-heavy docs whose Docling output has broken LaTeX spans "
+            "are flagged in <corpus>/.kg/math_retry.jsonl for a later "
+            "batch-Chandra patch pass. Use when you want a fast first ingest "
+            "and will patch math separately."
+        ),
+    )
 
     watch_p = subparsers.add_parser("watch", help="long-running: ingest on FS events")
     _add_corpus_arg(watch_p)
@@ -296,8 +308,48 @@ def _cmd_init(args: argparse.Namespace) -> int:
 
 def _cmd_ingest(args: argparse.Namespace) -> int:
     layout = _resolve_layout_or_die(args)
-    orchestrator = IngestOrchestrator(layout)
-    results = orchestrator.ingest_inbox()
+    skip_chandra = bool(getattr(args, "skip_chandra", False))
+    orchestrator = IngestOrchestrator(layout, skip_chandra=skip_chandra)
+    if skip_chandra:
+        print(
+            "[ingest] --skip-chandra: Chandra disabled. Math-heavy docs "
+            "will be flagged in <corpus>/.kg/math_retry.jsonl for later "
+            "batch-Chandra patching.",
+            flush=True,
+        )
+
+    # Show the operator something IMMEDIATELY, before paying the
+    # extractor import cost (Docling + torch can take 30s-2min to
+    # load on first run). Without this the log is silent for ages
+    # and looks hung.
+    print(f"[ingest] corpus root: {layout.root}", flush=True)
+    sources = orchestrator._gather_source_files()
+    print(
+        f"[ingest] scanned {len(sources)} file(s) under the corpus root "
+        "(reserved dirs skipped)",
+        flush=True,
+    )
+    if not sources:
+        print("[ingest] nothing to do.", flush=True)
+        return 0
+    print(
+        "[ingest] loading extractor (Docling first-run model load can "
+        "take 30s-2min; subsequent files are fast)...",
+        flush=True,
+    )
+
+    def _on_progress(i: int, total: int, result: IngestResult) -> None:
+        # Per-file line so a 100+-file run shows live progress, not
+        # a silent wait followed by a single summary.
+        reason_suffix = f" ({result.reason})" if result.reason else ""
+        print(
+            f"[{i:>4}/{total}] {result.status.value:<11} "
+            f"{result.source_filename}{reason_suffix}",
+            flush=True,
+        )
+
+    results = orchestrator.ingest_corpus(on_progress=_on_progress)
+    print("---", flush=True)
     _print_results(results)
     return 0
 
