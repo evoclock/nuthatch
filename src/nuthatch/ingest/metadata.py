@@ -136,14 +136,47 @@ def extract_and_validate(
     profile: type[SchemaProfile],
     *,
     extractor: MetadataExtractor | None = None,
+    source_filename: str | None = None,
+    metadata_cache_dir: Any = None,
 ) -> tuple[dict[str, Any], ValidationResult]:
     """Run an extractor + profile validation in one call.
 
     `extractor` defaults to `extract_metadata_heuristic`. A plugin
     extractor (LLM-driven, per the PhD KB pattern) can be passed
     when the corpus opts into richer metadata.
+
+    When `source_filename` is provided and looks like an arxiv or
+    bioRxiv preprint filename, the publisher's API is consulted FIRST
+    for authoritative title / authors / abstract / year / doi /
+    arxiv_id. Body-text heuristic extraction fills any gaps the
+    publisher metadata didn't cover. This preserves PDF body text
+    as the source of truth for the corpus content while using the
+    publisher record (which IS the canonical source for paper
+    metadata) for fields the PDF body would only give us via brittle
+    heuristics.
+
+    Source-metadata fetches are cached under `metadata_cache_dir`
+    (typically `<corpus>/.kg/metadata_cache/`) so re-ingest is a
+    free local file read.
     """
     extract = extractor or extract_metadata_heuristic
-    extracted = extract(markdown)
-    result = profile.validate(extracted)
-    return extracted, result
+    body_extracted = extract(markdown)
+
+    source_extracted: dict[str, Any] = {}
+    if source_filename is not None:
+        from nuthatch.ingest.source_metadata import enrich_from_source
+
+        source_meta = enrich_from_source(
+            source_filename, cache_dir=metadata_cache_dir
+        )
+        if source_meta is not None:
+            source_extracted = source_meta.to_dict()
+
+    # Source-metadata takes precedence on overlapping fields: the
+    # publisher record is authoritative for title / authors / etc.,
+    # the body is authoritative for everything else (key claims,
+    # topics, methods narrative).
+    merged: dict[str, Any] = {**body_extracted, **source_extracted}
+
+    result = profile.validate(merged)
+    return merged, result

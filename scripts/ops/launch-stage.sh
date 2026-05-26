@@ -53,22 +53,81 @@ echo "     log:          $LOG"
 echo "     attach:       tmux attach -t $SESSION  (Ctrl-b d to detach)"
 
 # Pop a graphical terminal showing the live log so the operator
-# doesn't have to ssh in or hunt down the log path. Best-effort:
-# requires a graphical session (DISPLAY set) and gnome-terminal
-# (or x-terminal-emulator) installed.
-if [ -n "${DISPLAY:-}" ]; then
-    TERM_TITLE="nuthatch $STAGE live log ($CORPUS)"
-    if command -v gnome-terminal >/dev/null; then
-        gnome-terminal --title="$TERM_TITLE" \
-            -- bash -c "tail -f '$LOG'" >/dev/null 2>&1 &
-        echo "[OK] launched gnome-terminal window with live log"
-    elif command -v x-terminal-emulator >/dev/null; then
-        x-terminal-emulator -T "$TERM_TITLE" \
-            -e "tail -f '$LOG'" >/dev/null 2>&1 &
-        echo "[OK] launched x-terminal-emulator window with live log"
-    else
-        echo "[INFO] no graphical terminal found; run 'tail -f $LOG' yourself"
-    fi
-else
-    echo "[INFO] no DISPLAY; run 'tail -f $LOG' yourself or 'tmux attach -t $SESSION'"
+# doesn't have to ssh in or hunt down the log path. Cross-platform
+# best-effort: macOS via osascript, Linux via gnome-terminal /
+# x-terminal-emulator / xterm, Windows via wt.exe / cmd. Falls back
+# to a print-the-command line when no graphical terminal is
+# detectable so headless / SSH / WSL operators still know what to
+# run by hand.
+TERM_TITLE="nuthatch $STAGE live log ($CORPUS)"
+TAIL_CMD="tail -f '$LOG'"
+
+launched_terminal=0
+case "$(uname -s)" in
+    Darwin)
+        # macOS: prefer iTerm2 if open, fall back to Terminal.app.
+        # AppleScript handles quoting; we pass the tail command in.
+        if command -v osascript >/dev/null; then
+            if osascript -e 'tell application "System Events" to (name of processes) contains "iTerm2"' 2>/dev/null | grep -q true; then
+                osascript -e "tell application \"iTerm2\" to create window with default profile command \"$TAIL_CMD\"" >/dev/null 2>&1 \
+                    && { echo "[OK] launched iTerm2 window with live log"; launched_terminal=1; }
+            fi
+            if [ "$launched_terminal" -eq 0 ]; then
+                osascript -e "tell application \"Terminal\" to do script \"$TAIL_CMD\"" >/dev/null 2>&1 \
+                    && { echo "[OK] launched Terminal.app window with live log"; launched_terminal=1; }
+            fi
+        fi
+        ;;
+    Linux)
+        # Linux: walk a preference list of common terminal emulators.
+        if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+            for term_bin in gnome-terminal pop-terminal-emulator konsole \
+                            kitty alacritty foot terminator x-terminal-emulator xterm; do
+                if command -v "$term_bin" >/dev/null; then
+                    case "$term_bin" in
+                        gnome-terminal|pop-terminal-emulator)
+                            "$term_bin" --title="$TERM_TITLE" -- bash -c "$TAIL_CMD" >/dev/null 2>&1 &
+                            ;;
+                        konsole)
+                            "$term_bin" -p "tabtitle=$TERM_TITLE" -e bash -c "$TAIL_CMD" >/dev/null 2>&1 &
+                            ;;
+                        kitty|alacritty|foot)
+                            "$term_bin" -T "$TERM_TITLE" -e bash -c "$TAIL_CMD" >/dev/null 2>&1 &
+                            ;;
+                        terminator)
+                            "$term_bin" -T "$TERM_TITLE" -x bash -c "$TAIL_CMD" >/dev/null 2>&1 &
+                            ;;
+                        x-terminal-emulator|xterm)
+                            "$term_bin" -T "$TERM_TITLE" -e "$TAIL_CMD" >/dev/null 2>&1 &
+                            ;;
+                    esac
+                    echo "[OK] launched $term_bin window with live log"
+                    launched_terminal=1
+                    break
+                fi
+            done
+        fi
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        # Windows (Git Bash / MSYS / Cygwin). wt.exe (Windows
+        # Terminal) is the modern path; fall back to start cmd.
+        # This branch is untested by the maintainers; patches welcome.
+        if command -v wt.exe >/dev/null; then
+            wt.exe new-tab --title "$TERM_TITLE" bash -c "$TAIL_CMD" >/dev/null 2>&1 &
+            echo "[OK] launched Windows Terminal tab with live log"
+            launched_terminal=1
+        elif command -v cmd.exe >/dev/null; then
+            cmd.exe /c start "" "bash" -c "$TAIL_CMD" >/dev/null 2>&1 &
+            echo "[OK] launched cmd-spawned bash with live log"
+            launched_terminal=1
+        fi
+        ;;
+esac
+
+if [ "$launched_terminal" -eq 0 ]; then
+    echo "[INFO] no graphical terminal detected on this OS / session."
+    echo "       Run this in your own terminal to follow the log:"
+    echo "         tail -f $LOG"
+    echo "       Or attach the tmux session:"
+    echo "         tmux attach -t $SESSION   (Ctrl-b d to detach)"
 fi

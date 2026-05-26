@@ -284,7 +284,12 @@ class IngestOrchestrator:
                 )
                 continue
 
-            extracted, validation = extract_and_validate(markdown, self._profile)
+            extracted, validation = extract_and_validate(
+                markdown,
+                self._profile,
+                source_filename=source.name,
+                metadata_cache_dir=self._layout.kg / "metadata_cache",
+            )
             if not validation.passed:
                 dest = quarantine_file(
                     source,
