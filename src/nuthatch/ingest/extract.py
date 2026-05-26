@@ -133,6 +133,39 @@ def pick_strategy(
     return ExtractionStrategy.SCANNED_EASYOCR
 
 
+def _docling_accelerator():
+    """Return Docling `AcceleratorOptions` matching the host.
+
+    Default: `AUTO`, which lets Docling pick the best device it
+    detects (CUDA on Nvidia, MPS on Apple Silicon, XPU on Intel,
+    CPU as fallback). Power-users override via the environment
+    variable `NUTHATCH_ACCELERATOR=auto|cpu|cuda|mps|xpu`.
+
+    Docling's layout and table-structure models are small (<500 MB)
+    so VRAM pressure is negligible even alongside other GPU work,
+    making AUTO safe to ship as default.
+    """
+    import logging
+    import os
+
+    from docling.datamodel.pipeline_options import (
+        AcceleratorDevice,
+        AcceleratorOptions,
+    )
+
+    raw = os.environ.get("NUTHATCH_ACCELERATOR", "auto").strip().lower()
+    try:
+        device = AcceleratorDevice(raw)
+    except ValueError:
+        logging.getLogger(__name__).warning(
+            "NUTHATCH_ACCELERATOR=%r is not a valid Docling accelerator "
+            "(expected one of: auto, cpu, cuda, mps, xpu); falling back to auto.",
+            raw,
+        )
+        device = AcceleratorDevice.AUTO
+    return AcceleratorOptions(device=device)
+
+
 def _extract_docling(pdf_path: Path, *, do_ocr: bool) -> str:
     """Docling extraction; OCR off for digital, EasyOCR for scanned."""
     from docling.datamodel.base_models import InputFormat
@@ -142,10 +175,15 @@ def _extract_docling(pdf_path: Path, *, do_ocr: bool) -> str:
     )
     from docling.document_converter import DocumentConverter, PdfFormatOption
 
+    accel = _docling_accelerator()
     if do_ocr:
-        pipe = PdfPipelineOptions(ocr_options=EasyOcrOptions(lang=["en"]), do_ocr=True)
+        pipe = PdfPipelineOptions(
+            ocr_options=EasyOcrOptions(lang=["en"]),
+            do_ocr=True,
+            accelerator_options=accel,
+        )
     else:
-        pipe = PdfPipelineOptions(do_ocr=False)
+        pipe = PdfPipelineOptions(do_ocr=False, accelerator_options=accel)
     conv = DocumentConverter(
         format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipe)}
     )
@@ -159,7 +197,10 @@ def _extract_granite(pdf_path: Path) -> str:
     from docling.document_converter import DocumentConverter, PdfFormatOption
     from docling.pipeline.vlm_pipeline import VlmPipeline
 
-    vlm_opts = VlmPipelineOptions(vlm_options=vlm_model_specs.GRANITEDOCLING_TRANSFORMERS)
+    vlm_opts = VlmPipelineOptions(
+        vlm_options=vlm_model_specs.GRANITEDOCLING_TRANSFORMERS,
+        accelerator_options=_docling_accelerator(),
+    )
     conv = DocumentConverter(
         format_options={
             InputFormat.PDF: PdfFormatOption(

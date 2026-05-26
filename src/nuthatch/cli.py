@@ -90,6 +90,19 @@ def build_parser() -> argparse.ArgumentParser:
             "and will patch math separately."
         ),
     )
+    ingest_p.add_argument(
+        "--accelerator",
+        choices=("auto", "cpu", "cuda", "mps", "xpu"),
+        default=None,
+        help=(
+            "device for Docling layout / table-structure / OCR models. "
+            "Default `auto` lets Docling pick (CUDA on Nvidia, MPS on Apple "
+            "Silicon, XPU on Intel, CPU as fallback). Override with `cuda` / "
+            "`mps` / `cpu` to force. Equivalent to setting "
+            "NUTHATCH_ACCELERATOR in the environment; this flag wins when both "
+            "are set."
+        ),
+    )
 
     watch_p = subparsers.add_parser("watch", help="long-running: ingest on FS events")
     _add_corpus_arg(watch_p)
@@ -307,6 +320,17 @@ def _cmd_init(args: argparse.Namespace) -> int:
 
 
 def _cmd_ingest(args: argparse.Namespace) -> int:
+    # Accelerator must be set BEFORE any extractor / Docling import so
+    # the layout / OCR models load onto the requested device. The CLI
+    # flag wins over an inherited NUTHATCH_ACCELERATOR env value so
+    # operators can override per-run without unsetting the env.
+    import os
+    accel = getattr(args, "accelerator", None)
+    if accel:
+        os.environ["NUTHATCH_ACCELERATOR"] = accel
+    effective_accel = os.environ.get("NUTHATCH_ACCELERATOR", "auto")
+    print(f"[ingest] accelerator: {effective_accel}", flush=True)
+
     layout = _resolve_layout_or_die(args)
     skip_chandra = bool(getattr(args, "skip_chandra", False))
     orchestrator = IngestOrchestrator(layout, skip_chandra=skip_chandra)

@@ -158,12 +158,16 @@ managed subdirs):
 ## Stage 1: ingest
 
 Extracts text from each source file, validates against the active
-`SchemaProfile`, moves successful files to `<corpus>/papers/`,
-writes the extracted markdown + metadata sidecar to
+`SchemaProfile`, moves successful files to
+`<corpus>/processed/<original_subdir>/` (source provenance
+preserved), writes the extracted markdown + metadata sidecar to
 `<corpus>/.kg/extracted/<doc_id>.md` and `<doc_id>.meta.json`.
 Files that fail extraction, QC, or schema validation are moved to
 `<corpus>/quarantine/<reason>/` with a per-file `.reason.json`
-sidecar.
+sidecar that records the file's original subdir so a fix-pass can
+route it back to `processed/<original_subdir>/` after the issue
+is resolved. Quarantine is a transient state; the only legal exits
+are `processed/` (fixed) or `rejected/` (declared unfixable).
 
 ```bash
 scripts/ops/launch-stage.sh ingest my-corpus
@@ -182,6 +186,36 @@ is forward-compatible).
 scripts/ops/launch-stage.sh ingest my-corpus --skip-chandra
 ```
 
+### `--accelerator` for GPU / Apple Silicon
+
+Docling's layout / table-structure / OCR models run on whatever
+device you point them at. Default is `auto`, which lets Docling
+detect the best available (CUDA on Nvidia, MPS on Apple Silicon,
+XPU on Intel, CPU as fallback). Override per-run via the flag:
+
+```bash
+# Force CUDA (Nvidia GPU)
+scripts/ops/launch-stage.sh ingest my-corpus --skip-chandra --accelerator cuda
+
+# Apple Silicon (M1 / M2 / M3 / M4)
+scripts/ops/launch-stage.sh ingest my-corpus --skip-chandra --accelerator mps
+
+# Force CPU even when a GPU is present
+scripts/ops/launch-stage.sh ingest my-corpus --skip-chandra --accelerator cpu
+```
+
+Or set persistently in the environment:
+
+```bash
+export NUTHATCH_ACCELERATOR=cuda
+scripts/ops/launch-stage.sh ingest my-corpus --skip-chandra
+```
+
+The CLI flag wins when both are set. Speedup on the digital-PDF
+path (Docling layout + table-structure) is roughly 5-7x on a
+mid-range CUDA GPU vs. CPU; VRAM use is under 500 MB per worker,
+so this is safe to run alongside other GPU work.
+
 ### Inspect ingest results
 
 ```bash
@@ -189,9 +223,9 @@ scripts/ops/launch-stage.sh ingest my-corpus --skip-chandra
 nuthatch status --corpus my-corpus
 
 # Counts at each stage of the funnel:
-ls ~/my-corpus/papers/                  | wc -l   # ingested + schema-passed
-ls ~/my-corpus/.kg/extracted/*.md       | wc -l   # extracted markdown
-ls ~/my-corpus/quarantine/              | wc -l   # quarantine-reason subdirs
+find ~/my-corpus/processed -name '*.pdf' | wc -l   # ingested + schema-passed
+ls ~/my-corpus/.kg/extracted/*.md        | wc -l   # extracted markdown
+ls ~/my-corpus/quarantine/               | wc -l   # quarantine-reason subdirs
 
 # Per-reason quarantine inspection:
 ls ~/my-corpus/quarantine/<reason>/
@@ -213,7 +247,7 @@ it back to the corpus tree and re-run ingest.
 
 ### When ingest looks acceptable
 
-- The vast majority of files in `papers/`, not `quarantine/`
+- The vast majority of files in `processed/<subdir>/`, not `quarantine/`
 - Quarantine reasons are explainable (specific corrupt files,
   not a systematic class)
 - The per-file progress in the log shows the expected mix of
