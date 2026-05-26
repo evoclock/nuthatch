@@ -112,6 +112,108 @@ class TestExtractMetadataHeuristic:
         # (which is empty here).
         assert "authors" not in out
 
+    def test_title_skips_section_heading_when_picking_first_h2(self) -> None:
+        # Docling sometimes emits the Abstract section heading BEFORE
+        # the real title heading. A naive "first heading wins" rule
+        # would pick "Abstract" as the title; the section-name filter
+        # must reject it.
+        md = (
+            "## Abstract\n\n"
+            "Random text that looks like an abstract block but isn't.\n\n"
+            "## Robust Random Forests for Genomic Prediction\n\n"
+            "Vanda M. Lourenco, Joseph O. Ogutu, Hans-Peter Piepho\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["title"] == "Robust Random Forests for Genomic Prediction"
+
+    def test_title_skips_abstract_with_trailing_digits(self) -> None:
+        # Real-world case: `## Abstract 10` from a numbered-line PDF
+        # got picked as the title. The section-name filter strips
+        # trailing digits / punctuation before matching.
+        md = (
+            "## Abstract 10\n\n"
+            "boilerplate\n\n"
+            "## Actual Paper Title Goes Here\n\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["title"] == "Actual Paper Title Goes Here"
+
+    def test_csv_authors_with_embedded_affiliation_digits(self) -> None:
+        # Docling output: `Ilia Buralkin1,2,3 , Hu Chen2,3 , ...`
+        # The stripped form (digits + asterisks removed) should parse
+        # as four authors. Without this fix, the line failed to match
+        # because affiliation markers aren't part of name tokens.
+        md = (
+            "## scDeepVariant\n\n"
+            "Ilia Buralkin1,2,3 , Hu Chen2,3 , Zhandong Liu2,3,* , and Junseok Park2,3,*\n\n"
+            "## Abstract\n\n"
+            "We introduce scDeepVariant...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == [
+            "Ilia Buralkin",
+            "Hu Chen",
+            "Zhandong Liu",
+            "Junseok Park",
+        ]
+
+    def test_csv_authors_with_daggers(self) -> None:
+        # Dagger + space + digit pattern: `Name† 1 , Name† 1 , and Name1`
+        md = (
+            "## Inferring Gene Presence\n\n"
+            "John S.A. Mattick" + chr(0x2020) + " 1 , Wesley C. DeMontigny"
+            + chr(0x2020) + " 1 , and Charles F. Delwiche1\n\n"
+            "## Abstract\n\n"
+            "Increasing access...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == [
+            "John S.A. Mattick",
+            "Wesley C. DeMontigny",
+            "Charles F. Delwiche",
+        ]
+
+    def test_abstract_fallback_first_long_paragraph_no_heading(self) -> None:
+        # bioRxiv preprints often render the abstract as a paragraph
+        # WITHOUT a `## Abstract` heading. The fallback picks the
+        # first long prose paragraph in the post-title region.
+        long_para = (
+            "Increasing access to genomic data has revolutionized our "
+            "understanding of biology. Organisms that were previously "
+            "unculturable or otherwise difficult to study have been "
+            "investigated using metagenomic sequencing and bioinformatic "
+            "assemblies, illuminating biological diversity that was "
+            "previously invisible. However, as the availability of "
+            "genomic data has grown, so has the challenge posed by "
+            "incomplete genomes."
+        )
+        md = f"## A Paper Title\n\nAuthors etc.\n\n{long_para}\n"
+        out = extract_metadata_heuristic(md)
+        assert out["abstract"].startswith("Increasing access to genomic data")
+
+    def test_abstract_fallback_skips_bioarxiv_watermark(self) -> None:
+        # The first paragraph in a Docling-converted bioRxiv PDF is
+        # often the license watermark. The fallback must skip it and
+        # pick the next long paragraph.
+        watermark = (
+            "bioRxiv preprint doi: https://doi.org/10.1101/2026.01.01.123456; "
+            "this version posted Jan 2, 2026. The copyright holder for "
+            "this preprint (which was not certified by peer review) is "
+            "the author/funder. All rights reserved. No reuse allowed "
+            "without permission."
+        )
+        real_abstract = (
+            "We present a new method for solving the protein folding "
+            "problem using a deep learning architecture trained on the "
+            "Protein Data Bank. Our approach outperforms existing methods "
+            "by 12% on the CASP benchmark, with particularly strong "
+            "improvements on disordered regions and protein-protein "
+            "interactions."
+        )
+        md = f"{watermark}\n\n## A Paper Title\n\nAlice, Bob, Carol\n\n{real_abstract}\n"
+        out = extract_metadata_heuristic(md)
+        assert out["abstract"].startswith("We present a new method")
+
     def test_pulls_year(self) -> None:
         md = "Published in 2017 in Nature."
         assert extract_metadata_heuristic(md)["year"] == 2017

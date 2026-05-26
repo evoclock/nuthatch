@@ -51,10 +51,28 @@ from nuthatch.schema.profile import SchemaProfile, ValidationResult
 # Patterns.
 # Title: accept #, ##, or ### so we match Docling output (which uses
 # `##` for paper titles, not `#`). Take the FIRST heading at any of
-# those levels. Body of a paper rarely has multiple top headings
-# before the first content section, so this is safe.
+# those levels that ISN'T a section name (Abstract / Introduction /
+# Methods / ...). Body of a paper sometimes has the Abstract heading
+# appear before the actual title heading on the rendered page (or the
+# title is plain text with no heading at all), so we have to filter
+# out section names rather than just taking the first match.
 _HEADING_TITLE_RE = re.compile(r"^#{1,3}\s+(.+?)\s*$", re.MULTILINE)
 _TITLE_LABEL_RE = re.compile(r"^\s*Title:\s*(.+?)\s*$", re.MULTILINE)
+
+# Headings that are section names, not paper titles. Anything starting
+# with one of these (after stripping trailing digits / punctuation /
+# colons) is rejected as a title candidate. Real titles are rarely a
+# single word matching one of these.
+_SECTION_HEADING_NAMES: frozenset[str] = frozenset({
+    "abstract", "introduction", "background", "summary", "overview",
+    "methods", "method", "materials and methods", "materials",
+    "results", "discussion", "conclusion", "conclusions",
+    "references", "bibliography", "acknowledgements", "acknowledgments",
+    "supplementary", "appendix", "data availability",
+    "author contributions", "funding", "conflict of interest",
+    "ethics statement", "ethics declaration", "keywords",
+    "main", "main text", "results and discussion",
+})
 _ARXIV_ID_RE = re.compile(
     r"arXiv\s*[:=]?\s*(\d{4}\.\d{4,5}(?:v\d+)?)", re.IGNORECASE
 )
@@ -69,6 +87,24 @@ _AUTHORS_LINE_RE = re.compile(
 _ABSTRACT_HEADING_RE = re.compile(
     r"^#{1,3}\s*Abstract\s*\n+(.+?)(?:\n#{1,3}\s|\Z)",
     re.DOTALL | re.IGNORECASE | re.MULTILINE,
+)
+
+# bioRxiv-style papers often render the abstract as the first long
+# paragraph after authors+affiliations with NO heading at all. When
+# `_ABSTRACT_HEADING_RE` misses, this fallback picks up such a block:
+# the first paragraph >= 250 chars that does NOT look like an
+# author/affiliation line (no email, no digit prefix, no all-caps run).
+_LONG_PARAGRAPH_MIN_CHARS: int = 250
+
+# Affiliation markers that get glued to author surnames in Docling
+# output: digits, asterisks (regular + operator), daggers, double
+# daggers, section, pilcrow, plus parenthesised affiliation groups.
+# Stripped from candidate author lines before applying the CSV regex,
+# so `Buralkin1,2,3` becomes `Buralkin` and the multi-author line can
+# be parsed.
+_AFFIL_MARKER_RE = re.compile(
+    r"[\d" + chr(0x2217) + chr(0x2020) + chr(0x2021)
+    + r"\*" + chr(0x00A7) + chr(0x00B6) + r"]+|\([^)]+\)"
 )
 
 # Author lift from Docling-style author lines: `## [Name](url)` or
@@ -96,10 +132,11 @@ _AUTHOR_SCAN_HEADING_RE = re.compile(
 #   (c) `[Name](orcid|mailto:url)` — handled by _LEADING_MD_LINK_AUTHOR_RE
 #
 # A "name token" must have lowercase characters following the leading
-# capital (e.g. `Jueun`), or be a single capital + period (e.g. `J.`).
-# This excludes all-caps acronyms (KAIST, MIT, ACM) so the multi-token
-# match stops at the first affiliation word.
-_NAME_TOKEN = r"[A-Z](?:\.|[a-z][\w'.-]*)"
+# capital (e.g. `Jueun`), OR be one or more capital-letter initials
+# joined by periods (e.g. `J.` or `S.A.` or `S.A.B.`). This excludes
+# all-caps acronyms (KAIST, MIT, ACM) so the multi-token match stops
+# at the first affiliation word.
+_NAME_TOKEN = r"[A-Z](?:(?:\.[A-Z])*\.|[a-z][\w'.-]*)"
 _NAME = rf"{_NAME_TOKEN}(?:\s+{_NAME_TOKEN}){{0,3}}"
 
 # Author-footnote markers Docling emits next to names. Built from
@@ -155,6 +192,101 @@ def _split_authors(raw: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+def _looks_like_section_heading(heading: str) -> bool:
+    """True when a heading is a known section name, not a paper title.
+
+    Strips trailing digits, punctuation, and colons so `Abstract 10:`,
+    `Methods (a)`, and `Introduction.` all match the canonical names
+    in `_SECTION_HEADING_NAMES`. A real paper title rarely reduces to
+    one of those tokens.
+    """
+    if not heading:
+        return False
+    normalised = re.sub(r"[\W\d]+$", "", heading.strip()).strip().lower()
+    if normalised in _SECTION_HEADING_NAMES:
+        return True
+    # `Abstract: ...` style: take the prefix before the colon.
+    prefix = normalised.split(":", 1)[0].strip()
+    return prefix in _SECTION_HEADING_NAMES
+
+
+def _extract_title(markdown: str) -> str | None:
+    """Pick the paper title from `Title:` label or the first non-section heading.
+
+    Walks markdown headings in order and returns the first one whose
+    normalised stem is NOT a known section name. This fixes the
+    failure mode where Docling renders the abstract section as
+    `## Abstract` before the actual title heading, which a naive
+    "first heading wins" rule treats as the title.
+    """
+    labelled = _first_match(_TITLE_LABEL_RE, markdown)
+    if labelled:
+        return labelled
+    for m in _HEADING_TITLE_RE.finditer(markdown):
+        candidate = m.group(1).strip()
+        if _looks_like_section_heading(candidate):
+            continue
+        return candidate
+    return None
+
+
+def _strip_affil_markers(line: str) -> str:
+    """Remove affiliation digits / asterisks / daggers from an author line.
+
+    Docling glues affiliation references directly onto surnames
+    (`Buralkin1,2,3`, `Park2,3,*`, `Mattick† 1`). Naive removal of the
+    marker characters alone leaves stray punctuation (`Buralkin,, ,`)
+    that the multi-name regex cannot recover from; we additionally
+    collapse runs of `,` and surrounding whitespace introduced by
+    the strip.
+    """
+    cleaned = _AFFIL_MARKER_RE.sub("", line)
+    # Collapse comma runs introduced when the marker was sandwiched
+    # between commas: `Buralkin,, , Hu` -> `Buralkin , Hu`.
+    cleaned = re.sub(r"(?:\s*,)+\s*,", ",", cleaned)
+    cleaned = re.sub(r",\s*,", ",", cleaned)
+    # Trim commas glued to the start/end (no leading/trailing comma
+    # is a valid CSV-author shape).
+    cleaned = re.sub(r"^\s*,+\s*|\s*,+\s*$", "", cleaned)
+    # Collapse whitespace runs.
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def _extract_abstract(markdown: str) -> str | None:
+    """Lift the abstract via heading match, falling back to first long paragraph.
+
+    bioRxiv-style papers often render the abstract as a paragraph
+    with NO `## Abstract` heading. The fallback picks the first
+    paragraph >= `_LONG_PARAGRAPH_MIN_CHARS` chars in the post-
+    title region that doesn't look like an author/affiliation
+    line (no `@` email, no leading digits, no all-caps acronym
+    line, not a heading).
+    """
+    m = _ABSTRACT_HEADING_RE.search(markdown)
+    if m:
+        cleaned = re.sub(r"\s+", " ", m.group(1)).strip()
+        if cleaned:
+            return cleaned
+
+    # Fallback: walk paragraphs after the title, return the first
+    # long, prose-shaped one.
+    paragraphs = re.split(r"\n\s*\n", markdown[:20000])
+    for para in paragraphs:
+        text = re.sub(r"\s+", " ", para).strip()
+        if len(text) < _LONG_PARAGRAPH_MIN_CHARS:
+            continue
+        if text.startswith("#"):
+            continue
+        if "@" in text and re.search(r"[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}", text):
+            continue
+        # bioRxiv watermark and license boilerplate to skip.
+        if text.startswith("bioRxiv preprint") or "CC-BY" in text or "All rights reserved" in text:
+            continue
+        return text
+    return None
+
+
 def _extract_leading_authors(markdown: str) -> list[str]:
     """Lift authors from the post-title, pre-abstract region.
 
@@ -196,10 +328,17 @@ def _extract_leading_authors(markdown: str) -> list[str]:
         return _seen_list(email_form)
 
     # Pattern 3: a single line of comma/and-separated Title-Case names.
-    csv_match = _PLAIN_CSV_AUTHORS_LINE_RE.search(region)
-    if csv_match:
-        # _split_authors handles commas / semicolons / "and" / &.
-        return _seen_list(_split_authors(csv_match.group(0)))
+    # Try BOTH the raw line and the affiliation-stripped version, since
+    # Docling glues affiliation markers (digits / `*` / daggers) onto
+    # surnames in a way that breaks the multi-token name regex.
+    for line in region.split("\n"):
+        text = line.strip()
+        if not text:
+            continue
+        for candidate in (text, _strip_affil_markers(text)):
+            csv_match = _PLAIN_CSV_AUTHORS_LINE_RE.fullmatch(candidate)
+            if csv_match:
+                return _seen_list(_split_authors(csv_match.group(0)))
 
     return []
 
@@ -213,9 +352,7 @@ def extract_metadata_heuristic(markdown: str) -> dict[str, Any]:
     """
     out: dict[str, Any] = {}
 
-    title = _first_match(_TITLE_LABEL_RE, markdown) or _first_match(
-        _HEADING_TITLE_RE, markdown
-    )
+    title = _extract_title(markdown)
     if title:
         out["title"] = title
 
@@ -243,11 +380,9 @@ def extract_metadata_heuristic(markdown: str) -> dict[str, Any]:
     if year:
         out["year"] = int(year)
 
-    abstract_m = _ABSTRACT_HEADING_RE.search(markdown)
-    if abstract_m:
-        abstract = re.sub(r"\s+", " ", abstract_m.group(1)).strip()
-        if abstract:
-            out["abstract"] = abstract
+    abstract = _extract_abstract(markdown)
+    if abstract:
+        out["abstract"] = abstract
 
     return out
 
