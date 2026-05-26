@@ -81,6 +81,8 @@ CORPUS_RESERVED_DIRS: frozenset[str] = frozenset({
     "graph",         # derived graph state
     "exports",       # rendered outputs
     "reports",       # generated reports (token-econ, decay)
+    "defer",         # papers deferred from ingest (e.g. post-Thursday
+                     # triage); reserved exactly like benchmark_test/
     "benchmark_test",  # user-curated reference PDFs for OCR / extraction
                        # benchmarks; not part of the queryable corpus and
                        # not auto-scanned. Conventional name; users with a
