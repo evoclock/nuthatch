@@ -104,7 +104,7 @@ _LONG_PARAGRAPH_MIN_CHARS: int = 250
 # be parsed.
 _AFFIL_MARKER_RE = re.compile(
     r"[\d" + chr(0x2217) + chr(0x2020) + chr(0x2021)
-    + r"\*" + chr(0x00A7) + chr(0x00B6) + r"]+|\([^)]+\)"
+    + r"\*" + chr(0x00A7) + chr(0x00B6) + r"\#" + r"]+|\([^)]+\)"
 )
 
 # LaTeX-math superscripts that some bioRxiv preprints render
@@ -152,10 +152,17 @@ _NAME = rf"{_NAME_TOKEN}(?:\s+{_NAME_TOKEN}){{0,3}}"
 # U+2021 DOUBLE DAGGER.
 _FOOTNOTE_MARKERS = chr(0x2217) + chr(0x2020) + chr(0x2021)
 
+# Pattern 2 requires 2+ name tokens so single capitalised words
+# in boilerplate phrases like "Correspondence should be addressed
+# to H.S. (Heewon.Seo@ucalgary.ca)" don't pollute the author list.
+# Real single-author papers are handled by the pattern-4 fallback
+# which requires email-surname confirmation.
+_NAME_2PLUS = rf"{_NAME_TOKEN}(?:\s+{_NAME_TOKEN}){{1,3}}"
+
 _EMAIL_BEARING_AUTHOR_LINE_RE = re.compile(
     rf"""
     ^\s*                                # line start
-    (?P<name>{_NAME})                   # the name (1-4 tokens; no acronyms)
+    (?P<name>{_NAME_2PLUS})             # the name (2-4 tokens; no acronyms)
     (?:\s|[{_FOOTNOTE_MARKERS}]|\*)     # whitespace, footnote marker, or ASCII asterisk
     .*?                                 # affiliation text (any)
     [\w._%+-]+@[\w.-]+\.[A-Za-z]{{2,}}  # an email anywhere in the rest
@@ -422,18 +429,24 @@ def _extract_leading_authors(markdown: str) -> list[str]:
     for i, line in enumerate(lines):
         if not line.strip():
             continue
-        # Build join variants: this line alone + this+next + this+next+next.
+        # Build join variants: this line alone + this+next + ... up to
+        # 6 lines total. Highly-affiliated author lists (every author
+        # with 7 superscripts) can wrap onto 5+ lines after Docling.
         variants: list[str] = []
         accumulated: list[str] = []
         j = i
-        while len(accumulated) < 3 and j < len(lines):
+        while len(accumulated) < 6 and j < len(lines):
             t = lines[j].strip()
             if t:
                 accumulated.append(t)
                 variants.append(" ".join(accumulated))
             j += 1
 
-        for raw in variants:
+        # Try variants LONGEST -> SHORTEST so highly-affiliated author
+        # lists that wrap across many lines return the full author
+        # list, not just the first few names visible on the first
+        # joined slice.
+        for raw in reversed(variants):
             text = raw
             in_table = _maybe_table_cell(text)
             if in_table and in_table != text:
@@ -445,6 +458,32 @@ def _extract_leading_authors(markdown: str) -> list[str]:
                 csv_match = _PLAIN_CSV_AUTHORS_LINE_RE.fullmatch(candidate)
                 if csv_match:
                     return _seen_list(_split_authors(csv_match.group(0)))
+
+    # Pattern 4: SINGLE-AUTHOR papers. The CSV regex requires 2+ names;
+    # papers with one author would never match. Look for a standalone
+    # name line (1-4 capitalized tokens, no comma, no body text) in
+    # the post-title region. Confirm by checking a nearby line carries
+    # an email matching the surname.
+    name_only_re = re.compile(rf"^\s*({_NAME})\s*$")
+    for i, line in enumerate(lines):
+        text = _strip_line_prefix(_strip_affil_markers(line.strip()))
+        if not text:
+            continue
+        m = name_only_re.fullmatch(text)
+        if not m:
+            continue
+        name = m.group(1)
+        # Confirm: look in the next 8 lines for an email that mentions
+        # the surname (case-insensitive). Avoids accepting random
+        # capitalised words like "Introduction" as a name.
+        surname = name.split()[-1].lower()
+        confirmed = False
+        for nxt in lines[i + 1 : i + 9]:
+            if re.search(rf"[\w._%+-]*{re.escape(surname)}[\w._%+-]*@", nxt, re.IGNORECASE):
+                confirmed = True
+                break
+        if confirmed:
+            return [name]
 
     return []
 

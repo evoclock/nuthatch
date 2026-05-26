@@ -235,6 +235,80 @@ class TestExtractMetadataHeuristic:
         out = extract_metadata_heuristic(md)
         assert out["authors"] == ["Mengyi Sun", "Sukwoong Choi", "Yian Yin"]
 
+    def test_csv_authors_with_hash_co_first_author_marker(self) -> None:
+        # bioRxiv co-first-author convention: `Author 1#, Author 1#`.
+        # `#` must strip alongside digits + asterisks.
+        md = (
+            "## Evo 2 Predicts Cardiomyopathy-Associated Variants\n\n"
+            "Atsumasa Kurozumi 1#, Naoto Otsuka 1#, Masamichi Ito 1, "
+            "Toshinaru Kawakami 1, Takayuki Isagawa 2, Satoshi Kodera 1, "
+            "Norihiko Takeda 1,2\n\n"
+            "## Abstract\n\n"
+            "We predict...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == [
+            "Atsumasa Kurozumi",
+            "Naoto Otsuka",
+            "Masamichi Ito",
+            "Toshinaru Kawakami",
+            "Takayuki Isagawa",
+            "Satoshi Kodera",
+            "Norihiko Takeda",
+        ]
+
+    def test_csv_authors_wrapping_many_lines_via_sliding_window(self) -> None:
+        # Highly-affiliated author lists (each author has 7 superscripts)
+        # can wrap across 5+ markdown lines. Sliding window must
+        # accumulate enough lines.
+        md = (
+            "## A Paper\n\n"
+            "Tianchu Zeng1,2,3,4,5,6,7*, Hetu Li1,3,4,5,6,7*,\n"
+            "Shaoshi Zhang1,2,3,4,5,6,7,8*,\n"
+            "Yan Quan Tan1,2,3,4,5,6,7, Fang Tian1,2,3,4,5,6,7,\n"
+            "Csaba Orban1,3,4,5,6,7\n\n"
+            "## Abstract\n\n"
+            "We show...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == [
+            "Tianchu Zeng",
+            "Hetu Li",
+            "Shaoshi Zhang",
+            "Yan Quan Tan",
+            "Fang Tian",
+            "Csaba Orban",
+        ]
+
+    def test_single_author_paper(self) -> None:
+        # Single-author papers don't match the CSV regex (requires 2+
+        # names). The pattern-4 fallback finds a standalone name line
+        # and confirms via an email mentioning the surname.
+        md = (
+            "## Reproducible transcriptional modules\n\n"
+            "Heewon Seo\n\n"
+            "Snyder Institute for Chronic Diseases, University of Calgary\n\n"
+            "Correspondence should be addressed to H.S. (Heewon.Seo@ucalgary.ca)\n\n"
+            "## Abstract\n\n"
+            "Glioblastoma comprises a complex ecosystem...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == ["Heewon Seo"]
+
+    def test_single_name_NOT_confirmed_by_email_is_rejected(self) -> None:
+        # Defensive: a random capitalised heading-like line in the
+        # post-title region must NOT be picked as a single author
+        # unless an email confirms it. Prevents false positives like
+        # treating "Introduction" or "Methods" as an author.
+        md = (
+            "## A Paper Title\n\n"
+            "Some Stray Header\n\n"
+            "## Abstract\n\n"
+            "Body text...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert "authors" not in out
+
     def test_csv_authors_wrapped_across_two_lines_mid_paren(self) -> None:
         # bioRxiv: ORCID iDs in parens occasionally wrap mid-paren
         # across markdown lines. Sliding-line-join must reassemble.
