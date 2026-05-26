@@ -36,7 +36,9 @@ from nuthatch.corpus import (
     discover_corpus_root,
     init_corpus,
 )
+from nuthatch.corpus.config import load_corpus_config
 from nuthatch.decay import render_report, run_decay_pass
+from nuthatch.embed.orchestrator import embed_corpus
 from nuthatch.ingest import IngestOrchestrator, IngestResult
 from nuthatch.ingest.manifest import IngestStatus, ManifestStore
 from nuthatch.ingest.watch import InboxWatcher
@@ -176,6 +178,52 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    embed_p = subparsers.add_parser(
+        "embed",
+        help=(
+            "chunk + embed every doc in <corpus>/.kg/extracted/ into "
+            "the corpus vector store. Incremental by default."
+        ),
+    )
+    _add_corpus_arg(embed_p)
+    embed_p.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "re-embed every doc from scratch (deletes existing chunks "
+            "per doc first). Required after changing _DEFAULT_MAX_CHARS / "
+            "_DEFAULT_OVERLAP_CHARS in src/nuthatch/embed/chunk.py or "
+            "switching the embedding model via .kg/config.yaml."
+        ),
+    )
+
+    graph_p = subparsers.add_parser(
+        "graph",
+        help=(
+            "build the corpus graph from <corpus>/.kg/extracted/. "
+            "Entity extraction + node/edge assembly."
+        ),
+    )
+    _add_corpus_arg(graph_p)
+
+    cluster_p = subparsers.add_parser(
+        "cluster",
+        help=(
+            "fit communities on the corpus graph. Full refit each call "
+            "(SBM / Leiden / embeddings, highest-rigor available)."
+        ),
+    )
+    _add_corpus_arg(cluster_p)
+
+    render_p = subparsers.add_parser(
+        "render",
+        help=(
+            "regenerate Obsidian-compatible cards/, communities/, "
+            "dashboard.md, index.md from current corpus state."
+        ),
+    )
+    _add_corpus_arg(render_p)
+
     return parser
 
 
@@ -214,6 +262,14 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_token_report(args)
     if args.subcommand == "decay":
         return _cmd_decay(args)
+    if args.subcommand == "embed":
+        return _cmd_embed(args)
+    if args.subcommand == "graph":
+        return _cmd_graph(args)
+    if args.subcommand == "cluster":
+        return _cmd_cluster(args)
+    if args.subcommand == "render":
+        return _cmd_render(args)
 
     parser.print_help()
     return 2
@@ -427,6 +483,150 @@ def _cmd_decay(args: argparse.Namespace) -> int:
             f"archive candidates {len(result.archive_candidates)}"
         )
         print(f"[OK] wrote decay report to {out_path}")
+    return 0
+
+
+def _cmd_embed(args: argparse.Namespace) -> int:
+    layout = _resolve_layout_or_die(args)
+    config = load_corpus_config(layout.config_path)
+    result = embed_corpus(layout, config=config, force=args.force)
+    print(
+        f"[OK] embed: scanned {result.n_docs_scanned}, "
+        f"embedded {result.n_docs_embedded}, "
+        f"skipped {result.n_docs_skipped} (already in store), "
+        f"chunks added {result.n_chunks_added}"
+        + (" [--force]" if result.forced else "")
+    )
+    if result.failed:
+        print(f"[WARN] {len(result.failed)} docs failed (first 5 shown):")
+        for doc_id, err in result.failed[:5]:
+            print(f"  - {doc_id}: {err[:200]}")
+        return 1
+    return 0
+
+
+def _cmd_graph(args: argparse.Namespace) -> int:
+    from nuthatch.graph.orchestrator import build_graph_for_corpus
+
+    layout = _resolve_layout_or_die(args)
+    result = build_graph_for_corpus(layout)
+    print(
+        f"[OK] graph: {result.n_docs} docs -> "
+        f"{result.n_nodes} nodes, {result.n_edges} edges"
+    )
+    print(f"     graph: {result.graph_path}")
+    return 0
+
+
+def _cmd_cluster(args: argparse.Namespace) -> int:
+    from nuthatch.clustering.protocol import ClusteringRequest, Rigor
+    from nuthatch.clustering.router import ClusteringRouter
+    from nuthatch.graph.io import load_graph, save_graph
+
+    layout = _resolve_layout_or_die(args)
+    graph_path = layout.kg / "graph" / "graph.json"
+    if not graph_path.is_file():
+        print(
+            f"error: no graph at {graph_path}. Run `nuthatch ingest` and "
+            "`nuthatch embed` first, then this command.",
+            file=sys.stderr,
+        )
+        return 2
+
+    import io as _io
+    import json as _json
+
+    g = load_graph(graph_path)
+    # ClusteringRequest takes a serialised graph snapshot; backends
+    # that need the graph deserialise it themselves. We pass the
+    # JSON node-link form so the protocol stays backend-agnostic.
+    buf = _io.BytesIO()
+    import networkx as nx
+
+    payload = nx.node_link_data(g, edges="edges")
+    buf.write(_json.dumps(payload).encode("utf-8"))
+    request = ClusteringRequest(buf.getvalue(), rigor=Rigor.PRINCIPLED)
+
+    router = ClusteringRouter()
+    response = router.cluster(request)
+
+    # Write community membership back onto graph node attributes
+    # so downstream render + decay layers can read it without a
+    # second clustering pass.
+    for node_id, community_id in response.partition.items():
+        if node_id in g:
+            g.nodes[node_id]["community_id"] = int(community_id)
+    save_graph(g, graph_path)
+
+    n_communities = len(set(response.partition.values()))
+    print(
+        f"[OK] cluster: {len(response.partition)} nodes -> "
+        f"{n_communities} communities "
+        f"(rigor={response.rigor_used.value}, "
+        f"backend={response.backend_used}, "
+        f"{response.runtime_seconds:.1f}s)"
+    )
+    if response.notes:
+        print(f"     notes: {response.notes}")
+    return 0
+
+
+def _cmd_render(args: argparse.Namespace) -> int:
+    import json as _json
+    from collections import defaultdict
+
+    from nuthatch.graph.io import load_graph
+    from nuthatch.render.obsidian import export_vault
+
+    layout = _resolve_layout_or_die(args)
+    graph_path = layout.kg / "graph" / "graph.json"
+    if not graph_path.is_file():
+        print(
+            f"error: no graph at {graph_path}. Run `nuthatch ingest`, "
+            "`nuthatch embed`, and `nuthatch cluster` first.",
+            file=sys.stderr,
+        )
+        return 2
+
+    g = load_graph(graph_path)
+
+    # Build paper_metadata from the .kg/extracted/*.meta.json sidecars
+    # written by IngestOrchestrator.
+    paper_metadata: dict[str, dict] = {}
+    for meta_path in layout.extracted_dir.glob("*.meta.json"):
+        try:
+            data = _json.loads(meta_path.read_text(encoding="utf-8"))
+        except _json.JSONDecodeError:
+            continue
+        doc_id = str(data.get("doc_id") or meta_path.stem.replace(".meta", ""))
+        meta = data.get("metadata") or {}
+        if isinstance(meta, dict):
+            paper_metadata[doc_id] = meta
+
+    # Build community_membership from the graph nodes' community_id attr.
+    community_membership: dict[str, list[str]] = defaultdict(list)
+    for node_id, attrs in g.nodes(data=True):
+        if not isinstance(node_id, str) or not node_id.startswith("doc::"):
+            continue
+        cid = attrs.get("community_id")
+        if cid is None:
+            continue
+        doc_id = node_id[len("doc::") :]
+        community_membership[str(cid)].append(doc_id)
+
+    result = export_vault(
+        layout,
+        paper_metadata=paper_metadata,
+        community_membership=dict(community_membership) or None,
+        source_note="render",
+    )
+    print(
+        f"[OK] render: {result.n_cards} cards, "
+        f"{result.n_communities} community pages"
+    )
+    print(f"     cards: {result.cards_dir}")
+    print(f"     communities: {result.communities_dir}")
+    print(f"     dashboard: {result.dashboard_path}")
     return 0
 
 

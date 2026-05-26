@@ -281,6 +281,105 @@ the dashboard MUST cite:
 If a future contributor proposes a "headline X× reduction"
 number, they reread this section first.
 
+## Execution model: build out-of-band, query via MCP
+
+nuthatch separates **building the corpus** from **querying it**.
+
+- **Build** happens out-of-band via the CLI:
+  `nuthatch ingest` -> `nuthatch embed` -> `nuthatch cluster` ->
+  `nuthatch render`. Each stage is incremental (hash-based file
+  dedup for ingest, per-doc Chroma presence check for embed, full
+  SBM refit each time for cluster which is correct, byte-stable
+  re-render for render). Triggered by the user (or a cron / watcher),
+  runs to completion, persists artifacts under `<corpus>/.kg/` and
+  `<corpus>/{cards,communities}/`.
+- **Query** happens at agent runtime via the MCP server. The agent
+  calls the 5 tools (`corpus_search`, `subgraph_extract`,
+  `card_get`, `community_get`, `token_econ_report`) against
+  already-built state. No graph mutation; no extraction; no
+  embedding; no clustering at query time.
+
+**Why:** moving heavy work out of the agent loop has five concrete
+benefits.
+
+1. **Honest latency.** Agent tool calls return in milliseconds to
+   single-digit seconds (vector lookup, BFS, file read). No tool
+   call hides a 5-10 minute embedding job.
+2. **Predictable cost.** Build cost is fixed and amortised; query
+   cost is bounded by the chunks/cards returned. The token-economy
+   report compares served vs counterfactual at query time without
+   the noise of "and we also ran OCR".
+3. **One source of truth.** The graph + embeddings + cards on disk
+   are the only state. Two agents querying the same corpus see the
+   same answer. No per-session rebuild divergence.
+4. **Long-running stages are user-supervised, not hidden.** When
+   `nuthatch ingest` is OCR'ing 100 scanned PDFs (potentially
+   hours of GPU time on Chandra), the user sees it in a tmux log
+   and can pause / kill / restart. Kestrel's model hides the same
+   work inside an agent invocation; if the agent session times out
+   or the user disconnects, the work is lost and they have no
+   feedback channel to recover. nuthatch's CLI runs in the user's
+   terminal, exits with a status code, writes per-run audit logs
+   to `<corpus>/.kg/audit/`.
+5. **Quality issues are surfaced and actionable, not silently
+   absorbed.** When extraction yield drops below the QC floor,
+   `nuthatch ingest` QUARANTINES the file with a reason-tagged
+   subdir and a `.reason.json` sidecar; the user inspects, fixes
+   the source PDF (or marks it for manual transcription), re-runs.
+   Schema validation failures log missing required fields. The
+   clustering router downgrades from principled SBM to heuristic
+   Leiden when graph-tool isn't available and surfaces that in the
+   response's `rigor_used` field. In each case the user knows
+   exactly what fell short and what their options are. Kestrel's
+   per-invocation pipeline decides "good enough" silently and
+   moves on; broken extractions only surface at query time as
+   missing or wrong answers, by which point the audit trail of
+   what failed is gone.
+6. **Server-side orchestration is harness-proof.** Skill-driven
+   orchestration (kestrel's `skill-*.md` model) tells the agent
+   "MUST use the Agent tool", "spawn 22-file chunks in parallel",
+   "use this 45s timing estimate". None of that is enforceable;
+   the harness (Claude Code, Codex, OpenCode, Aider) can demote
+   the directive when context is tight, substitute serial
+   file-reading when an Agent tool call times out, reorder steps
+   per its own planning model, or silently fall back. Documented
+   in the harness vendors' own GitHub issue trackers. The skill
+   author has no enforcement channel.
+
+   nuthatch's model puts the orchestration inside the MCP server
+   (Python code in this repo). The agent calls a tool
+   (`corpus_search`, `subgraph_extract`, etc.), the server does
+   the right thing internally — parallel work, batching, caching,
+   deduplication — and the agent CANNOT deviate because the agent
+   isn't doing the orchestration. Same reason a well-designed REST
+   API doesn't ship a runbook telling the client "you MUST batch
+   requests": the server handles batching internally, the client
+   just calls the endpoint. Skill-driven orchestration is the
+   anti-pattern; server-side orchestration is the contract.
+
+**What this means for the skill files** (`skill-*.md`): they are
+operator runbooks for the MCP query surface, not orchestration
+runbooks for the build pipeline. They tell the agent (a) how to
+register the MCP server, (b) how to use the 5 tools effectively
+in common multi-step flows, and (c) when to ask the user to run
+the build pipeline (e.g. after dropping new files into `inputs/`).
+They do NOT spawn subagents to extract entities, run OCR, or
+fit clusters. That is the CLI's job.
+
+**Comparison point:** kestrel's `skill-*.md` files are all
+orchestration runbooks (10 of 11 are 1,228-1,434 lines; average
+~1,280): the agent uses `@agent` parallel dispatch (or the
+host's equivalent) to spawn semantic-extraction subagents on
+each invocation, then drives clustering / analysis / rendering
+inline. That model fits a "build per query session" shape and
+the per-tool skill file is the runbook the agent follows.
+
+nuthatch's "build once, query many" shape means our skill files
+are an order of magnitude shorter without that being a deficit:
+the build runbook is the CLI itself, called by the operator
+out-of-band. The skill files only document MCP registration +
+how to use the 5 query tools effectively.
+
 ## Monetisation
 
 - **Open-core**: algorithm always free, large-scale compute

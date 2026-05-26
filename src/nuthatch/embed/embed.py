@@ -187,11 +187,18 @@ def already_embedded_doc_ids(store: VectorStore) -> set[str]:
     Used by the incremental driver to skip re-embedding. Mirrors PhD
     KB embed.py's incremental logic, which queries `collection.get()`
     for existing metadata.
+
+    Duck-typed: any store exposing a `doc_ids_present() -> Iterable[str]`
+    method gets used directly (lets test fakes participate in the
+    incremental skip). The `ChromaVectorStore` path is the production
+    fallback; a `VectorStore` protocol implementation that exposes
+    neither method gets an empty set returned and the caller will
+    re-embed everything (correct but slow).
     """
+    doc_ids_fn = getattr(store, "doc_ids_present", None)
+    if callable(doc_ids_fn):
+        return {str(d) for d in doc_ids_fn() if d}
     if not isinstance(store, ChromaVectorStore):
-        # Generic VectorStore protocol does not require listing; the
-        # caller can either keep their own state or extend the
-        # protocol per backend.
         return set()
     coll = store._ensure_collection()
     if coll.count() == 0:

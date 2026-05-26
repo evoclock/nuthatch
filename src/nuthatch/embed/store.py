@@ -94,8 +94,13 @@ class ChromaVectorStore:
 
         self._root.mkdir(parents=True, exist_ok=True)
         self._client = chromadb.PersistentClient(path=str(self._root))
+        # `hnsw:space=cosine` matches PhD KB's collection config so
+        # retrieval ranking and similarity scores are directly
+        # comparable across the two projects. Default Chroma distance
+        # is L2; nuthatch is a cosine-similarity tool.
         self._collection = self._client.get_or_create_collection(
-            name=self._collection_name
+            name=self._collection_name,
+            metadata={"hnsw:space": "cosine"},
         )
         return self._collection
 
@@ -107,10 +112,16 @@ class ChromaVectorStore:
         texts: Sequence[str],
         metadatas: Sequence[dict[str, Any]],
     ) -> None:
+        """Upsert chunks. Re-using existing chunk_ids overwrites.
+
+        Uses `coll.upsert()` (not `coll.add()`) so the `--force`
+        re-embed path and any other re-ingestion of an existing
+        doc_id does not raise on duplicate IDs.
+        """
         if not chunk_ids:
             return
         coll = self._ensure_collection()
-        coll.add(
+        coll.upsert(
             ids=list(chunk_ids),
             embeddings=[list(e) for e in embeddings],
             documents=list(texts),

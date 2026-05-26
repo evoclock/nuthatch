@@ -75,3 +75,31 @@ class TestStructuralBoundaries:
         assert len(chunks) >= 2
         # Coverage invariant still holds.
         assert check_coverage(body, chunks).passed
+
+
+class TestEmbedderDefaults:
+    """Contract test: the default embedding model is locked.
+
+    Changing `DEFAULT_EMBEDDING_MODEL` is a methodological decision
+    that requires re-embedding every corpus's chunks (cosine
+    distances aren't comparable across models). The test exists so
+    a model swap is a deliberate, code-reviewed change, not an
+    accidental import-time substitution.
+    """
+
+    def test_default_embedding_model_is_bge_m3(self) -> None:
+        from nuthatch.embed.embed import DEFAULT_EMBEDDING_MODEL, Embedder
+
+        assert DEFAULT_EMBEDDING_MODEL == "BAAI/bge-m3"
+        emb = Embedder()
+        assert emb.model_id == "BAAI/bge-m3"
+
+    def test_default_chunk_constants_are_3000_400(self) -> None:
+        """Pin the chunking defaults too — same reasoning."""
+        from nuthatch.embed.chunk import (
+            _DEFAULT_MAX_CHARS,
+            _DEFAULT_OVERLAP_CHARS,
+        )
+
+        assert _DEFAULT_MAX_CHARS == 3000
+        assert _DEFAULT_OVERLAP_CHARS == 400

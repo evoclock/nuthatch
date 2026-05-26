@@ -48,6 +48,27 @@ _STANDARD_SUBDIRS: tuple[str, ...] = (
     "exports",
 )
 
+# Reserved subdirectory names that hold nuthatch-managed artifacts
+# (derived state, rendered output, or originals already moved by a
+# previous ingest pass). The recursive corpus scan in the ingest
+# orchestrator (and the InboxWatcher) skip these trees entirely.
+#
+# Crucially, this list does NOT include `inbox/` or `notes/`: those
+# are user-source dirs that should still be scanned. Files under any
+# other subdir the user creates (e.g. `arxiv/`, `bioarxiv/`,
+# `papers/2026/`) are picked up by the recursive scan.
+CORPUS_RESERVED_DIRS: frozenset[str] = frozenset({
+    CORPUS_MARKER,   # ".kg"
+    "papers",        # post-ingest originals — already processed
+    "quarantine",    # failed files — don't retry from scan
+    "cards",         # rendered markdown
+    "html",          # rendered HTML companion
+    "communities",   # rendered community pages
+    "graph",         # derived graph state
+    "exports",       # rendered outputs
+    "reports",       # generated reports (token-econ, decay)
+})
+
 
 @dataclass(frozen=True, slots=True)
 class CorpusLayout:
@@ -77,6 +98,25 @@ class CorpusLayout:
     @property
     def audit_dir(self) -> Path:
         return self.kg / "audit"
+
+    @property
+    def extracted_dir(self) -> Path:
+        """`<corpus>/.kg/extracted/` — markdown + meta per ingested doc.
+
+        Populated by `IngestOrchestrator` on successful schema-validation.
+        Consumed by `nuthatch embed` (chunker reads the markdown; meta
+        carries title/year/topics for per-chunk metadata in Chroma).
+
+        Lives under `.kg/` (not in `papers/`) because it's a derived
+        artifact: re-extraction would reproduce it, so it's gitignored
+        as part of the `.kg/` tree.
+        """
+        return self.kg / "extracted"
+
+    @property
+    def embeddings_dir(self) -> Path:
+        """`<corpus>/.kg/embeddings/` — Chroma persistent store root."""
+        return self.kg / "embeddings"
 
     @property
     def inbox(self) -> Path:
@@ -110,6 +150,32 @@ class CorpusLayout:
     def exports(self) -> Path:
         return self.root / "exports"
 
+    def iter_source_files(self) -> list[Path]:
+        """Sorted list of real files anywhere under the corpus root.
+
+        Walks the entire corpus tree, skipping `CORPUS_RESERVED_DIRS`
+        (nuthatch-managed artifact dirs) and hidden files. Lets users
+        organise their inputs however they like (`arxiv/2026/`,
+        `inbox/`, `notes/`, root-level PDFs, etc.) without the ingest
+        layer forcing a flat `inbox/` structure.
+        """
+        files: list[Path] = []
+        for path in self.root.rglob("*"):
+            if path.is_dir():
+                continue
+            # Skip any file whose path goes through a reserved dir.
+            try:
+                rel_parts = path.relative_to(self.root).parts
+            except ValueError:
+                continue
+            if rel_parts and rel_parts[0] in CORPUS_RESERVED_DIRS:
+                continue
+            if path.name.startswith("."):
+                continue
+            files.append(path)
+        files.sort()
+        return files
+
 
 def init_corpus(root: Path) -> CorpusLayout:
     """Create the `.kg/` marker + the standard subdir tree at `root`.
@@ -125,6 +191,8 @@ def init_corpus(root: Path) -> CorpusLayout:
 
     layout.kg.mkdir(parents=True, exist_ok=True)
     layout.audit_dir.mkdir(parents=True, exist_ok=True)
+    layout.extracted_dir.mkdir(parents=True, exist_ok=True)
+    layout.embeddings_dir.mkdir(parents=True, exist_ok=True)
     for name in _STANDARD_SUBDIRS:
         (root / name).mkdir(parents=True, exist_ok=True)
 

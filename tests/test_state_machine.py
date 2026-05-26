@@ -216,3 +216,95 @@ class TestNameCollisionUnderPapers:
         assert results[0].destination is not None
         assert results[0].destination.name == "p-1.pdf"
         assert (layout.papers / "p.pdf").read_bytes() == b"existing-content"
+
+
+class TestCorpusRootRecursion:
+    """Verify the wider-scope scan: any user subdir is picked up, reserved
+    dirs are skipped, root-level files work too. This is the PhD-KB rule:
+    users organise their corpora however they like; we walk the tree."""
+
+    def _seed_at(self, layout: CorpusLayout, rel: str, content: bytes) -> Path:
+        p = layout.root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(content)
+        return p
+
+    def test_root_level_pdf_is_picked_up(self, tmp_path: Path) -> None:
+        layout = init_corpus(tmp_path / "c")
+        self._seed_at(layout, "loose.pdf", b"abc")
+        results = _make_orchestrator(layout).ingest_corpus()
+        assert len(results) == 1
+        assert results[0].source_filename == "loose.pdf"
+        assert results[0].status is IngestStatus.INGESTED
+
+    def test_user_subdirs_are_picked_up(self, tmp_path: Path) -> None:
+        layout = init_corpus(tmp_path / "c")
+        self._seed_at(layout, "arxiv/2026.05/a.pdf", b"a")
+        self._seed_at(layout, "bioarxiv/b.pdf", b"b")
+        self._seed_at(layout, "topics/genetics/c.pdf", b"c")
+        results = _make_orchestrator(layout).ingest_corpus()
+        names = {r.source_filename for r in results}
+        assert names == {"a.pdf", "b.pdf", "c.pdf"}
+        assert all(r.status is IngestStatus.INGESTED for r in results)
+
+    def test_reserved_dirs_are_skipped(self, tmp_path: Path) -> None:
+        layout = init_corpus(tmp_path / "c")
+        # Seed pre-existing files in every reserved dir.
+        (layout.papers / "already_in_papers.pdf").write_bytes(b"old")
+        (layout.cards / "old_card.md").write_text("frontmatter")
+        (layout.quarantine / "quar.pdf").write_bytes(b"q")
+        (layout.graph / "g.json").write_text("{}")
+        (layout.html / "h.html").write_text("<html/>")
+        (layout.exports / "e.txt").write_text("e")
+        # Seed one real input.
+        self._seed_at(layout, "arxiv/real.pdf", b"abc")
+        results = _make_orchestrator(layout).ingest_corpus()
+        # ONLY the real input gets processed.
+        assert len(results) == 1
+        assert results[0].source_filename == "real.pdf"
+        # Reserved-dir files still in place, untouched.
+        assert (layout.papers / "already_in_papers.pdf").exists()
+        assert (layout.cards / "old_card.md").exists()
+        assert (layout.quarantine / "quar.pdf").exists()
+
+    def test_communities_and_reports_dirs_also_reserved(self, tmp_path: Path) -> None:
+        # These aren't in _STANDARD_SUBDIRS so init doesn't create them;
+        # the user (or render step) might. Confirm they're still skipped.
+        layout = init_corpus(tmp_path / "c")
+        (layout.root / "communities").mkdir()
+        (layout.root / "communities" / "0.md").write_text("---\n---\n")
+        (layout.root / "reports").mkdir()
+        (layout.root / "reports" / "old.md").write_text("old report")
+        self._seed_at(layout, "inbox/real.pdf", b"abc")
+        results = _make_orchestrator(layout).ingest_corpus()
+        assert len(results) == 1
+        assert results[0].source_filename == "real.pdf"
+
+    def test_hidden_files_skipped(self, tmp_path: Path) -> None:
+        layout = init_corpus(tmp_path / "c")
+        self._seed_at(layout, "arxiv/.DS_Store", b"junk")
+        self._seed_at(layout, ".hidden.pdf", b"junk")
+        self._seed_at(layout, "arxiv/real.pdf", b"abc")
+        results = _make_orchestrator(layout).ingest_corpus()
+        assert len(results) == 1
+        assert results[0].source_filename == "real.pdf"
+
+    def test_ingest_inbox_alias_still_works(self, tmp_path: Path) -> None:
+        # Back-compat: old callers using ingest_inbox() should not break.
+        layout = init_corpus(tmp_path / "c")
+        _seed_inbox(layout, "via_inbox.pdf", b"abc")
+        results = _make_orchestrator(layout).ingest_inbox()
+        assert len(results) == 1
+        assert results[0].source_filename == "via_inbox.pdf"
+
+    def test_duplicate_hash_across_subdirs_dedupes(self, tmp_path: Path) -> None:
+        """Two copies of the same file in different subdirs: one wins,
+        the other is flagged DUPLICATE without re-extraction."""
+        layout = init_corpus(tmp_path / "c")
+        # Same bytes in both locations.
+        self._seed_at(layout, "arxiv/dup.pdf", b"identical-bytes")
+        self._seed_at(layout, "bioarxiv/dup.pdf", b"identical-bytes")
+        results = _make_orchestrator(layout).ingest_corpus()
+        statuses = sorted(r.status.value for r in results)
+        # Exactly one INGESTED, one DUPLICATE.
+        assert statuses == sorted(["ingested", "duplicate"])

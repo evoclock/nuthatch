@@ -30,11 +30,14 @@ under the routing decision pinned in `docs/DECISIONS.md`.
 
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from nuthatch.corpus.layout import CorpusLayout
 from nuthatch.ingest.dedup import hash_file
@@ -127,21 +130,27 @@ class IngestOrchestrator:
     def schema_profile(self) -> type[SchemaProfile]:
         return self._profile
 
-    def ingest_inbox(self) -> list[IngestResult]:
-        """Process every file currently in `inbox/`. Returns per-file results.
+    def ingest_corpus(self) -> list[IngestResult]:
+        """Process every source file anywhere in the corpus tree.
 
-        Subdirectories under `inbox/` are walked recursively (so the
-        user can `mv arxiv/ inbox/` and have it work). Hidden files
-        (`.gitkeep`, `.DS_Store`, dotfiles in general) are skipped.
+        Walks `<corpus>/` recursively, skipping the
+        `CORPUS_RESERVED_DIRS` set (`.kg/`, `papers/`, `quarantine/`,
+        `cards/`, `html/`, `communities/`, `graph/`, `exports/`,
+        `reports/`) and hidden files. Users organise inputs however
+        they like (`inbox/`, `arxiv/`, `bioarxiv/`, root-level PDFs);
+        the scan finds them.
+
+        Lesson from PhD KB: corpora are not flat. Forcing
+        `<corpus>/inbox/*.pdf` would lose the user's organisation.
         """
 
-        if not self._layout.inbox.is_dir():
+        if not self._layout.root.is_dir():
             return []
 
         known = self._manifest.known_hashes()
         results: list[IngestResult] = []
 
-        for source in self._iter_inbox_files():
+        for source in self._iter_source_files():
             try:
                 file_hash = hash_file(source)
             except OSError as exc:
@@ -253,6 +262,18 @@ class IngestOrchestrator:
                 continue
 
             dest = self._move(source, self._layout.papers / source.name)
+            # Persist extracted markdown + meta so `nuthatch embed` can
+            # consume without re-running OCR / Docling. doc_id is the
+            # FINAL papers/ filename stem (handles name collisions
+            # automatically since _move() applied `-1`, `-2` suffixes).
+            doc_id = dest.stem
+            self._persist_extracted(
+                doc_id=doc_id,
+                source_filename=source.name,
+                file_hash=file_hash,
+                markdown=markdown,
+                metadata=extracted,
+            )
             results.append(
                 self._record_and_result(
                     source=source,
@@ -307,17 +328,52 @@ class IngestOrchestrator:
             destination=destination,
         )
 
-    def _iter_inbox_files(self) -> list[Path]:
-        """Sorted, deterministic walk over real files in `inbox/`."""
-        files: list[Path] = []
-        for path in self._layout.inbox.rglob("*"):
-            if not path.is_file():
-                continue
-            if path.name.startswith("."):
-                continue
-            files.append(path)
-        files.sort()
-        return files
+    def _iter_source_files(self) -> list[Path]:
+        """Sorted, deterministic walk over all corpus source files.
+
+        Delegates to `CorpusLayout.iter_source_files()`, which skips
+        reserved nuthatch-managed subdirs.
+        """
+        return self._layout.iter_source_files()
+
+    def ingest_inbox(self) -> list[IngestResult]:
+        """Backwards-compat alias for `ingest_corpus`.
+
+        Old call sites (CLI, tests written before the recursion
+        widening) used `ingest_inbox()`; the rename to
+        `ingest_corpus()` honours the wider scan. Both methods do the
+        same thing now.
+        """
+        return self.ingest_corpus()
+
+    def _persist_extracted(
+        self,
+        *,
+        doc_id: str,
+        source_filename: str,
+        file_hash: str,
+        markdown: str,
+        metadata: dict[str, Any],
+    ) -> None:
+        """Write the extracted markdown + sidecar meta json under `.kg/extracted/`.
+
+        Idempotent: overwriting is fine (re-ingest of the same source
+        produces byte-identical output if the extractor is deterministic).
+        """
+        extracted_dir = self._layout.extracted_dir
+        extracted_dir.mkdir(parents=True, exist_ok=True)
+        (extracted_dir / f"{doc_id}.md").write_text(markdown, encoding="utf-8")
+        meta = {
+            "doc_id": doc_id,
+            "source_filename": source_filename,
+            "file_hash": file_hash,
+            "extractor_version": _EXTRACTOR_VERSION,
+            "ingested_at": datetime.now(UTC).isoformat(),
+            "metadata": metadata,
+        }
+        (extracted_dir / f"{doc_id}.meta.json").write_text(
+            json.dumps(meta, indent=2, default=str), encoding="utf-8"
+        )
 
     def _move(self, source: Path, dest: Path) -> Path:
         dest.parent.mkdir(parents=True, exist_ok=True)
