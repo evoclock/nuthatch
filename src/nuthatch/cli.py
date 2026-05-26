@@ -36,6 +36,7 @@ from nuthatch.corpus import (
     discover_corpus_root,
     init_corpus,
 )
+from nuthatch.decay import render_report, run_decay_pass
 from nuthatch.ingest import IngestOrchestrator, IngestResult
 from nuthatch.ingest.manifest import IngestStatus, ManifestStore
 from nuthatch.ingest.watch import InboxWatcher
@@ -138,6 +139,43 @@ def build_parser() -> argparse.ArgumentParser:
         help="print the JSON summary to stdout in addition to writing markdown",
     )
 
+    decay_p = subparsers.add_parser(
+        "decay",
+        help="apply relevance decay + supersession across the corpus",
+    )
+    _add_corpus_arg(decay_p)
+    decay_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="compute the pass but do not write cards or graph back to disk",
+    )
+    decay_p.add_argument(
+        "--report-only",
+        action="store_true",
+        help="print only the markdown report (implies --dry-run unless --commit is set)",
+    )
+    decay_p.add_argument(
+        "--commit",
+        action="store_true",
+        help="with --report-only, still write cards and graph back to disk",
+    )
+    decay_p.add_argument(
+        "--archive-threshold",
+        type=float,
+        default=0.1,
+        help="post-decay relevance below this lists the doc as an archive candidate",
+    )
+    decay_p.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help=(
+            "write the markdown report to this path. "
+            "Default: <corpus>/reports/decay-<YYYY-MM-DD>.md. "
+            "Pass '-' to print to stdout instead of writing."
+        ),
+    )
+
     return parser
 
 
@@ -174,6 +212,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_corpus_list()
     if args.subcommand == "token-report":
         return _cmd_token_report(args)
+    if args.subcommand == "decay":
+        return _cmd_decay(args)
 
     parser.print_help()
     return 2
@@ -338,6 +378,55 @@ def _cmd_token_report(args: argparse.Namespace) -> int:
 
     if args.json:
         sys.stdout.write(_json.dumps(summary_as_dict(summary), indent=2) + "\n")
+    return 0
+
+
+def _cmd_decay(args: argparse.Namespace) -> int:
+    from datetime import UTC, datetime
+
+    layout = _resolve_layout_or_die(args)
+    # --report-only implies dry-run unless --commit is explicit.
+    dry_run = args.dry_run or (args.report_only and not args.commit)
+    result = run_decay_pass(
+        layout,
+        dry_run=dry_run,
+        archive_threshold=args.archive_threshold,
+    )
+    report_md = render_report(result, corpus_name=layout.root.name)
+
+    if args.report_only:
+        if args.out is not None and str(args.out) == "-":
+            sys.stdout.write(report_md)
+        else:
+            out_path = args.out
+            if out_path is None:
+                date_str = datetime.now(UTC).strftime("%Y-%m-%d")
+                out_path = layout.root / "reports" / f"decay-{date_str}.md"
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(report_md, encoding="utf-8")
+            print(f"[OK] wrote decay report to {out_path}")
+        return 0
+
+    # Default: print a terse summary; full report still written to disk
+    # unless the user redirected with --out -.
+    out_path = args.out
+    if out_path is None:
+        date_str = datetime.now(UTC).strftime("%Y-%m-%d")
+        out_path = layout.root / "reports" / f"decay-{date_str}.md"
+    if str(out_path) == "-":
+        sys.stdout.write(report_md)
+    else:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(report_md, encoding="utf-8")
+        print(
+            f"[OK] decay pass {'dry-run' if dry_run else 'committed'}: "
+            f"scanned {result.n_cards_scanned}, "
+            f"decayed {result.n_decayed}, "
+            f"pinned {result.n_pinned}, "
+            f"superseded {result.n_superseded_this_pass}, "
+            f"archive candidates {len(result.archive_candidates)}"
+        )
+        print(f"[OK] wrote decay report to {out_path}")
     return 0
 
 
