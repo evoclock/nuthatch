@@ -76,3 +76,4 @@ OPERATIONS.md
 docs/architecture/kestrel_*.md
 docs/architecture/kestrel_vs_nuthatch.md
 docs/architecture/deferred_*.md
+docs/architecture/eval_strategy_*.md
