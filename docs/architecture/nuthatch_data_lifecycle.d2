@@ -172,8 +172,10 @@ rejected: "rejected/\n<reason>/" { class: rejected }
 extracted: ".kg/extracted/\nmarkdown + meta" { class: artifact }
 embeddings: ".kg/embeddings/\nChroma persistent" { class: artifact }
 graphdir: "graph/\nnodes + edges" { class: artifact }
-communities: "communities/\nblock ids" { class: artifact }
-cards: "cards/" { class: artifact }
+communities: "communities/\nper-cluster markdown" { class: artifact }
+communities_index: ".kg/communities.json\nflat + nested hierarchy\n+ core nodes + labels" { class: artifact }
+centroids: ".kg/community_centroids.npy\nfor community_search" { class: artifact }
+cards: "cards/\nfrontmatter carries\ncommunity_id + path" { class: artifact }
 html_out: "html/" { class: artifact }
 exports: "exports/" { class: artifact }
 mathretry: ".kg/math_retry.jsonl\n(deferred Chandra patch)" { class: artifact }
@@ -205,8 +207,12 @@ embeddings -> graph: "" { style.stroke: "#79c39e"; style.stroke-width: 3 }
 graph -> graphdir: "" { style.stroke: "#ead1b5"; style.stroke-width: 2 }
 graphdir -> cluster: "" { style.stroke: "#ead1b5"; style.stroke-width: 3 }
 
-# Stage 4 outgoing (ochre)
+# Stage 4 outgoing (ochre): partition flows to communities/, the
+# persisted index, the centroids matrix, and forward to render.
 cluster.hub -> communities: "" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
+cluster.hub -> communities_index: "persist" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
+embeddings -> centroids: "centroids" { style.stroke: "#c98a4a"; style.stroke-width: 2; style.stroke-dash: 4 }
+cluster.hub -> centroids: "write" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
 communities -> render: "" { style.stroke: "#c98a4a"; style.stroke-width: 3 }
 
 # Cross-stage shortcuts into render

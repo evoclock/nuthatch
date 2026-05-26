@@ -109,6 +109,22 @@
   Palette: thermall power-station.
 </div>
 
+<div class="legend" style="border-left-color: var(--primary);">
+  <strong>Community-aware retrieval (the headline feature).</strong>
+  Stage 4 now emits three artifacts, not one. Beside the rendered
+  <code>communities/</code> markdown pages, the cluster step writes
+  <code>.kg/communities.json</code> (per-doc community_id, nested
+  hierarchy, per-community core nodes, labels) and
+  <code>.kg/community_centroids.npy</code> (per-community mean
+  embedding). Both are read by the MCP server's community tools at
+  query time: <code>community_id</code> / <code>community_path</code>
+  / <code>community_label</code> are emitted with every search hit,
+  and <code>community_search(query, k)</code> ranks communities
+  semantically against their centroids. See
+  <a href="../Design_Decisions.md">Design_Decisions.md</a> &sect;
+  <em>Community-aware retrieval</em> for the full rationale.
+</div>
+
 <h2>Color key</h2>
 
 <table>

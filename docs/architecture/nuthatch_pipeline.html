@@ -94,6 +94,22 @@
   that imports from elsewhere. Palette: thermall power-station.
 </div>
 
+<div class="legend" style="border-left-color: var(--primary);">
+  <strong>Community-aware retrieval (the headline feature).</strong>
+  Stage 4 emits three artifacts now, not one. Beside the rendered
+  <code>communities/</code> markdown pages, cluster writes
+  <code>.kg/communities.json</code> (per-doc community_id, nested
+  hierarchy, per-community core nodes, labels) and
+  <code>.kg/community_centroids.npy</code> (per-community mean
+  embedding). The MCP server reads both at query time so
+  <code>community_id</code> / <code>community_path</code> /
+  <code>community_label</code> can be emitted with every search hit,
+  and <code>community_search(query, k)</code> can rank communities
+  semantically against their centroids. See
+  <a href="../Design_Decisions.md">Design_Decisions.md</a> &sect;
+  <em>Community-aware retrieval</em> for the full rationale.
+</div>
+
 <h2>Color key</h2>
 
 <table>
@@ -138,8 +154,10 @@ flowchart TB
     KEX[".kg/extracted/"]:::artifact
     KEMB[".kg/embeddings/<br/>Chroma persistent"]:::artifact
     GRA["graph/"]:::artifact
-    COM["communities/"]:::artifact
-    CRD["cards/"]:::artifact
+    COM["communities/<br/>per-cluster markdown"]:::artifact
+    CIDX[".kg/communities.json<br/>flat + nested + cores"]:::artifact
+    CCEN[".kg/community_centroids.npy<br/>powers community_search"]:::artifact
+    CRD["cards/<br/>frontmatter has<br/>community_id + path"]:::artifact
     HTM["html/"]:::artifact
     XPT["exports/"]:::artifact
     MRT[".kg/math_retry.jsonl"]:::artifact
@@ -163,6 +181,8 @@ flowchart TB
     GRP --> GRA
     GRA --> CLU
     CLU --> COM
+    CLU --> CIDX
+    CLU --> CCEN
     COM --> RND
     GRA --> RND
     KEX --> RND
@@ -179,10 +199,10 @@ flowchart TB
     linkStyle 10 stroke:#e77843,stroke-width:3px
     linkStyle 11,12 stroke:#79c39e,stroke-width:3px
     linkStyle 13,14 stroke:#ead1b5,stroke-width:3px
-    linkStyle 15,16 stroke:#c98a4a,stroke-width:3px
-    linkStyle 17 stroke:#ead1b5,stroke-width:2px
-    linkStyle 18 stroke:#e77843,stroke-width:2px
-    linkStyle 19,20,21 stroke:#5a957a,stroke-width:2px
+    linkStyle 15,16,17,18 stroke:#c98a4a,stroke-width:3px
+    linkStyle 19 stroke:#ead1b5,stroke-width:2px
+    linkStyle 20 stroke:#e77843,stroke-width:2px
+    linkStyle 21,22,23 stroke:#5a957a,stroke-width:2px
 </div>
 
 <h2>2. Module graph</h2>
