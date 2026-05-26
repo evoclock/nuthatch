@@ -230,6 +230,24 @@ def _extract_title(markdown: str) -> str | None:
     return None
 
 
+def _strip_line_prefix(line: str) -> str:
+    """Strip leading markdown list / heading markers and line numbers.
+
+    Docling renders the author block of a line-numbered Word manuscript
+    (the journal-review default for biology submissions) as either:
+
+        - Chenwei Zhou, 1 Chanjuan Dong, 1 Weiye Zhao, 1 and Fu-Sen Liang 1, *
+        1 Xiaoqin Huang1, Ivan Ovcharenko1*
+
+    Both forms break the CSV-author regex which expects `^name, name, ...`.
+    Stripping `- ` / `* ` / `<digit>. ` list markers + a leading
+    standalone line-number lets the same regex parse the cleaned line.
+    """
+    cleaned = re.sub(r"^[-*]\s+|^\d+[.)]\s+", "", line)
+    cleaned = re.sub(r"^\d+\s+", "", cleaned)
+    return cleaned
+
+
 def _strip_affil_markers(line: str) -> str:
     """Remove affiliation digits / asterisks / daggers from an author line.
 
@@ -328,14 +346,22 @@ def _extract_leading_authors(markdown: str) -> list[str]:
         return _seen_list(email_form)
 
     # Pattern 3: a single line of comma/and-separated Title-Case names.
-    # Try BOTH the raw line and the affiliation-stripped version, since
-    # Docling glues affiliation markers (digits / `*` / daggers) onto
-    # surnames in a way that breaks the multi-token name regex.
+    # Walk lines, applying THREE progressive cleaners and trying the
+    # CSV regex on each cleaned form. Order:
+    #   1. raw line
+    #   2. + strip leading markdown list marker / line number
+    #      (`- Author, Author` rendered as a list item)
+    #   3. + strip affiliation markers (digits / `*` / daggers)
+    #      glued to surnames
+    # First match wins; subsequent lines aren't searched.
     for line in region.split("\n"):
         text = line.strip()
         if not text:
             continue
-        for candidate in (text, _strip_affil_markers(text)):
+        depref = _strip_line_prefix(text)
+        for candidate in (text, depref, _strip_affil_markers(depref)):
+            if not candidate:
+                continue
             csv_match = _PLAIN_CSV_AUTHORS_LINE_RE.fullmatch(candidate)
             if csv_match:
                 return _seen_list(_split_authors(csv_match.group(0)))

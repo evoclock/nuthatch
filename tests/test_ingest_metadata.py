@@ -191,6 +191,50 @@ class TestExtractMetadataHeuristic:
         out = extract_metadata_heuristic(md)
         assert out["abstract"].startswith("Increasing access to genomic data")
 
+    def test_csv_authors_rendered_as_markdown_list_item(self) -> None:
+        # Real-world: line-numbered Word manuscripts on bioRxiv get
+        # rendered by Docling as `- Author, Author, ...` list items
+        # with trailing line numbers. The strip-line-prefix step
+        # must remove the `- ` marker so the CSV regex can match.
+        md = (
+            "## Hierarchical Interplay 1\n\n"
+            "- Chenwei Zhou, 1 Chanjuan Dong, 1 Weiye Zhao, 1 and Fu-Sen Liang 1, * 2\n\n"
+            "## SUMMARY\n\n"
+            "H3K27ac and H3K4me3...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == [
+            "Chenwei Zhou",
+            "Chanjuan Dong",
+            "Weiye Zhao",
+            "Fu-Sen Liang",
+        ]
+
+    def test_csv_authors_with_leading_line_number(self) -> None:
+        # Word manuscripts with margin line-numbers can also yield
+        # plain `1 Author, Author` style after Docling.
+        md = (
+            "## A Paper 1\n\n"
+            "2 Xiaoqin Huang1, Ivan Ovcharenko1*\n\n"
+            "## ABSTRACT\n\n"
+            "We present...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == ["Xiaoqin Huang", "Ivan Ovcharenko"]
+
+    def test_csv_authors_with_parenthesised_orcid_ids(self) -> None:
+        # bioRxiv: `Abbey Ramirez1* (ORCID iD: 0009-...) and Amanda Gibson1 (ORCID iD: 0000-...)`
+        # Parenthesised groups + affiliation digits stripped together.
+        md = (
+            "## Temperature alters specificity 1\n\n"
+            "2 Abbey Ramirez1* (ORCID iD: 0009-0000-4698-6432) "
+            "and Amanda Gibson1 (ORCID iD: 0000-0002-0867-4953)\n\n"
+            "## ABSTRACT\n\n"
+            "The Red Queen Hypothesis proposes...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == ["Abbey Ramirez", "Amanda Gibson"]
+
     def test_abstract_fallback_skips_bioarxiv_watermark(self) -> None:
         # The first paragraph in a Docling-converted bioRxiv PDF is
         # often the license watermark. The fallback must skip it and
