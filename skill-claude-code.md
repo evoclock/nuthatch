@@ -9,7 +9,7 @@ description: Local-first knowledge-graph tool for paper corpora; MCP query surfa
 trigger: nuthatch serve --corpus <name>
 ---
 
-# nuthatch — Claude Code integration
+# Nuthatch — Claude Code integration
 
 > **Tool spec**: load `AGENTS.md` (XML-tagged) **or**
 > `AGENTS-MARKDOWN.md` (plain markdown) for full tool semantics.
@@ -21,7 +21,7 @@ trigger: nuthatch serve --corpus <name>
 
 ## One-time setup
 
-1. Install nuthatch (once published to PyPI):
+1. Install Nuthatch (once published to PyPI):
 
    ```bash
    sfw pipx install nuthatch
@@ -36,7 +36,7 @@ trigger: nuthatch serve --corpus <name>
    ```
 
 3. Drop sources anywhere under the corpus root (`inbox/`,
-   `arxiv/`, `bioarxiv/`, `notes/`, root-level — your choice; the
+   `arxiv/`, `bioarxiv/`, `notes/`, root-level. Your choice; the
    ingest pipeline scans the tree). Then run the four-stage
    pipeline:
 
@@ -61,14 +61,14 @@ trigger: nuthatch serve --corpus <name>
    }
    ```
 
-   Restart Claude Code; the five nuthatch tools
+   Restart Claude Code; the five Nuthatch tools
    (`corpus_search`, `subgraph_extract`, `card_get`,
    `community_get`, `token_econ_report`) appear in the tool list.
 
 ## Build-pipeline operations (when to run what)
 
-nuthatch's build pipeline is four sequential stages. The agent does
-NOT orchestrate these — the user runs them out-of-band via the
+Nuthatch's build pipeline is four sequential stages. The agent does
+NOT orchestrate these. The user runs them out-of-band via the
 CLI. Rationale pinned in `docs/DECISIONS.md` § "Execution model:
 build out-of-band, query via MCP".
 
@@ -124,10 +124,10 @@ ingests on a cron or batch script.
 
 ### Cost check (token economy)
 
-> "How much context did I save by using nuthatch on this task?"
+> "How much context did I save by using Nuthatch on this task?"
 
 1. `token_econ_report(group_by="tool")` after the work session.
-2. nuthatch's counterfactual is per-tool BM25 / card-sum, NOT
+2. Nuthatch's counterfactual is per-tool BM25 / card-sum, NOT
    "the whole corpus" (the kestrel-style strawman pinned in
    `docs/DECISIONS.md` § Token-economy methodology). Expect
    2-8x, not 50-100x. Honest numbers.
@@ -145,13 +145,13 @@ ingests on a cron or batch script.
 
 Do NOT try to invoke the build CLI yourself. The agent queries;
 the user builds. (`docs/DECISIONS.md` § "Execution model" pins
-this — and explains why the user-supervised model is honest about
+this. And explains why the user-supervised model is honest about
 ingestion failures, while kestrel's agent-driven pipeline hides
 them.)
 
 ## See also
 
-- `AGENTS.md` — full tool semantics and usage patterns (XML-tagged)
-- `AGENTS-MARKDOWN.md` — same content, markdown sections
-- `docs/SPEC.md` — architecture
-- `docs/DECISIONS.md` — locked design decisions
+- `AGENTS.md`. Full tool semantics and usage patterns (XML-tagged)
+- `AGENTS-MARKDOWN.md`. Same content, markdown sections
+- `docs/SPEC.md`. Architecture
+- `docs/DECISIONS.md`. Locked design decisions

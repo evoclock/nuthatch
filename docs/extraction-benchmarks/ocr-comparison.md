@@ -5,8 +5,8 @@ date: 2026-05-25
 
 ## Context
 
-Empirical comparison of the OCR backends nuthatch routes between in
-the Sprint 2 extraction pipeline. nuthatch is an orchestrator that
+Empirical comparison of the OCR backends Nuthatch routes between in
+the Sprint 2 extraction pipeline. Nuthatch is an orchestrator that
 calls user-installed OCR backends; it does not redistribute model
 weights or run inference as a service. The benchmark exists to (a)
 pin the routing decision in `docs/DECISIONS.md` with evidence and (b)
@@ -127,9 +127,9 @@ The classifier in `math_recall.score` separates real equations
 Docling VLMs (Granite and SmolDocling) emit lots of LaTeX-shaped
 spans but the vast majority are mangled subscript/superscript
 fragments with the host variable stripped. Examples from Granite
-Wright: `\_{ab}`, `\_{a}`, `^{6}`, `^{s}` — un-renderable. Chandra's
+Wright: `\_{ab}`, `\_{a}`, `^{6}`, `^{s}`. Un-renderable. Chandra's
 spans on the same paper: `[(1-q)a+qA]`, `\Delta q = -uq + v(1-q)`,
-`\Delta q = 0` — full equations the way the original paper laid them
+`\Delta q = 0`. Full equations the way the original paper laid them
 out.
 
 **MK 1991:**
@@ -222,9 +222,9 @@ are useful for different downstream needs.
   to EasyOCR than to Granite on math fidelity despite the
   key-facts score suggesting otherwise; the key-facts checklist
   doesn't probe equation rendering directly.
-- Chandra missed `1931` in the year fact — likely a `1 → I` confusion
+- Chandra missed `1931` in the year fact. Likely a `1 → I` confusion
   on the journal-header typography. The body content survives.
-- EasyOCR missed `University of Chicago` in the affiliation — title-page
+- EasyOCR missed `University of Chicago` in the affiliation. Title-page
   layout issue rather than an OCR character failure.
 - For math-heavy papers the routing recommendation is unambiguous:
   **Chandra**. Granite is acceptable when Chandra is unavailable.
@@ -269,27 +269,27 @@ floor and well below any plausible digital-text content.
 
 ## Licensing posture (orchestrator vs deployer)
 
-nuthatch is a routing layer that calls user-installed OCR backends.
-nuthatch does not redistribute model weights and does not run
+Nuthatch is a routing layer that calls user-installed OCR backends.
+Nuthatch does not redistribute model weights and does not run
 inference as a service. Backend licences attach to the end user's
-runtime, not to nuthatch:
+runtime, not to Nuthatch:
 
 - **Chandra-OCR-2**: OpenRAIL (responsible-AI licence; permits
   commercial + OSS use, prohibits surveillance / weapons / illegal
   use). End user accepts these terms by installing and running
-  Chandra. nuthatch's role is configuration and dispatch.
+  Chandra. Nuthatch's role is configuration and dispatch.
 - **Docling + EasyOCR / Granite-Docling / SmolDocling**: all
   permissive (MIT / Apache / similar). End user accepts each by
   installing the corresponding package.
 
 The README documents that users install backends themselves
-(`sfw uv add chandra-ocr[hf]`, etc.) and choose their stack. nuthatch
+(`sfw uv add chandra-ocr[hf]`, etc.) and choose their stack. Nuthatch
 ships Apache 2.0 and remains a permissive orchestrator regardless of
 which backends a user runs.
 
 ## Reproduction
 
-From the nuthatch repo root, with the venv set up via `uv sync`:
+From the Nuthatch repo root, with the venv set up via `uv sync`:
 
 Each paper's full 4-tool run + sidecar exports lives at
 `docs/extraction-benchmarks/outputs/{mk,mendel,wright}/{chandra,easyocr,granite,smol}/`

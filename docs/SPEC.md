@@ -1,4 +1,4 @@
-# nuthatch: architecture spec
+# Nuthatch: architecture spec
 
 Working spec as of the project scaffolding. Settled choices land in
 `DECISIONS.md`; this file describes the architecture they shape.
@@ -105,7 +105,7 @@ land separately as `nuthatch_sbm`, `nuthatch_leiden`, etc.
 - MCP server: stdio-only at first; HTTP-SSE if/when an external
   agent client needs it.
 - Surface for the token-econ dashboard: TUI like thermall, or a
-  small web UI? TUI bias for the v1 since most nuthatch users will
+  small web UI? TUI bias for the v1 since most Nuthatch users will
   already have a terminal open.
 
 ## References

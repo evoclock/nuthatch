@@ -10,17 +10,17 @@ with AGENTS.md.
 
 ---
 name: nuthatch
-description: Local-first knowledge-graph tool for document corpora (papers, technical reports, patents, internal docs, notes — any text-based source) with principled clustering and a token-economy-aware MCP query surface.
+description: Local-first knowledge-graph tool for document corpora (papers, technical reports, patents, internal docs, notes, any text-based source) with principled clustering and a token-economy-aware MCP query surface.
 trigger: nuthatch serve --corpus <name>
 ---
 
-# nuthatch agent guide
+# Nuthatch agent guide
 
 ## Purpose
 
-nuthatch turns a curated corpus of documents (research papers,
+Nuthatch turns a curated corpus of documents (research papers,
 technical reports, patents, internal company docs, notes, books
-— any text-based source) into a navigable knowledge graph,
+, any text-based source) into a navigable knowledge graph,
 surfaces query-scoped subgraphs to the consuming LLM agent to
 cut context usage, and keeps the graph honest with a strict
 ingest-time metadata schema. This MCP surface exposes the
@@ -39,19 +39,19 @@ user-defined); the rest of the surface is type-agnostic.
 
 A corpus carries these on-disk directories under its root:
 
-- `cards/` — one markdown card per document. YAML frontmatter
+- `cards/`. One markdown card per document. YAML frontmatter
   aligns with the kb-reports.md schema (title, id, type, year,
   authors, doi, topics, status, relevance, half_life_days,
   ingested, last_touched). The `type` field reflects the active
   SchemaProfile.
-- `communities/` — one markdown page per community (cluster).
+- `communities/`. One markdown page per community (cluster).
   Lists member documents as Obsidian wikilinks to the cards.
-- `.kg/` — internal state. `manifest.jsonl` (ingest log),
+- `.kg/`. Internal state. `manifest.jsonl` (ingest log),
   `graph/graph.json` (corpus graph), `embeddings/` (ChromaDB),
   `cache/` (semantic cache), `mcp/mcp.log` (this server's logs).
-- `inbox/` / `quarantine/` — ingest staging; not user-facing for
+- `inbox/` / `quarantine/`. Ingest staging; not user-facing for
   query-time agents.
-- `dashboard.md`, `index.md`, `log.md` — Obsidian-Dataview
+- `dashboard.md`, `index.md`, `log.md`. Obsidian-Dataview
   navigation surface for humans.
 
 Node-id conventions for `subgraph_extract`:
@@ -137,7 +137,7 @@ Common agent flows:
   agent's perspective. Ingest, schema validation, and clustering
   happen out-of-band via the CLI. No tool here mutates corpus
   state.
-- nuthatch **does not call LLMs internally**. The consuming agent
+- Nuthatch **does not call LLMs internally**. The consuming agent
   (you) calls the LLM with the subgraph or chunks this server
   returns. The token-economy report measures how much context
   this saves you per query.
@@ -158,5 +158,5 @@ Tool responses follow the MCP convention:
 - Error: `{"isError": true, "content": [{"type": "text", "text": "..."}]}`
 
 When you see `isError: true`, surface the error text to the
-user verbatim — it carries the operational reason (missing
+user verbatim. It carries the operational reason (missing
 config, unknown ID, malformed argument) the user needs to fix.

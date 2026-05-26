@@ -9,17 +9,17 @@ description: Local-first knowledge-graph tool for paper corpora; MCP query surfa
 trigger: nuthatch serve --corpus <name>
 ---
 
-# nuthatch — Aider integration
+# Nuthatch — Aider integration
 
 > **Tool spec**: load `AGENTS.md` (XML-tagged) **or**
 > `AGENTS-MARKDOWN.md` (plain markdown) for full tool semantics.
-> Pick whichever format your parser handles best — both carry the
+> Pick whichever format your parser handles best. Both carry the
 > same content and stay in sync. This skill file covers
 > Aider-specific wiring only.
 
 ## One-time setup
 
-1. Install nuthatch into a uv venv:
+1. Install Nuthatch into a uv venv:
 
    ```bash
    sfw uv add nuthatch         # once published; until then install editable from source
@@ -46,12 +46,12 @@ trigger: nuthatch serve --corpus <name>
    nuthatch serve --corpus my-corpus
    ```
 
-   And use Aider's `/run` command to invoke nuthatch CLI helpers
+   And use Aider's `/run` command to invoke Nuthatch CLI helpers
    inline (`nuthatch query "..."`, `nuthatch card-get <doc_id>`).
 
 ## Aider usage primer
 
-When Aider asks "what should I do?", reach for nuthatch when:
+When Aider asks "what should I do?", reach for Nuthatch when:
 
 - You need to ground a code change in a paper or doc the user has
   ingested. `nuthatch query "..."` returns the relevant chunks;
@@ -62,8 +62,8 @@ When Aider asks "what should I do?", reach for nuthatch when:
 
 ## Build-pipeline operations (when to run what)
 
-nuthatch's build pipeline is four sequential stages. The agent does
-NOT orchestrate these — the user runs them out-of-band via the
+Nuthatch's build pipeline is four sequential stages. The agent does
+NOT orchestrate these. The user runs them out-of-band via the
 CLI. Rationale pinned in `docs/DECISIONS.md` § "Execution model:
 build out-of-band, query via MCP".
 
@@ -109,7 +109,7 @@ cron or batch script.
 > "How much context did the corpus query save?"
 
 1. `nuthatch token-report --group-by tool` after a session.
-2. nuthatch counterfactual is per-tool BM25 / card-sum, NOT
+2. Nuthatch counterfactual is per-tool BM25 / card-sum, NOT
    "whole corpus" (per `docs/DECISIONS.md` § Token-economy
    methodology). Expect 2-8x, not 50-100x. Honest numbers.
 
@@ -127,6 +127,6 @@ Do NOT invoke the build CLI yourself.
 
 ## See also
 
-- `AGENTS.md` — full tool semantics and usage patterns (XML-tagged)
-- `AGENTS-MARKDOWN.md` — same content, markdown sections
-- `docs/SPEC.md` — architecture
+- `AGENTS.md`. Full tool semantics and usage patterns (XML-tagged)
+- `AGENTS-MARKDOWN.md`. Same content, markdown sections
+- `docs/SPEC.md`. Architecture

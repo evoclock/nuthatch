@@ -1,14 +1,12 @@
 # Design Decisions
 
-This document records the design choices nuthatch ships with and the
+This document records the design choices Nuthatch ships with and the
 reasoning behind each. Settled choices stay here as a reference for
 contributors and users. Where a decision deviates from a peer tool's
 approach, the reasoning is given factually so readers can evaluate
 the trade-off for themselves rather than take our word for it.
 
-## Identity
-
-- **Licence**: Apache 2.0.
+## **Licence**: Apache 2.0
 
 ## Architecture
 
@@ -30,7 +28,7 @@ cannot audit because the source text is gone or has been silently
 overwritten. That is a bad trade for any research tool where
 every claim must be defensible.
 
-nuthatch enforces this rule at four boundaries:
+Nuthatch enforces this rule at four boundaries:
 
 1. **Source PDFs in `papers/` are never modified after ingest.**
    The original bytes are preserved as the audit trail.
@@ -50,7 +48,7 @@ nuthatch enforces this rule at four boundaries:
 The rule survives every architectural choice in this document.
 When the rule conflicts with a convenience (for example,
 "wouldn't it be faster to let the agent regenerate the card after
-edits?"), nuthatch chooses the rule.
+edits?"), Nuthatch chooses the rule.
 
 ### Per-corpus storage
 
@@ -74,12 +72,12 @@ edits?"), nuthatch chooses the rule.
   `internal_doc`. Users define their own via YAML or a small
   Python plugin; the corpus's `.kg/config.yaml` names the active
   profile.
-- **The LLM boundary.** nuthatch never calls a chat LLM internally.
+- **The LLM boundary.** Nuthatch never calls a chat LLM internally.
   Embedding models are used for semantic dedup and corpus search;
   no chat-style inference. Any LLM consumption happens at the
   consuming agent (Claude Code, Codex, Aider, OpenCode, Pi,
   Hermes, an Obsidian plugin, the user's own local model). All of
-  them interact through the same MCP tool surface — no special
+  them interact through the same MCP tool surface. No special
   integration path per agent.
 - **Supported platforms.** macOS (Apple Silicon), Linux (any),
   Windows-with-CUDA-GPU. Windows-without-GPU is unsupported: the
@@ -90,7 +88,7 @@ edits?"), nuthatch chooses the rule.
 
 ## Clustering
 
-- **Stochastic Block Model is the principled default.** nuthatch's
+- **Stochastic Block Model is the principled default.** Nuthatch's
   highest-rigor clustering backend is Tiago Peixoto's nested
   degree-corrected SBM via `graph-tool`. The SBM is Bayesian
   (avoids the resolution-limit problem that traps modularity
@@ -102,7 +100,7 @@ edits?"), nuthatch chooses the rule.
   PyPI wheel exists because the C++ dep chain (boost-python3,
   expat, sparsehash, scipy headers) is unmaintainable as a
   cross-platform pip package. This is a known constraint of the
-  library, not a nuthatch design choice. Users who can't or won't
+  library, not a Nuthatch design choice. Users who can't or won't
   install conda get the heuristic tier instead.
 - **Leiden + embeddings fallback.** When `graph-tool` is
   unavailable or the graph exceeds local SBM compute capacity,
@@ -118,7 +116,7 @@ edits?"), nuthatch chooses the rule.
   excluded from the partition fit and reattached afterwards by
   majority-vote of their neighbours' community memberships. This
   is a well-known correction for graphs where a few very-popular
-  nodes would otherwise distort the partition; nuthatch's
+  nodes would otherwise distort the partition; Nuthatch's
   implementation calls these nodes `core_nodes` (the term
   "high-degree node" with established meaning in graph theory,
   named here without anthropomorphisation).
@@ -172,19 +170,19 @@ edits?"), nuthatch chooses the rule.
   tagged `EXTRACTED | INFERRED | AMBIGUOUS`. This is a long-
   established convention in knowledge-graph literature (NELL,
   YAGO, ConceptNet have variants from the 2000s and 2010s);
-  nuthatch surfaces it consistently in the graph viewer and in
+  Nuthatch surfaces it consistently in the graph viewer and in
   MCP-served subgraphs so the consuming agent knows what is
   evidence vs what is inference.
 
 ## Extraction
 
-nuthatch is a routing layer that calls user-installed OCR backends.
-Backend licences attach to the end user's runtime; nuthatch does
+Nuthatch is a routing layer that calls user-installed OCR backends.
+Backend licences attach to the end user's runtime; Nuthatch does
 not redistribute model weights or run inference as a service.
 
 - **Routing criteria.** PDF text yield (chars per page, measured
   via `pdfminer.six`) is the primary signal. Above the threshold:
-  Docling without OCR — fast, structure-aware, preserves
+  Docling without OCR. Fast, structure-aware, preserves
   text-typeset math. Below the threshold: scanned-text path,
   routed by host capabilities (GPU + max-quality preference →
   Chandra-OCR-2; GPU + smaller-model preference → Granite-Docling
@@ -248,7 +246,7 @@ not redistribute model weights or run inference as a service.
   `corpus_search`, `subgraph_extract`, `card_get`,
   `community_get`, `token_econ_report`.
 - **Per-document markdown card** (Obsidian-compatible YAML
-  frontmatter, queryable via Dataview) — one per ingested doc,
+  frontmatter, queryable via Dataview). One per ingested doc,
   under `<corpus>/cards/`.
 - **Per-community markdown page** under `<corpus>/communities/`,
   listing members as wikilinks for one-click navigation in
@@ -258,16 +256,16 @@ not redistribute model weights or run inference as a service.
 
 ## Token-economy methodology
 
-nuthatch ships a `token_econ_report` MCP tool that measures how
-many tokens the consuming agent saved by using nuthatch instead
-of a non-nuthatch fallback. **The choice of fallback is the entire
-methodology** — everything else is bookkeeping.
+Nuthatch ships a `token_econ_report` MCP tool that measures how
+many tokens the consuming agent saved by using Nuthatch instead
+of a non-Nuthatch fallback. **The choice of fallback is the entire
+methodology**. Everything else is bookkeeping.
 
 ### Per-tool, per-query baselines
 
 A static "whole corpus" counterfactual overstates savings by
 orders of magnitude because nobody pastes an entire corpus into
-context per query. nuthatch uses a baseline specific to what each
+context per query. Nuthatch uses a baseline specific to what each
 tool actually replaces:
 
 | Tool | Counterfactual baseline |
@@ -281,7 +279,7 @@ Reductions reported under this scheme typically land between
 ~2× and ~8× depending on corpus size and query specificity. The
 smaller numbers are deliberate: they are defensible, comparable
 across queries, and computed against a baseline the operator
-would actually have used in the absence of nuthatch.
+would actually have used in the absence of Nuthatch.
 
 ### Comparison with the whole-corpus framing
 
@@ -291,7 +289,7 @@ publishes a "71.5× fewer tokens per query vs reading the raw
 files directly" headline in `docs/how-it-works.md`. The
 methodology behind that figure (from `graphify/benchmark.py`):
 counterfactual is computed as `nodes × 50 words × 1.33`
-synthetic tokens — i.e. an estimate of "the whole corpus as raw
+synthetic tokens. I.e. an estimate of "the whole corpus as raw
 text"; served is the BFS subgraph text after keyword-substring
 matching three seed nodes; ratio = corpus / served.
 
@@ -304,20 +302,20 @@ smaller is it than what I'd otherwise have pasted into the LLM",
 and "what I'd otherwise have pasted" is a top-k retrieval, not
 the corpus. The graphify documentation itself notes the
 comparison breaks at small corpora ("Six files already fits in a
-context window — the graph value there is structural clarity,
+context window. The graph value there is structural clarity,
 not compression"), which is correct, but the headline number is
 still computed by the whole-corpus method and shown without that
 caveat.
 
-nuthatch's per-tool baselines produce smaller and defensible
+Nuthatch's per-tool baselines produce smaller and defensible
 ratios because they compare like-for-like. Any token-economy
-figure that ships in nuthatch's documentation or dashboard cites
+figure that ships in Nuthatch's documentation or dashboard cites
 which tool's counterfactual was used, the corpus size, and the
 query (or sample query set).
 
 ## Execution model: build out-of-band, query via MCP
 
-nuthatch separates **building the corpus** from **querying it**.
+Nuthatch separates **building the corpus** from **querying it**.
 
 - **Build** happens out-of-band via the CLI:
   `nuthatch ingest` → `nuthatch embed` → `nuthatch graph` →
@@ -353,13 +351,13 @@ nuthatch separates **building the corpus** from **querying it**.
    that drives the same work from inside an agent invocation
    loses this feedback channel: if the agent session times out
    or the operator disconnects, the work is lost without a clean
-   recovery path. nuthatch's CLI runs in the operator's terminal,
+   recovery path. Nuthatch's CLI runs in the operator's terminal,
    exits with a status code, and writes per-run audit logs to
    `<corpus>/.kg/audit/`.
 5. **Quality issues are surfaced and actionable, not silently
    absorbed.** When extraction yield drops below the QC floor,
    `nuthatch ingest` quarantines the file with a reason-tagged
-   subdir and a `.reason.json` sidecar — the operator inspects,
+   subdir and a `.reason.json` sidecar. The operator inspects,
    fixes the source, re-runs. Schema validation failures log
    missing required fields. The clustering router downgrades from
    principled SBM to heuristic Leiden when graph-tool is
@@ -375,7 +373,7 @@ nuthatch separates **building the corpus** from **querying it**.
    model, or fall back when it judges the skill too verbose.
    Putting the orchestration inside the MCP server (Python code
    the agent does not see) means the agent calls a tool and the
-   server does the right thing internally — parallel work,
+   server does the right thing internally. Parallel work,
    batching, caching, deduplication. The agent cannot deviate
    because the agent is not doing the orchestration. This is the
    same reason a well-designed REST API does not ship a client
@@ -393,21 +391,21 @@ drives clustering and analysis and rendering inline. That model
 fits a "build per query session" shape, and the per-host skill
 file is the runbook the agent is expected to follow.
 
-nuthatch's "build once, query many" shape means our skill files
+Nuthatch's "build once, query many" shape means our skill files
 are an order of magnitude shorter (~150-200 lines) without that
 being a deficit: the build runbook is the CLI itself, called by
 the operator out-of-band. The skill files only document MCP
 registration plus how to use the 5 query tools effectively in
 common multi-step flows. The agent does the agent's job;
-nuthatch does nuthatch's.
+Nuthatch does Nuthatch's.
 
 ## What is not invented here
 
-nuthatch composes well-established methods. Where it differs
+Nuthatch composes well-established methods. Where it differs
 from peer tools, the difference is in engineering decisions
 about how to compose them, not in algorithmic novelty.
 
-| Method | Origin | nuthatch's use |
+| Method | Origin | Nuthatch's use |
 | --- | --- | --- |
 | Stochastic Block Model (Bayesian, nested, degree-corrected) | Karrer & Newman 2011; Peixoto 2014, 2017 | The principled clustering tier via `graph-tool` |
 | Leiden community detection | Traag, Waltman, van Eck 2019 (Nature Sci. Rep. 9, 5233) | The heuristic clustering tier via `leidenalg` |
@@ -419,21 +417,43 @@ about how to compose them, not in algorithmic novelty.
 | Graph-based retrieval over LLM-built entity graphs | Microsoft GraphRAG (April 2024), among others | The conceptual pipeline shape; we chose SBM where GraphRAG chose Leiden |
 | Hybrid chunking with structural-boundary preference | Standard RAG practice | The chunker (`src/nuthatch/embed/chunk.py`) |
 
-We evaluated existing tools in this space — graphify, Microsoft
-GraphRAG, Khoj, Cognee, Verba — and chose to build nuthatch
-because we wanted a different combination of trade-offs:
-principled clustering as the rigor ceiling rather than Leiden
-as the rigor floor; honest token-economy accounting rather than
-whole-corpus headline numbers; build out-of-band rather than
-build per query; strict schema-quarantine on ingest rather than
-accept-and-degrade; and a five-stage CLI pipeline the operator
-controls rather than a multi-thousand-line agent runbook.
+**Peer landscape and why Nuthatch exists anyway.**
 
-The peer tools are not wrong for choosing differently. Their
-choices fit their value propositions; ours fit ours. This
-document records what we chose and why so the next contributor
-or evaluator can judge whether the trade-offs match their
-needs.
+The graph-augmented retrieval space has working open-source
+implementations: Microsoft GraphRAG (the most actively maintained,
+v3+, configuration-heavy), graphify (LLM-extracted graph plus
+Leiden clustering), LightRAG (HKUST, recent), HippoRAG (Ohio
+State, neurosymbolic), and nano-graphrag (minimal reference
+port). Adjacent territory: Cognee (graph plus vector hybrid,
+agent-memory focus), PaperQA2 (research-paper Q&A without a
+graph layer), Khoj (local-first personal RAG), and Verba (vector
+RAG over Weaviate, explicitly graph-free).
+
+Nuthatch was built because we wanted a specific combination of
+choices that no single peer makes:
+
+- Bayesian Stochastic Block Model as the principled clustering
+  ceiling, with Leiden as a graceful fallback
+- Honest per-tool token-economy accounting (see the methodology
+  section)
+- Build pipeline triggered out-of-band by the operator, with
+  quality gates between stages
+- Strict schema quarantine on ingest, with reasoned per-file
+  failure sidecars
+- Authoritative metadata fetched from publisher APIs rather
+  than parsed from PDF body text
+- User-extensible schema profiles for papers, patents, internal
+  documents, and arbitrary user-defined types
+- A five-stage CLI that an operator drives directly, paired
+  with a read-only MCP query surface for agents
+
+The corpus type is a schema profile, not a category constraint.
+Nuthatch is designed to serve any structured-corpus problem
+where graph-augmented retrieval helps: paper review, patent
+landscaping, internal-document knowledge mining, regulatory
+archives, technical-doc consolidation, and Repomix-preprocessed
+codebases (Repomix is, in our view, a superior way to handle
+codebase representation for code-as-corpus).
 
 ## References
 
@@ -447,10 +467,15 @@ needs.
   *Sci. Rep.* 9, 5233.
 - Reimers, N. & Gurevych, I. 2019. "Sentence-BERT: Sentence
   embeddings using Siamese BERT-networks." *EMNLP*.
-- Microsoft GraphRAG (2024): <https://github.com/microsoft/graphrag>
+- Microsoft GraphRAG: <https://github.com/microsoft/graphrag>
 - graphify: <https://github.com/safishamsi/graphify>
-- Khoj: <https://github.com/khoj-ai/khoj>
+- LightRAG (HKUST): <https://github.com/HKUDS/LightRAG>
+- HippoRAG (Ohio State NLP): <https://github.com/OSU-NLP-Group/HippoRAG>
+- nano-graphrag: <https://github.com/gusye1234/nano-graphrag>
 - Cognee: <https://github.com/topoteretes/cognee>
+- PaperQA2 (Future-House): <https://github.com/Future-House/paper-qa>
+- Khoj: <https://github.com/khoj-ai/khoj>
 - Verba (Weaviate): <https://github.com/weaviate/Verba>
-- nuthatch OCR benchmark:
+- Repomix: <https://github.com/yamadashy/repomix>
+- Nuthatch OCR benchmark:
   `docs/extraction-benchmarks/ocr-comparison.md`

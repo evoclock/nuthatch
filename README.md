@@ -1,4 +1,4 @@
-# nuthatch
+# Nuthatch
 
 > Knowledge-graph tool for paper corpora and notes, with principled
 > clustering and explicit LLM context-token economy.

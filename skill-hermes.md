@@ -9,11 +9,11 @@ description: Local-first knowledge-graph tool for paper corpora; MCP query surfa
 trigger: nuthatch serve --corpus <name>
 ---
 
-# nuthatch — Hermes integration
+# Nuthatch — Hermes integration
 
 > **Tool spec**: load `AGENTS.md` (XML-tagged) **or**
 > `AGENTS-MARKDOWN.md` (plain markdown) for full tool semantics.
-> Pick whichever format your parser handles best — both carry the
+> Pick whichever format your parser handles best. Both carry the
 > same content and stay in sync. This skill file covers
 > Hermes-specific wiring only.
 
@@ -23,7 +23,7 @@ host-supervised lane or the VM-resident autonomous lane.
 
 ## One-time setup (host-supervised Hermes)
 
-1. Install nuthatch into a uv venv and initialise a corpus:
+1. Install Nuthatch into a uv venv and initialise a corpus:
 
    ```bash
    sfw uv add nuthatch         # once published
@@ -31,7 +31,7 @@ host-supervised lane or the VM-resident autonomous lane.
    nuthatch ingest --corpus my-corpus
    ```
 
-2. Register nuthatch's MCP server in Hermes's config
+2. Register Nuthatch's MCP server in Hermes's config
    (`~/.hermes/config.yaml`):
 
    ```yaml
@@ -42,15 +42,15 @@ host-supervised lane or the VM-resident autonomous lane.
        transport: stdio
    ```
 
-3. Restart Hermes. The 5 nuthatch tools register against the
+3. Restart Hermes. The 5 Nuthatch tools register against the
    active Hermes session and any subsequent task can call them.
 
 ## VM-resident Hermes (autonomous lane)
 
-In the persistent agent VM (`hermes-agent-vm`), nuthatch must be
+In the persistent agent VM (`hermes-agent-vm`), Nuthatch must be
 installed inside the VM and the MCP server registered in the
 VM-side `~/.hermes/config.yaml`. The host-side Hermes does NOT
-proxy MCP calls into the VM — each lane runs its own server.
+proxy MCP calls into the VM. Each lane runs its own server.
 
 Per `~/project-planning-agent/strands/hermes-interim.md`, the VM
 lane is gated on Phases 2-14 of the build plan; until those land,
@@ -58,8 +58,8 @@ host-supervised is the only Hermes path.
 
 ## Build-pipeline operations (when to run what)
 
-nuthatch's build pipeline is four sequential stages. Hermes
-worker tasks do NOT orchestrate the build — the user (or a
+Nuthatch's build pipeline is four sequential stages. Hermes
+worker tasks do NOT orchestrate the build. The user (or a
 scheduled job inside the VM) runs the four stages out-of-band
 via the CLI. Rationale pinned in `docs/DECISIONS.md` § "Execution
 model: build out-of-band, query via MCP".
@@ -136,10 +136,10 @@ inside a worker dispatch. Builds run under their own supervision
 (cron + tmux log + the operator's eye), so quality issues like
 low extraction yield, schema-validation failures, and clustering
 downgrades are surfaced in the audit log where the operator sees
-them — not silently absorbed into the agent loop.
+them. Not silently absorbed into the agent loop.
 
 ## See also
 
-- `AGENTS.md` — full tool semantics and usage patterns (XML-tagged)
-- `AGENTS-MARKDOWN.md` — same content, markdown sections
-- `~/project-planning-agent/strands/hermes-interim.md` — VM lane build plan
+- `AGENTS.md`. Full tool semantics and usage patterns (XML-tagged)
+- `AGENTS-MARKDOWN.md`. Same content, markdown sections
+- `~/project-planning-agent/strands/hermes-interim.md`. VM lane build plan

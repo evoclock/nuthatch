@@ -1,4 +1,4 @@
-# How to run nuthatch
+# How to run Nuthatch
 
 Recipe-style operator guide for the five-stage build pipeline plus
 the MCP query surface. Companion to `Design_Decisions.md` (the
@@ -36,8 +36,8 @@ pipx install git+https://github.com/evoclock/nuthatch.git@main
 ```
 
 For the principled clustering tier (Bayesian SBM via graph-tool)
-you also need conda — graph-tool is conda-only by upstream's
-design. Without it, nuthatch downgrades cleanly to the Leiden
+you also need conda. Graph-tool is conda-only by upstream's
+design. Without it, Nuthatch downgrades cleanly to the Leiden
 heuristic tier and surfaces that fact in every clustering
 response's `rigor_used` field.
 
@@ -53,7 +53,7 @@ each stage. It:
 
 - Starts the stage as its own tmux session (`nuthatch-<stage>`)
 - Pops a graphical terminal on your display auto-tailing the live
-  log (zero-click visibility — works on macOS Terminal/iTerm2,
+  log (zero-click visibility. Works on macOS Terminal/iTerm2,
   Linux gnome-terminal / konsole / kitty / alacritty / xterm /
   others, Windows Terminal via WSL)
 - Logs to `<corpus>/.kg/audit/<stage>-<timestamp>.log`
@@ -69,7 +69,67 @@ environment, the launcher detects and falls back to printing the
 `tail -f` and `tmux attach` commands for you to run by hand.
 
 You can also bypass the launcher and call `nuthatch <stage>`
-directly — the launcher is a convenience, not a privileged path.
+directly. The launcher is a convenience, not a privileged path.
+
+### Two ways to drive the pipeline, both gated
+
+Whichever path you pick, **the pipeline runs one stage at a time
+with operator confirmation between stages**. Nuthatch does not
+ship an end-to-end automation that runs ingest → embed → graph →
+cluster → render unattended. Bad ingest quality wastes the
+compute of every stage that follows; the gate exists so you
+catch problems before paying that cost.
+
+**Path A: harness-driven (agent invokes the launcher on your
+behalf).** If you want an MCP-connected agent (Claude Code,
+Codex, OpenCode, Aider, Pi, Hermes) to handle the mechanics,
+instruct it to run `scripts/ops/launch-stage.sh <stage> <corpus>`
+via its Bash tool. The agent's flow should be:
+
+> 1. Move new sources into the corpus tree (`mv` / `cp`).
+> 2. Confirm with the user: "I'll run `nuthatch ingest` on
+>    <N> new files. It will take roughly <est> minutes.
+>    Proceed?"
+> 3. On approval, invoke the launcher. A terminal window opens
+>    on the user's display with live tail; the agent reads
+>    progress from the log file.
+> 4. After the stage finishes, summarise the result (per-status
+>    counts, any quarantines, where to inspect them).
+> 5. Ask before triggering the next stage. Never chain
+>    `ingest && embed && graph && cluster && render` unattended.
+
+The skill files in this repo (`skill-claude-code.md`,
+`skill-codex.md`, etc.) embed this discipline so per-host
+agents have it as their default. Per Design_Decisions.md §
+"Execution model", server-side orchestration inside the MCP
+read-only tools is harness-proof; build-stage orchestration is
+operator-confirmed-per-stage and the agent is a convenience for
+the user, not a substitute.
+
+**Path B: operator-driven (you run it yourself; recommended for
+the first few runs).** Open a terminal, run the launcher per
+stage, inspect output between stages. Same gated semantics as
+Path A, just without an agent in the loop:
+
+```bash
+scripts/ops/launch-stage.sh ingest my-corpus
+# inspect output (quarantine, papers/, .kg/extracted/)
+scripts/ops/launch-stage.sh embed my-corpus
+# inspect chunk count
+scripts/ops/launch-stage.sh graph my-corpus
+# inspect graph shape
+NUTHATCH_BIN=$(conda run -n nuthatch-gt which nuthatch) \
+    scripts/ops/launch-stage.sh cluster my-corpus
+# inspect partition
+nuthatch render --corpus my-corpus
+# inspect cards/, communities/, dashboard.md
+```
+
+Recommended for first runs on a new corpus and any time the
+ingest config (schema profile, OCR routing, extraction backend)
+has changed. The harness-driven path is useful once the
+pipeline is tuned for the corpus shape and you trust the
+quality gate at each stage.
 
 ## Initialise a corpus
 
@@ -83,7 +143,7 @@ standard subdirectories. The corpus is registered under the name
 default so subsequent commands can omit `--corpus`.
 
 Drop your source files anywhere under the corpus root. Suggested
-shapes (the pipeline scans recursively, skipping the nuthatch-
+shapes (the pipeline scans recursively, skipping the Nuthatch-
 managed subdirs):
 
 ```text
@@ -240,7 +300,7 @@ have weak metadata) or worth a closer look at the extractor.
 
 Fits communities on the corpus graph and writes the community ID
 back onto each doc node. Always a full re-fit (clustering is
-global by nature; correct for the SBM / Leiden methods nuthatch
+global by nature; correct for the SBM / Leiden methods Nuthatch
 uses).
 
 ```bash
@@ -343,7 +403,7 @@ scripts/ops/launch-stage.sh watch my-corpus
 ```
 
 The watcher runs `nuthatch ingest` on every debounced filesystem
-event under the corpus root (skipping the nuthatch-managed
+event under the corpus root (skipping the Nuthatch-managed
 subdirs). It handles ingest only; embed / graph / cluster /
 render remain manual triggers so you control when those costs
 are paid.
@@ -394,9 +454,9 @@ tmux kill-session -t nuthatch-<stage>
 
 ## See also
 
-- `Design_Decisions.md` — the "why" behind every choice in this
+- `Design_Decisions.md`. The "why" behind every choice in this
   document
-- `extraction-benchmarks/ocr-comparison.md` — the OCR-backend
+- `extraction-benchmarks/ocr-comparison.md`. The OCR-backend
   evidence (Chandra vs Docling vs EasyOCR vs Granite vs SmolDocling
   on three representative scanned papers)
 - The per-agent skill files (`skill-*.md` in the repo root) for

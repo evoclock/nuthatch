@@ -9,17 +9,17 @@ description: Local-first knowledge-graph tool for paper corpora; MCP query surfa
 trigger: nuthatch serve --corpus <name>
 ---
 
-# nuthatch — Pi integration
+# Nuthatch — Pi integration
 
 > **Tool spec**: load `AGENTS.md` (XML-tagged) **or**
 > `AGENTS-MARKDOWN.md` (plain markdown) for full tool semantics.
-> Pick whichever format your parser handles best — both carry the
+> Pick whichever format your parser handles best. Both carry the
 > same content and stay in sync. This skill file covers Pi-specific
 > wiring only.
 
 ## One-time setup
 
-1. Install nuthatch into a uv venv and initialise a corpus:
+1. Install Nuthatch into a uv venv and initialise a corpus:
 
    ```bash
    sfw uv add nuthatch         # once published
@@ -42,12 +42,12 @@ trigger: nuthatch serve --corpus <name>
    have installed; this convention follows kestrel's pattern that
    OpenClaw inherits.
 
-3. Restart the agent. The 5 nuthatch tools are now available.
+3. Restart the agent. The 5 Nuthatch tools are now available.
 
 ## Build-pipeline operations (when to run what)
 
-nuthatch's build pipeline is four sequential stages. The agent does
-NOT orchestrate these — the user runs them out-of-band via the
+Nuthatch's build pipeline is four sequential stages. The agent does
+NOT orchestrate these. The user runs them out-of-band via the
 CLI. Document the triggers so the agent knows when to ASK the
 user to rebuild rather than try to drive the pipeline itself.
 Rationale pinned in `docs/DECISIONS.md` § "Execution model: build
@@ -111,10 +111,10 @@ flows. Four worked examples:
 
 ### Cost check (token economy)
 
-> "How much context did I save by using nuthatch on this task?"
+> "How much context did I save by using Nuthatch on this task?"
 
 1. `token_econ_report(group_by="tool")` after the work session.
-2. Read `reduction_ratio_overall` and `pct_saved`. nuthatch's
+2. Read `reduction_ratio_overall` and `pct_saved`. Nuthatch's
    counterfactual is per-tool BM25 (for `corpus_search`) / card-sum
    (for subgraph + community), NOT "the whole corpus" (which would
    be the kestrel-style strawman pinned in
@@ -144,5 +144,5 @@ query, not build. Same rationale as above (`docs/DECISIONS.md` §
 
 ## See also
 
-- `AGENTS.md` — full tool semantics and usage patterns (XML-tagged)
-- `AGENTS-MARKDOWN.md` — same content, markdown sections
+- `AGENTS.md`. Full tool semantics and usage patterns (XML-tagged)
+- `AGENTS-MARKDOWN.md`. Same content, markdown sections

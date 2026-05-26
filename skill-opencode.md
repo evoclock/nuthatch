@@ -9,11 +9,11 @@ description: Local-first knowledge-graph tool for paper corpora; MCP query surfa
 trigger: nuthatch serve --corpus <name>
 ---
 
-# nuthatch — OpenCode integration
+# Nuthatch — OpenCode integration
 
 > **Tool spec**: load `AGENTS.md` (XML-tagged) **or**
 > `AGENTS-MARKDOWN.md` (plain markdown) for full tool semantics.
-> Pick whichever format your parser handles best — both carry the
+> Pick whichever format your parser handles best. Both carry the
 > same content and stay in sync. This skill file covers
 > OpenCode-specific wiring only.
 
@@ -21,11 +21,11 @@ OpenCode supports MCP servers natively via its config file.
 
 ## One-time setup
 
-1. Install nuthatch into a uv venv and initialise a corpus
+1. Install Nuthatch into a uv venv and initialise a corpus
    (`nuthatch init ~/my-corpus --register-as my-corpus --set-default`,
    then `nuthatch ingest`).
 
-2. Register nuthatch's MCP server in OpenCode's config. OpenCode
+2. Register Nuthatch's MCP server in OpenCode's config. OpenCode
    reads `~/.config/opencode/config.json` (path may vary by
    version). Add:
 
@@ -41,14 +41,14 @@ OpenCode supports MCP servers natively via its config file.
    }
    ```
 
-3. Restart OpenCode. The 5 nuthatch tools (`corpus_search`,
+3. Restart OpenCode. The 5 Nuthatch tools (`corpus_search`,
    `subgraph_extract`, `card_get`, `community_get`,
    `token_econ_report`) appear in the tool list.
 
 ## Build-pipeline operations (when to run what)
 
-nuthatch's build pipeline is four sequential stages. The agent does
-NOT orchestrate these — the user runs them out-of-band via the
+Nuthatch's build pipeline is four sequential stages. The agent does
+NOT orchestrate these. The user runs them out-of-band via the
 CLI. Rationale pinned in `docs/DECISIONS.md` § "Execution model:
 build out-of-band, query via MCP".
 
@@ -110,7 +110,7 @@ worked examples:
 > "How much context did I save on this task?"
 
 1. `token_econ_report(group_by="tool")` after the work session.
-2. nuthatch's counterfactual is per-tool BM25 (for `corpus_search`)
+2. Nuthatch's counterfactual is per-tool BM25 (for `corpus_search`)
    / card-sum (for subgraph + community), NOT "the whole corpus"
    (which would be the kestrel-style strawman pinned in
    `docs/DECISIONS.md` § Token-economy methodology). Reported
@@ -132,5 +132,5 @@ builds. (`docs/DECISIONS.md` § "Execution model" pins this.)
 
 ## See also
 
-- `AGENTS.md` — full tool semantics and usage patterns (XML-tagged)
-- `AGENTS-MARKDOWN.md` — same content, markdown sections
+- `AGENTS.md`. Full tool semantics and usage patterns (XML-tagged)
+- `AGENTS-MARKDOWN.md`. Same content, markdown sections
