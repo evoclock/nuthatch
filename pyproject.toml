@@ -41,6 +41,7 @@ dependencies = [
     "pdfminer-six>=20231228",
     "pypdf>=6.12.1",
     "python-igraph>=1.0.0",
+    "rank-bm25>=0.2.2",
     "sentence-transformers>=5.5.1",
     "tiktoken>=0.13.0",
     "tomli-w>=1.0",

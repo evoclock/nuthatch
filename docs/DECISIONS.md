@@ -215,6 +215,72 @@ reason for the change; the old entry stays for the audit trail.
 - **Token-economy instrumentation** shown live as actual vs
   counterfactual full-context tokens per query.
 
+## Token-economy methodology (Sprint 7)
+
+The token-economy report measures how many tokens the consuming
+agent saved by using nuthatch instead of a non-nuthatch fallback.
+The choice of fallback is the entire methodology; everything else
+is bookkeeping. nuthatch uses a **per-tool, per-query** fallback,
+not a single full-corpus number.
+
+### Why per-tool
+
+A static "full corpus" counterfactual overstates savings by
+orders of magnitude because nobody pastes an entire corpus into
+context per query. The honest comparison is what a non-nuthatch
+agent would actually do for each tool call.
+
+| Tool | Counterfactual |
+| --- | --- |
+| `corpus_search(query, k)` | BM25 top-`k` text over the same chunks Chroma indexes |
+| `subgraph_extract(seeds, depth)` | Sum of card-markdown tokens for every `doc::` node in the returned subgraph |
+| `community_get(community_id)` | Sum of card-markdown tokens for every member of the community |
+| `card_get(doc_id)` | Skipped entirely. Pure delivery, no honest reduction to claim |
+
+Implementation: `src/nuthatch/token_econ/counterfactual.py`. The
+MCP server logs `None` returns as "skip" rather than as `1.0×`
+ratios; otherwise `card_get` traffic would dilute the per-tool
+report.
+
+### Calling out kestrel's strawman
+
+The reference library nuthatch borrowed pipeline patterns from
+(coded alias `kestrel`) markets a "71.5× fewer tokens per query
+vs reading the raw files directly" headline in
+`docs/how-it-works.md`. The methodology behind this claim is:
+
+- Counterfactual = `nodes × 50 words × 1.33` tokens (a synthetic
+  estimate of "the whole corpus as raw text"). At a 1000-node
+  graph this puts the baseline at ~67k tokens regardless of
+  query.
+- Served = the BFS subgraph text after keyword-substring matching
+  three seed nodes.
+- Ratio = corpus / served, char/4 throughout.
+
+Source: `graphify/benchmark.py` in
+`/home/jgamboa/kestrel-latest-audit/` (HEAD `3efae38` 2026-05-25,
+byte-identical to the v8 snapshot). Their own `how-it-works.md`
+admits the comparison breaks at small corpora ("Six files already
+fits in a context window") but the headline number is computed
+this way.
+
+nuthatch rejects this framing. Reported ratios under the per-tool
+scheme typically land between ~2× and ~8× depending on corpus
+size and query specificity. Smaller numbers, defensible numbers.
+
+### What counts as a fair claim
+
+Any token-economy figure shipped in nuthatch docs, READMEs, or
+the dashboard MUST cite:
+
+1. Which tool's counterfactual was used.
+2. The corpus size + the query (or the sample query set).
+3. The reduction ratio computed from per-tool baselines, never
+   from a corpus-wide estimate.
+
+If a future contributor proposes a "headline X× reduction"
+number, they reread this section first.
+
 ## Monetisation
 
 - **Open-core**: algorithm always free, large-scale compute

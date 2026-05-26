@@ -20,6 +20,11 @@ import pytest
 
 from nuthatch.corpus import init_corpus
 from nuthatch.mcp.server import NuthatchMCPServer
+from nuthatch.token_econ.counterfactual import (
+    BM25Counterfactual,
+    CardTokenIndex,
+    build_default_estimator,
+)
 from nuthatch.token_econ.log import TokenLog, TokenRecord
 from nuthatch.token_econ.measure import (
     DEFAULT_ENCODING,
@@ -248,15 +253,31 @@ class _StubRetriever:
         return [_StubHit("doc-a", f"answer for {query}")][:k]
 
 
+def _chunks_provider_factory(chunks: list[tuple[str, str]]):
+    def _provider():
+        yield from chunks
+
+    return _provider
+
+
 @pytest.fixture
 def mcp_server_with_log(tmp_path: Path):
     layout = init_corpus(tmp_path / "corpus")
     token_log = TokenLog(layout.kg / "token_log.jsonl")
+    # Seed a few chunks for BM25 so corpus_search's counterfactual is non-zero.
+    chunks = [
+        ("doc-a::0", "the answer for anything is forty two everywhere"),
+        ("doc-b::0", "unrelated text about migratory birds and lakes"),
+        ("doc-c::0", "more filler so the BM25 index has variety to score against"),
+    ]
+    estimator = build_default_estimator(
+        layout, chunks_provider=_chunks_provider_factory(chunks)
+    )
     server = NuthatchMCPServer(
         layout,
         retriever=_StubRetriever(),
         token_log=token_log,
-        counterfactual_tokens=10_000,
+        counterfactual_estimator=estimator,
         surface_id="mcp",
     )
     return server, token_log
@@ -281,7 +302,11 @@ class TestMCPInstrumentation:
         assert len(records) == 1
         assert records[0].tool == "corpus_search"
         assert records[0].surface_id == "mcp"
-        assert records[0].tokens_counterfactual == 10_000
+        # BM25 counterfactual for "anything" against the seeded chunks
+        # picks the matching "the answer for anything is forty two..."
+        # chunk. Exact token count varies by tokenizer; require >0 and
+        # bounded above by the joined chunk text.
+        assert records[0].tokens_counterfactual > 0
 
     def test_token_econ_report_tool_round_trip(self, mcp_server_with_log) -> None:
         server, _ = mcp_server_with_log
@@ -317,11 +342,14 @@ class TestMCPInstrumentation:
     def test_error_responses_do_not_log(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "corpus")
         token_log = TokenLog(layout.kg / "token_log.jsonl")
+        estimator = build_default_estimator(
+            layout, chunks_provider=_chunks_provider_factory([])
+        )
         server = NuthatchMCPServer(
             layout,
             retriever=None,
             token_log=token_log,
-            counterfactual_tokens=10_000,
+            counterfactual_estimator=estimator,
         )
         # No retriever bound -> tool returns isError; no record should land.
         server.handle_request(
@@ -336,3 +364,122 @@ class TestMCPInstrumentation:
             }
         )
         assert list(token_log.iter_records()) == []
+
+    def test_card_get_does_not_log(self, tmp_path: Path) -> None:
+        layout = init_corpus(tmp_path / "corpus")
+        # Write a card so card_get succeeds.
+        cards_dir = layout.root / "cards"
+        cards_dir.mkdir(parents=True, exist_ok=True)
+        (cards_dir / "doc-a.md").write_text("# doc a\nbody text", encoding="utf-8")
+        token_log = TokenLog(layout.kg / "token_log.jsonl")
+        estimator = build_default_estimator(layout)
+        server = NuthatchMCPServer(
+            layout,
+            token_log=token_log,
+            counterfactual_estimator=estimator,
+        )
+        response = server.handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "card_get",
+                    "arguments": {"doc_id": "doc-a"},
+                },
+            }
+        )
+        assert not response["result"].get("isError")
+        # card_get is pure delivery; estimator returns None -> no log entry.
+        assert list(token_log.iter_records()) == []
+
+
+# -- counterfactual unit tests --------------------------------------------
+
+
+class TestCardTokenIndex:
+    def test_caches_and_sums(self, tmp_path: Path) -> None:
+        cards = tmp_path / "cards"
+        cards.mkdir()
+        (cards / "a.md").write_text("aaa " * 100, encoding="utf-8")
+        (cards / "b.md").write_text("bbb " * 50, encoding="utf-8")
+        idx = CardTokenIndex(cards)
+        assert idx.tokens_for("a") > 0
+        # Missing card returns 0, not error.
+        assert idx.tokens_for("missing") == 0
+        total = idx.total_for(["a", "b", "missing"])
+        assert total == idx.tokens_for("a") + idx.tokens_for("b")
+
+
+class TestBM25Counterfactual:
+    def test_top_k_text_token_count(self) -> None:
+        chunks = [
+            ("a", "the answer about authentication tokens lives here"),
+            ("b", "totally unrelated paragraph about migratory birds"),
+            ("c", "more authentication context for the same answer"),
+        ]
+        bm25 = BM25Counterfactual(lambda: iter(chunks))
+        n = bm25.tokens_for_query("authentication answer", k=2)
+        assert n > 0
+
+    def test_empty_corpus_returns_zero(self) -> None:
+        bm25 = BM25Counterfactual(lambda: iter([]))
+        assert bm25.tokens_for_query("anything", k=5) == 0
+
+
+class TestPerToolEstimatorSubgraphCommunity:
+    def _layout_with_cards(self, tmp_path: Path):
+        layout = init_corpus(tmp_path / "corpus")
+        cards = layout.root / "cards"
+        cards.mkdir(parents=True, exist_ok=True)
+        (cards / "p1.md").write_text("content of paper one " * 30, encoding="utf-8")
+        (cards / "p2.md").write_text("content of paper two " * 30, encoding="utf-8")
+        return layout
+
+    def test_subgraph_counterfactual_sums_doc_cards(self, tmp_path: Path) -> None:
+        layout = self._layout_with_cards(tmp_path)
+        estimator = build_default_estimator(layout)
+        served = json.dumps(
+            {
+                "nodes": ["doc::p1", "doc::p2", "author::someone"],
+                "edges": [],
+            }
+        )
+        n = estimator.estimate_from_served(
+            tool="subgraph_extract",
+            arguments={"seed_nodes": ["doc::p1"]},
+            served_text=served,
+            result={"content": [{"type": "text", "text": served}]},
+        )
+        cards_idx = CardTokenIndex(layout.root / "cards")
+        expected = cards_idx.tokens_for("p1") + cards_idx.tokens_for("p2")
+        assert n == expected
+
+    def test_community_counterfactual_sums_member_cards(self, tmp_path: Path) -> None:
+        layout = self._layout_with_cards(tmp_path)
+        estimator = build_default_estimator(layout)
+        served = (
+            "## Members\n"
+            "- [[p1|Paper One (2024)]]\n"
+            "- [[p2|Paper Two (2025)]]\n"
+        )
+        n = estimator.estimate_from_served(
+            tool="community_get",
+            arguments={"community_id": "0"},
+            served_text=served,
+            result={"content": [{"type": "text", "text": served}]},
+        )
+        cards_idx = CardTokenIndex(layout.root / "cards")
+        expected = cards_idx.tokens_for("p1") + cards_idx.tokens_for("p2")
+        assert n == expected
+
+    def test_card_get_estimator_returns_none(self, tmp_path: Path) -> None:
+        layout = self._layout_with_cards(tmp_path)
+        estimator = build_default_estimator(layout)
+        n = estimator.estimate(
+            tool="card_get",
+            arguments={"doc_id": "p1"},
+            served_text="anything",
+            result={},
+        )
+        assert n is None

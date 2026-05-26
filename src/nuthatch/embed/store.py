@@ -23,7 +23,7 @@ Assumptions: embeddings are pre-computed by the caller (the
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -62,6 +62,8 @@ class VectorStore(Protocol):
     def delete_by_doc(self, doc_id: str) -> int: ...
 
     def count(self) -> int: ...
+
+    def iter_chunks(self) -> Iterator[tuple[str, str]]: ...
 
 
 class ChromaVectorStore:
@@ -148,3 +150,21 @@ class ChromaVectorStore:
     def count(self) -> int:
         coll = self._ensure_collection()
         return coll.count()
+
+    def iter_chunks(self) -> Iterator[tuple[str, str]]:
+        """Yield `(chunk_id, text)` for every stored chunk.
+
+        Used by the token-economy counterfactual layer to build a BM25
+        index over the same chunks Chroma serves. `coll.get()` with no
+        `where` returns the whole collection; for very large corpora a
+        streaming `limit/offset` loop would be cheaper, but Chroma's
+        get() is already incremental under the hood and corpora at the
+        scale this is used for (cards, papers, internal docs) fit in
+        memory comfortably.
+        """
+        coll = self._ensure_collection()
+        got = coll.get(include=["documents"])
+        ids = got.get("ids", []) or []
+        docs = got.get("documents", []) or []
+        for cid, text in zip(ids, docs, strict=True):
+            yield cid, text or ""

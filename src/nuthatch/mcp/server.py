@@ -47,6 +47,10 @@ from pathlib import Path
 from typing import Any
 
 from nuthatch.corpus.layout import CorpusLayout
+from nuthatch.token_econ.counterfactual import (
+    CounterfactualEstimator,
+    PerToolEstimator,
+)
 from nuthatch.token_econ.log import TokenLog, TokenRecord
 from nuthatch.token_econ.measure import measure_query
 from nuthatch.token_econ.report import (
@@ -189,7 +193,7 @@ class NuthatchMCPServer(MCPServer):
         community_reader: Any = None,
         token_econ_reporter: Any = None,
         token_log: TokenLog | None = None,
-        counterfactual_tokens: int | None = None,
+        counterfactual_estimator: CounterfactualEstimator | None = None,
         surface_id: str = "mcp",
     ) -> None:
         log_path = layout.kg / "mcp" / "mcp.log"
@@ -200,7 +204,7 @@ class NuthatchMCPServer(MCPServer):
         self._card_reader = card_reader or _default_card_reader(layout)
         self._community_reader = community_reader or _default_community_reader(layout)
         self._token_log = token_log
-        self._counterfactual_tokens = counterfactual_tokens
+        self._estimator = counterfactual_estimator
         self._surface_id = surface_id
         # Default reporter reads the bound token_log if no override given.
         self._token_econ_reporter = token_econ_reporter or (
@@ -240,17 +244,52 @@ class NuthatchMCPServer(MCPServer):
         if not isinstance(result, dict) or result.get("isError"):
             return response
         try:
+            arguments = params.get("arguments", {}) or {}
             served_text = _extract_text(result)
+            counterfactual = self._compute_counterfactual(
+                tool_name, arguments, served_text, result
+            )
+            if counterfactual is None:
+                # Tool has no honest counterfactual (e.g. card_get is pure
+                # delivery). Skip logging entirely rather than recording a
+                # 1.0 ratio that inflates the per-tool report noise.
+                return response
             record_dict = measure_query(
                 tool=tool_name,
                 served_text=served_text,
-                counterfactual_tokens=self._counterfactual_tokens,
+                counterfactual_tokens=counterfactual,
                 surface_id=self._surface_id,
             )
             self._token_log.append(TokenRecord.from_dict(record_dict))
         except Exception:  # noqa: BLE001
             self._log.exception("token-econ logging failed for %s", tool_name)
         return response
+
+    def _compute_counterfactual(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        served_text: str,
+        result: dict[str, Any],
+    ) -> int | None:
+        if self._estimator is None:
+            return None
+        # PerToolEstimator exposes estimate_from_served for tools whose
+        # honest counterfactual depends on the served payload (subgraph
+        # nodes, community member list).
+        if isinstance(self._estimator, PerToolEstimator):
+            return self._estimator.estimate_from_served(
+                tool=tool_name,
+                arguments=arguments,
+                served_text=served_text,
+                result=result,
+            )
+        return self._estimator.estimate(
+            tool=tool_name,
+            arguments=arguments,
+            served_text=served_text,
+            result=result,
+        )
 
     # -- tool handlers ----------------------------------------------------
 
