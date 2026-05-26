@@ -115,7 +115,7 @@ Apache 2.0. See [`LICENSE`](LICENSE).
 
 Designed by Julen Gamboa, who drove orchestration, design
 discussion, and implementation decisions, with Claude Code
-and Hermes (using GPT-5.5 and Minimax M2.5) as a planning
+and Hermes (using GPT-5.5 and Minimax M2.5) as planning
 collaborators. Claude Code executed much of the implementation
 tasks under that direction.
 
