@@ -1,55 +1,124 @@
 # Nuthatch
 
-> Knowledge-graph tool for paper corpora and notes, with principled
-> clustering and explicit LLM context-token economy.
+<p align="center">
+  <img src="assets/Nuthatch_bgrm.png" alt="Nuthatch logo" width="200">
+</p>
 
-**Status**: Planning / scaffold only. No usable functionality yet. See
-`docs/SPEC.md` for the architecture spine.
+> Local-first knowledge-graph tool for structured corpora, with
+> principled clustering, strict ingest-time schema validation, and
+> honest LLM token-economy accounting.
 
 ## What this is
 
-A local-first tool that turns a curated corpus of papers (PDFs, HTML,
-plain text) and freeform notes into a navigable knowledge graph,
-surfaces query-scoped subgraphs to LLMs to cut context usage, and
-keeps the graph honest with a strict ingest-time metadata schema.
+Nuthatch turns a curated corpus (research papers, patents, internal
+documents, technical reports, notes, Repomix-preprocessed codebases,
+or any text-based source) into a navigable knowledge graph and
+serves it to an MCP-aware agent (Claude Code, Codex, OpenCode,
+Aider, Pi, Hermes, an Obsidian plugin, or your own client). The
+agent queries the graph through five read-only MCP tools; the
+operator drives the build pipeline through a five-stage CLI.
 
-The differentiating choices, none of which is novel alone but the
-combination of which is under-served:
+The architecture is documented in
+[`docs/Design_Decisions.md`](docs/Design_Decisions.md) and the
+operator workflow in [`docs/HOWTO.md`](docs/HOWTO.md). A flow
+diagram of the pipeline will be added later.
 
-1. **Stochastic Block Model** (Tiago Peixoto's degree-corrected nested SBM
-   via [graph-tool](https://graph-tool.skewed.de/)) as the principled
-   default clustering backend. Falls back to Leiden + vector
-   similarity when graph-tool is unavailable or the corpus exceeds
-   local-SBM compute capacity. The user is told which backend is
-   active and what trade-offs apply.
+## Why it exists
 
-2. **Hard schema gate on ingest.** Papers whose metadata cannot be
-   extracted into the required schema go to `quarantine/` with a
-   documented reason, not into the graph. The graph stays clean.
+The graph-augmented retrieval space has working open-source
+implementations (Microsoft GraphRAG, graphify, LightRAG, HippoRAG,
+nano-graphrag) plus adjacent tools (Cognee, PaperQA2, Khoj, Verba).
+We surveyed them and built Nuthatch anyway because we wanted a
+specific combination of choices none of them makes:
 
-3. **Explicit token-economy instrumentation.** Every LLM query
-   surfaces actual tokens used vs. the counterfactual full-context
-   size, so users see what the subgraph extraction is saving.
+- Bayesian Stochastic Block Model (Peixoto, via
+  [graph-tool](https://graph-tool.skewed.de/)) as the principled
+  clustering ceiling, with Leiden as a graceful fallback when
+  graph-tool is unavailable
+- Honest per-tool token-economy accounting (BM25 baseline for
+  search, card-token-sum baseline for subgraph and community)
+  instead of whole-corpus headline ratios
+- Build pipeline triggered out-of-band by the operator with quality
+  gates between stages, never end-to-end unattended
+- Strict schema quarantine on ingest with reasoned per-file failure
+  sidecars
+- Authoritative metadata fetched from publisher APIs (arxiv,
+  bioRxiv) rather than parsed from PDF body text
+- User-extensible schema profiles supporting papers, patents,
+  internal documents, and arbitrary user-defined types
+- A read-only MCP query surface that the agent cannot mutate
 
-## Status / roadmap
+The corpus type is a schema profile, not a category constraint.
+Nuthatch is designed for any structured-corpus problem where
+graph-augmented retrieval helps.
 
-This repo currently contains only the package skeleton and the first
-concrete spec artifact (the `ClusteringBackend` protocol). No ingest,
-no graph, no UI yet.
+## Status
 
-See `docs/SPEC.md` for the architecture and `docs/DECISIONS.md` for
-the locked-in choices that shape the build.
+The build pipeline is operational. Five CLI subcommands
+(`ingest`, `embed`, `graph`, `cluster`, `render`) chain into a
+queryable corpus that the MCP server exposes via five tools
+(`corpus_search`, `subgraph_extract`, `card_get`, `community_get`,
+`token_econ_report`). The test suite covers every contract
+(routing thresholds, model defaults, chunk coverage, reranker
+invocation, schema validation, end-to-end pipeline integration).
+
+Not yet shipped: a pre-built reference corpus, a hosted demo, a
+flow diagram. PyPI publication is in flight.
+
+## Quick start
+
+See [`docs/HOWTO.md`](docs/HOWTO.md) for the recipe-style operator
+guide covering install, corpus initialisation, the five-stage build
+pipeline, MCP registration per agent host, and stop / resume
+semantics. The short version:
+
+```bash
+pipx install git+https://github.com/evoclock/nuthatch.git@main
+nuthatch init ~/my-corpus --register-as my-corpus --set-default
+
+# Drop sources anywhere under the corpus root (inbox/, arxiv/,
+# bioarxiv/, notes/, root-level: your choice). Then trigger each
+# pipeline stage in sequence and inspect between stages.
+
+scripts/ops/launch-stage.sh ingest  my-corpus
+scripts/ops/launch-stage.sh embed   my-corpus
+scripts/ops/launch-stage.sh graph   my-corpus
+scripts/ops/launch-stage.sh cluster my-corpus
+nuthatch render --corpus my-corpus
+
+# Then serve it to an MCP-aware agent:
+nuthatch serve --corpus my-corpus
+```
+
+## Documentation
+
+- [`docs/Design_Decisions.md`](docs/Design_Decisions.md): the
+  architectural choices and the reasoning behind each, including
+  the peer-landscape survey and the token-economy methodology
+- [`docs/HOWTO.md`](docs/HOWTO.md): operator runbook for the
+  five-stage pipeline plus the MCP query surface
+- [`docs/SPEC.md`](docs/SPEC.md): the architecture spine
+- [`docs/extraction-benchmarks/ocr-comparison.md`](docs/extraction-benchmarks/ocr-comparison.md):
+  evidence for the OCR routing decisions (Chandra vs Docling vs
+  EasyOCR vs Granite vs SmolDocling across three representative
+  scanned papers)
+- Per-agent skill files (`skill-claude-code.md`, `skill-codex.md`,
+  `skill-aider.md`, `skill-opencode.md`, `skill-pi.md`,
+  `skill-hermes.md`) for MCP registration details and recommended
+  multi-step query flows
 
 ## Licence
 
-Apache 2.0. See `LICENSE`.
+Apache 2.0. See [`LICENSE`](LICENSE).
 
 ## Acknowledgements
 
-Built by Julen Gamboa with some agent-assisted spec-driven
-development. Claude Code drove orchestration, design discussion, and
-most of the implementation work; Hermes (using GPT-5.5 and Minimax
-M2.5) handled additional review and asset generation. Specs and
-decisions are pinned in `docs/SPEC.md` and `docs/DECISIONS.md` to
-hold the agent loop accountable: every implementation must point
-back to a spec entry.
+Designed by Julen Gamboa, who drove orchestration, design
+discussion, and implementation decisions, with Claude Code
+and Hermes (using GPT-5.5 and Minimax M2.5) as a planning
+collaborators. Claude Code executed much of the implementation
+tasks under that direction.
+
+Specs and decisions are pinned in `docs/SPEC.md` and
+`docs/Design_Decisions.md` so every implementation points back
+to a spec entry.
