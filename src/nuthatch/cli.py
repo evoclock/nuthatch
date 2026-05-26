@@ -806,7 +806,11 @@ def _compute_community_centroids(
     except ImportError:
         return {}
     try:
-        store = ChromaVectorStore(layout.embeddings_dir, collection_name="corpus")
+        # Collection name must match what `embed_corpus` writes to;
+        # see `nuthatch.embed.store` default (`"chunks"`). Using the
+        # wrong name silently returns 0 vectors and the centroids
+        # file ends up empty.
+        store = ChromaVectorStore(layout.embeddings_dir, collection_name="chunks")
         coll = store._ensure_collection()
     except Exception:
         return {}
