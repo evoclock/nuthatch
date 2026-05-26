@@ -87,6 +87,15 @@ SBM / Leiden methods). Render is byte-stable per card.
 A sixth stage, `decay`, runs independently on demand to compute
 the relevance / supersession pass over the graph and cards.
 
+### Convention: `benchmark_test/` for reference PDFs
+
+`benchmark_test/` is a reserved directory name: PDFs placed there
+are kept on disk for OCR / extraction benchmarks but are NOT
+auto-scanned into the corpus. Use it for canonical ground-truth
+scans (Mendel 1866, McDonald-Kreitman 1991, etc.) that you want
+the OCR benchmark scripts (`scripts/bench/`) to read but the
+ingest pipeline to leave alone.
+
 ## Per-corpus directory layout
 
 Each corpus is a self-contained directory. The `.kg/` subdirectory

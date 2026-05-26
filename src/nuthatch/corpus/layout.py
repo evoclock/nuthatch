@@ -81,6 +81,11 @@ CORPUS_RESERVED_DIRS: frozenset[str] = frozenset({
     "graph",         # derived graph state
     "exports",       # rendered outputs
     "reports",       # generated reports (token-econ, decay)
+    "benchmark_test",  # user-curated reference PDFs for OCR / extraction
+                       # benchmarks; not part of the queryable corpus and
+                       # not auto-scanned. Conventional name; users with a
+                       # different convention can opt out via the per-corpus
+                       # `scan_skip` config (see `corpus/config.py`).
 })
 
 
