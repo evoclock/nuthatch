@@ -108,6 +108,21 @@ def build_parser() -> argparse.ArgumentParser:
     watch_p = subparsers.add_parser("watch", help="long-running: ingest on FS events")
     _add_corpus_arg(watch_p)
 
+    triage_p = subparsers.add_parser(
+        "triage",
+        help="pre-flight: classify PDFs as PASS / FLAG / DEFER via pdftotext (no GPU)",
+    )
+    _add_corpus_arg(triage_p)
+    triage_p.add_argument(
+        "--defer",
+        action="store_true",
+        help=(
+            "auto-move DEFER-classified PDFs to <corpus>/defer/<original_subdir>/ "
+            "so the next `nuthatch ingest` run does not pick them up. Without "
+            "this flag, triage is read-only and just prints the report."
+        ),
+    )
+
     status_p = subparsers.add_parser("status", help="manifest stats for the corpus")
     _add_corpus_arg(status_p)
 
@@ -280,6 +295,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_ingest(args)
     if args.subcommand == "watch":
         return _cmd_watch(args)
+    if args.subcommand == "triage":
+        return _cmd_triage(args)
     if args.subcommand == "status":
         return _cmd_status(args)
     if args.subcommand == "corpus" and args.corpus_command == "list":
@@ -406,6 +423,57 @@ def _cmd_watch(args: argparse.Namespace) -> int:
     finally:
         watcher.stop()
         print("[watcher] stopped")
+    return 0
+
+
+def _cmd_triage(args: argparse.Namespace) -> int:
+    """Pre-flight: classify candidate PDFs via pdftotext (no GPU).
+
+    Output:
+      - Per-class list of PDFs with reason
+      - Aggregate summary
+      - When `--defer` is set: auto-moves DEFER PDFs to
+        `<corpus>/defer/<original_subdir>/` so the next
+        `nuthatch ingest` skips them.
+    """
+    from nuthatch.ingest.triage import (
+        TriageClass,
+        auto_defer,
+        triage_corpus,
+    )
+
+    layout = _resolve_layout_or_die(args)
+    results = triage_corpus(layout)
+    if not results:
+        print("[triage] no PDFs in scan path (every input is already processed?)")
+        return 0
+
+    by_class: dict[str, list[Any]] = {c.value: [] for c in TriageClass}
+    for r in results:
+        by_class[r.classification.value].append(r)
+
+    print(f"[triage] {len(results)} PDFs across the scan path")
+    print()
+    for cls in (TriageClass.PASS, TriageClass.FLAG, TriageClass.DEFER, TriageClass.UNKNOWN):
+        items = by_class[cls.value]
+        if not items:
+            continue
+        print(f"{cls.value} ({len(items)}):")
+        for r in items:
+            print(f"  {r.path.relative_to(layout.root)}")
+            if cls is not TriageClass.PASS:
+                print(f"      reason: {r.reason}")
+        print()
+
+    if args.defer:
+        moved = auto_defer(results, layout)
+        print(f"[--defer] moved {len(moved)} DEFER PDFs to {layout.root / 'defer'}/")
+    elif by_class[TriageClass.DEFER.value]:
+        print(
+            "[hint] re-run with `--defer` to auto-move the "
+            f"{len(by_class[TriageClass.DEFER.value])} DEFER PDFs out of "
+            "the scan path so `nuthatch ingest` skips them."
+        )
     return 0
 
 
