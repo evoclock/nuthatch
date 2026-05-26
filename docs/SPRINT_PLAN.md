@@ -113,7 +113,7 @@ trivial "extracted" payloads (e.g., file size + mtime).
 
 **Definition of done**
 
-- Drop a PDF into `corpus/arxiv/inbox/`, run `nuthatch ingest`,
+- Drop a PDF into `inputs/arxiv/inbox/`, run `nuthatch ingest`,
   observe it move to `papers/` (with placeholder metadata in
   `manifest.jsonl`) or `quarantine/`.
 - Re-ingesting the same file is a no-op (hash dedup).

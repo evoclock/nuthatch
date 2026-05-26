@@ -51,17 +51,17 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# nuthatch-specific: corpus payloads stay on disk but out of git.
-# The corpus directory itself is shipped (so the structure is
+# nuthatch-specific: inputs payloads stay on disk but out of git.
+# The inputs/ directory itself is shipped (so the structure is
 # discoverable) but the PDFs / extracted text / chunks / graph
 # artifacts are too big and too personal to commit. Use a separate
 # backup target (e.g. borg) for these.
-corpus/**/*.pdf
-corpus/**/*.txt
-corpus/**/*.json
-corpus/**/extracted/
-corpus/**/chunks/
-corpus/**/.kg/
+inputs/**/*.pdf
+inputs/**/*.txt
+inputs/**/*.json
+inputs/**/extracted/
+inputs/**/chunks/
+inputs/**/.kg/
 
 # Build artifacts from ingest pipeline (when those land).
 .nuthatch-cache/

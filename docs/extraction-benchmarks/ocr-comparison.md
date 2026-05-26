@@ -37,11 +37,11 @@ Three papers chosen to cover different difficulty profiles:
 
 | Paper | Pages | Why | Verified-scanned |
 | --- | --- | --- | --- |
-| McDonald and Kreitman 1991 | 3 | classic short scanned paper with one wide site-by-site table + one numeric result table; the original JSTOR PDF is in reverse page order, so this benchmark uses a page-reversed copy at `corpus/bioarxiv/McDonald_and_Kreitman_1991_fixed.pdf` | Yes (106 chars/page text yield) |
+| McDonald and Kreitman 1991 | 3 | classic short scanned paper with one wide site-by-site table + one numeric result table; the original JSTOR PDF is in reverse page order, so this benchmark uses a page-reversed copy at `inputs/bioarxiv/McDonald_and_Kreitman_1991_fixed.pdf` | Yes (106 chars/page text yield) |
 | Mendel 1866 (Bateson 1909 translation, 1925 Harvard reprint) | 52 | long body-text-heavy scanned book with embedded OCR layer of poor quality | Yes (page images are scans; embedded text is degraded JSTOR-style OCR) |
 | Wright 1931 (Evolution in Mendelian Populations) | 63 | math-heavy population-genetics paper with equations and tables; 1931 Genetics journal scan | Yes (page images are scans; embedded text is degraded) |
 
-The PDFs live under `corpus/bioarxiv/`; outputs are committed under
+The PDFs live under `inputs/bioarxiv/`; outputs are committed under
 `docs/extraction-benchmarks/outputs/{mk,mendel,wright}/` so anyone
 reading this writeup can inspect the raw per-tool markdown / HTML /
 extracted image assets without re-running the benchmark.
@@ -294,14 +294,14 @@ From the nuthatch repo root, with the venv set up via `uv sync`:
 Each paper's full 4-tool run + sidecar exports lives at
 `docs/extraction-benchmarks/outputs/{mk,mendel,wright}/{chandra,easyocr,granite,smol}/`
 with timing recorded in each paper's `timing.json`. The MK paper uses
-the page-reversed copy `corpus/bioarxiv/McDonald_and_Kreitman_1991_fixed.pdf`
+the page-reversed copy `inputs/bioarxiv/McDonald_and_Kreitman_1991_fixed.pdf`
 because the original JSTOR scan is in reverse page order.
 
 For a one-off Chandra run on a single file:
 
 ```bash
 uv run chandra \
-  corpus/bioarxiv/<paper>.pdf \
+  inputs/bioarxiv/<paper>.pdf \
   ./pipeline_output/<dir> \
   --method hf
 ```
@@ -317,7 +317,7 @@ from docling.datamodel.base_models import InputFormat
 ocr = EasyOcrOptions(lang=['en'])
 pipe = PdfPipelineOptions(ocr_options=ocr, do_ocr=True, generate_picture_images=True)
 conv = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipe)})
-result = conv.convert('corpus/bioarxiv/<paper>.pdf')
+result = conv.convert('inputs/bioarxiv/<paper>.pdf')
 doc = result.document
 open('out.md', 'w').write(doc.export_to_markdown())
 open('out.html', 'w').write(doc.export_to_html())
