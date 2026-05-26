@@ -42,6 +42,10 @@ model: build out-of-band, query via MCP".
 inputs/                                   (user-organised source files)
    |
    v
+triage    -> PASS / FLAG / DEFER          (cheap pdftotext-only pre-
+   |         classification; --defer auto-moves DEFER to defer/
+   |         which is reserved + scan-skipped)
+   v
 ingest    -> .kg/manifest.jsonl           (hash-based dedup)
              .kg/extracted/<doc_id>.md    (extracted body markdown)
              .kg/extracted/<doc_id>.meta.json  (publisher-API metadata

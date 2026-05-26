@@ -116,6 +116,9 @@ sources: "Source files (any user layout)" {
   inbox: "inputs/inbox/" { class: src }
 }
 
+triage: "Stage 0 (optional)\ntriage\npdftotext, no GPU" { class: stage }
+defer: "defer/\nreserved, scan-skipped\nawaiting Friday re-triage" { class: artifact }
+
 ingest: "Stage 1\ningest\n(Docling / Chandra / EasyOCR)" { class: stage }
 
 embed: "Stage 2\nembed" {
@@ -181,6 +184,17 @@ exports: "exports/" { class: artifact }
 mathretry: ".kg/math_retry.jsonl\n(deferred Chandra patch)" { class: artifact }
 
 # Inputs -> Stage 1 (apricot)
+# Optional triage pre-flight: sources -> triage -> (PASS/FLAG to
+# ingest, DEFER moved to defer/). Dashed because triage is
+# optional; sources can flow directly into ingest if the operator
+# trusts the corpus shape.
+sources.arxiv -> triage: "" { style.stroke: "#ee9b69"; style.stroke-width: 2; style.stroke-dash: 4 }
+sources.bioarxiv -> triage: "" { style.stroke: "#ee9b69"; style.stroke-width: 2; style.stroke-dash: 4 }
+sources.bench -> triage: "" { style.stroke: "#ee9b69"; style.stroke-width: 2; style.stroke-dash: 4 }
+sources.inbox -> triage: "" { style.stroke: "#ee9b69"; style.stroke-width: 2; style.stroke-dash: 4 }
+triage -> ingest: "PASS / FLAG" { style.stroke: "#79c39e"; style.stroke-width: 2 }
+triage -> defer: "DEFER" { style.stroke: "#c98a4a"; style.stroke-width: 2; style.stroke-dash: 4 }
+
 sources.arxiv -> ingest: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
 sources.bioarxiv -> ingest: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
 sources.bench -> ingest: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }

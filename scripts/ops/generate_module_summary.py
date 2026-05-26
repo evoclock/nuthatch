@@ -80,7 +80,9 @@ _PACKAGE_BLURBS = {
     "ingest": "Stage 1: extract markdown from sources, validate schema, route to "
               "`processed/<subdir>/` or `quarantine/<reason>/`. Handles arxiv / "
               "bioRxiv metadata enrichment, math-retry flagging, dedup, "
-              "and orchestrator state machine.",
+              "orchestrator state machine, and the `triage` pre-flight "
+              "(pdftotext-only PASS/FLAG/DEFER classification, exposed as "
+              "`nuthatch triage` CLI subcommand).",
     "embed": "Stage 2: chunk extracted markdown and persist embeddings into "
              "Chroma (`.kg/embeddings/`). Hybrid chunker with full-doc coverage "
              "invariant; orchestrator handles incremental + `--force` re-embed.",

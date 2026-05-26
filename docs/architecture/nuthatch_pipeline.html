@@ -141,6 +141,8 @@ flowchart TB
         S4["inputs/inbox/"]:::src
     end
 
+    TRG["Stage 0 (optional): triage<br/>pdftotext, no GPU"]:::stage
+    DEF["defer/<br/>reserved, scan-skipped"]:::artifact
     ING["Stage 1: ingest<br/>Docling / Chandra / EasyOCR"]:::stage
     EMB["Stage 2: embed<br/>chunker · BGE-M3 · dedup · Chroma"]:::stage
     GRP["Stage 3: graph<br/>NetworkX build, persisted"]:::stage
@@ -162,10 +164,13 @@ flowchart TB
     XPT["exports/"]:::artifact
     MRT[".kg/math_retry.jsonl"]:::artifact
 
-    S1 -.->|input| ING
-    S2 -.->|input| ING
-    S3 -.->|input| ING
-    S4 -.->|input| ING
+    S1 -.->|input| TRG
+    S2 -.->|input| TRG
+    S3 -.->|input| TRG
+    S4 -.->|input| TRG
+
+    TRG -->|PASS / FLAG| ING
+    TRG -.->|DEFER| DEF
 
     ING -->|success| PRC
     ING -->|schema/qc fail| QUA
@@ -190,19 +195,35 @@ flowchart TB
     RND --> HTM
     RND --> XPT
 
+    %% sources -> triage (4 edges, apricot dashed)
     linkStyle 0,1,2,3 stroke:#ee9b69,stroke-width:2px
+    %% triage -> ingest (PASS/FLAG, sage)
     linkStyle 4 stroke:#79c39e,stroke-width:3px
-    linkStyle 5 stroke:#c98a4a,stroke-width:3px
-    linkStyle 6,7 stroke:#e77843,stroke-width:2px
-    linkStyle 8 stroke:#79c39e,stroke-width:2px
-    linkStyle 9 stroke:#9a3a25,stroke-width:2px
-    linkStyle 10 stroke:#e77843,stroke-width:3px
-    linkStyle 11,12 stroke:#79c39e,stroke-width:3px
-    linkStyle 13,14 stroke:#ead1b5,stroke-width:3px
-    linkStyle 15,16,17,18 stroke:#c98a4a,stroke-width:3px
-    linkStyle 19 stroke:#ead1b5,stroke-width:2px
-    linkStyle 20 stroke:#e77843,stroke-width:2px
-    linkStyle 21,22,23 stroke:#5a957a,stroke-width:2px
+    %% triage -> defer (DEFER, ochre dashed)
+    linkStyle 5 stroke:#c98a4a,stroke-width:2px
+    %% ingest -> processed (success, sage)
+    linkStyle 6 stroke:#79c39e,stroke-width:3px
+    %% ingest -> quarantine (ochre)
+    linkStyle 7 stroke:#c98a4a,stroke-width:3px
+    %% ingest -> mathretry / extracted (rust)
+    linkStyle 8,9 stroke:#e77843,stroke-width:2px
+    %% quarantine -> processed (sage), -> rejected (brick)
+    linkStyle 10 stroke:#79c39e,stroke-width:2px
+    linkStyle 11 stroke:#9a3a25,stroke-width:2px
+    %% extracted -> embed (rust)
+    linkStyle 12 stroke:#e77843,stroke-width:3px
+    %% embed -> embeddings, embeddings -> graph (sage)
+    linkStyle 13,14 stroke:#79c39e,stroke-width:3px
+    %% graph -> graphdir, graphdir -> cluster (cream)
+    linkStyle 15,16 stroke:#ead1b5,stroke-width:3px
+    %% cluster -> COM/CIDX/CCEN, COM -> render (ochre)
+    linkStyle 17,18,19,20 stroke:#c98a4a,stroke-width:3px
+    %% graphdir -> render (cream)
+    linkStyle 21 stroke:#ead1b5,stroke-width:2px
+    %% extracted -> render (rust)
+    linkStyle 22 stroke:#e77843,stroke-width:2px
+    %% render -> cards/html/exports (dim sage)
+    linkStyle 23,24,25 stroke:#5a957a,stroke-width:2px
 </div>
 
 <h2>2. Module graph</h2>

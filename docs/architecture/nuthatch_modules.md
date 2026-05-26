@@ -15,7 +15,7 @@ Source: `nuthatch_module_graph.d2`. Edges colored by source module (CLI=apricot,
 | Package | Files | Purpose |
 | --- | ---: | --- |
 | `_top-level` | 3 | Top-level entry points: CLI (`cli.py`) and the package `__init__`. |
-| `ingest` | 15 | Stage 1: extract markdown from sources, validate schema, route to `processed/<subdir>/` or `quarantine/<reason>/`. Handles arxiv / bioRxiv metadata enrichment, math-retry flagging, dedup, and orchestrator state machine. |
+| `ingest` | 16 | Stage 1: extract markdown from sources, validate schema, route to `processed/<subdir>/` or `quarantine/<reason>/`. Handles arxiv / bioRxiv metadata enrichment, math-retry flagging, dedup, orchestrator state machine, and the `triage` pre-flight (pdftotext-only PASS/FLAG/DEFER classification, exposed as `nuthatch triage` CLI subcommand). |
 | `embed` | 5 | Stage 2: chunk extracted markdown and persist embeddings into Chroma (`.kg/embeddings/`). Hybrid chunker with full-doc coverage invariant; orchestrator handles incremental + `--force` re-embed. |
 | `graph` | 7 | Stage 3: build the document graph from embeddings + co-citation + semantic similarity edges. Outputs to `graph/`. |
 | `clustering` | 10 | Stage 4: community detection. SBM via graph-tool when available (nested hierarchy), Leiden fallback (flat). Hub exclusion + reattachment by majority neighbour. Stable cluster IDs across re-runs. `persist.py` writes `.kg/communities.json` + `.kg/community_centroids.npy` so the MCP server's community tools can run without re-clustering. |
@@ -42,7 +42,7 @@ Top-level entry points: CLI (`cli.py`) and the package `__init__`.
 
 ## `ingest`
 
-Stage 1: extract markdown from sources, validate schema, route to `processed/<subdir>/` or `quarantine/<reason>/`. Handles arxiv / bioRxiv metadata enrichment, math-retry flagging, dedup, and orchestrator state machine.
+Stage 1: extract markdown from sources, validate schema, route to `processed/<subdir>/` or `quarantine/<reason>/`. Handles arxiv / bioRxiv metadata enrichment, math-retry flagging, dedup, orchestrator state machine, and the `triage` pre-flight (pdftotext-only PASS/FLAG/DEFER classification, exposed as `nuthatch triage` CLI subcommand).
 
 | Path | Purpose | Key symbols |
 | --- | --- | --- |
@@ -60,6 +60,7 @@ Stage 1: extract markdown from sources, validate schema, route to `processed/<su
 | `src/nuthatch/ingest/security.py` | prevent SSRF and accidental fetches of local / private addresses when the corpus accepts URL-based ingest in addition to file-system drops. Validates a URL is safe to fetch *before* the fetch happens... | `SecurityResult`, `validate_url` |
 | `src/nuthatch/ingest/source_metadata.py` | Authoritative metadata fetchers for arxiv + bioRxiv source files. | `SourceMetadata`, `extract_arxiv_id_from_filename`, `extract_biorxiv_doi_from_filename` |
 | `src/nuthatch/ingest/state_machine.py` | Ingest orchestrator: walks files from a user subdir to `processed/<subdir>/`. | `IngestResult`, `IngestOrchestrator` |
+| `src/nuthatch/ingest/triage.py` | tell the operator BEFORE the expensive Docling extraction which PDFs will likely ingest cleanly, which look risky, and which should be deferred. Runs against the cheap pdftotext extraction (no GPU, n... | `TriageClass`, `TriageResult`, `triage_pdf`, `triage_corpus`, `auto_defer` |
 | `src/nuthatch/ingest/watch.py` | Filesystem-event-driven ingest for `nuthatch watch`. | `_DebouncedHandler`, `InboxWatcher` |
 
 ## `embed`

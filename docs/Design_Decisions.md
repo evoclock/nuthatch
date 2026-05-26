@@ -227,6 +227,15 @@ consistent submission template (or a faster + more complete API
 backfill) would meaningfully reduce the parsing complexity for any
 downstream tool that ingests bioRxiv preprints, including this one.
 
+**Operational mitigation.** The `nuthatch triage` subcommand
+(added late 2026-05-26) runs a pdftotext-only pre-flight over the
+source set and classifies each PDF as `PASS` / `FLAG` / `DEFER`
+in seconds. The `--defer` flag auto-moves `DEFER` PDFs into a
+reserved `defer/` subdirectory so the expensive Docling ingest
+sees only the parseable set. Built specifically in response to
+the iterative kill-fix-restart loop the bioRxiv variability
+forces on a strict-schema ingest pipeline.
+
 ## Extraction
 
 Nuthatch is a routing layer that calls user-installed OCR backends.

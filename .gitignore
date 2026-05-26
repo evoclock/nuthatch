@@ -75,3 +75,4 @@ OPERATIONS.md
 # Internal-only architecture docs (use kestrel codename; do not publish)
 docs/architecture/kestrel_*.md
 docs/architecture/kestrel_vs_nuthatch.md
+docs/architecture/deferred_*.md

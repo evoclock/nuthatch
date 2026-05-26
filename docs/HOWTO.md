@@ -155,6 +155,54 @@ managed subdirs):
 └── topics/genetics/       # whatever organisation fits your workflow
 ```
 
+## Pre-flight: triage
+
+Before running the expensive Docling extraction over every PDF,
+`nuthatch triage` does a cheap pdftotext-only pass (no GPU,
+~50 ms per PDF) and classifies each source file as:
+
+| Class | Meaning |
+| --- | --- |
+| `PASS` | title + authors + abstract all detectable; should ingest cleanly |
+| `FLAG` | title + authors detected but no `Abstract` keyword on page 1; relies on the paragraph fallback in the extractor |
+| `DEFER` | missing title OR missing authors; likely quarantine target |
+| `UNKNOWN` | pdftotext failed or timed out |
+
+Run it any time the source set changes:
+
+```bash
+nuthatch triage --corpus my-corpus
+```
+
+The report prints per-class lists with a one-line reason. Add
+`--defer` to auto-move every `DEFER` PDF to
+`<corpus>/defer/<original_subdir>/`. The `defer/` subdirectory is
+reserved &mdash; the recursive source-walk skips it, so the next
+`nuthatch ingest` run picks up only `PASS` and `FLAG` candidates.
+
+```bash
+nuthatch triage --corpus my-corpus --defer
+```
+
+This is the recommended workflow for corpora with heterogeneous
+PDF sources (notably bioRxiv preprints, where Word-submitted
+manuscripts produce highly variable title-page layouts):
+
+1. Drop PDFs into `<corpus>/<subdir>/`.
+2. `nuthatch triage --corpus my-corpus --defer` to filter out
+   the unparseable subset.
+3. `nuthatch ingest --corpus my-corpus` runs only on the
+   `PASS`/`FLAG` set.
+4. Periodically inspect `<corpus>/defer/` and either extend the
+   extractor heuristics (`src/nuthatch/ingest/metadata.py`) or
+   move papers to `<corpus>/rejected/` if their content is
+   unrecoverable.
+
+The triage classification is an *approximation* of what the real
+extractor will see (pdftotext output differs from Docling
+markdown). A `PASS` here is "very likely to ingest," not
+"guaranteed."
+
 ## Stage 1: ingest
 
 Extracts text from each source file, validates against the active
