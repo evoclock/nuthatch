@@ -235,6 +235,19 @@ class TestExtractMetadataHeuristic:
         out = extract_metadata_heuristic(md)
         assert out["authors"] == ["Mengyi Sun", "Sukwoong Choi", "Yian Yin"]
 
+    def test_csv_authors_wrapped_across_two_lines_mid_paren(self) -> None:
+        # bioRxiv: ORCID iDs in parens occasionally wrap mid-paren
+        # across markdown lines. Sliding-line-join must reassemble.
+        md = (
+            "## Temperature alters specificity in a host-parasite interaction\n\n"
+            "2 Abbey Ramirez1* (ORCID iD: 0009-0000-4698-6432) and Amanda Gibson1 (ORCID iD: 0000-\n"
+            "0002-0867-4953)\n\n"
+            "## ABSTRACT\n\n"
+            "The Red Queen Hypothesis...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == ["Abbey Ramirez", "Amanda Gibson"]
+
     def test_title_and_authors_from_markdown_table(self) -> None:
         # Docling renders some line-numbered bioRxiv Word manuscripts
         # as a multi-column markdown table; both title and author

@@ -408,31 +408,43 @@ def _extract_leading_authors(markdown: str) -> list[str]:
         return _seen_list(email_form)
 
     # Pattern 3: a single line of comma/and-separated Title-Case names.
-    # Walk lines, applying FOUR progressive cleaners and trying the
-    # CSV regex on each cleaned form. Order:
-    #   1. raw line
-    #   2. + extract rightmost table cell when the line is a
-    #      markdown table row (Docling renders some bioRxiv title
-    #      pages as `| 1 | Title |` / `| 2 | Author, Author |` tables)
+    # Sometimes the line wraps across 2-3 markdown lines (an ORCID
+    # parenthesis crosses a soft break, etc.), so we walk a 3-line
+    # sliding window and try each join. For each candidate string,
+    # apply FOUR progressive cleaners and try the CSV regex on each:
+    #   1. raw line(s)
+    #   2. + extract rightmost table cell when it's a `|...|` row
     #   3. + strip leading markdown list marker / line number
-    #      (`- Author, Author` rendered as a list item)
     #   4. + strip affiliation markers (digits / `*` / daggers /
-    #      LaTeX-math superscripts `$^{...}$`) glued to surnames
-    # First match wins; subsequent lines aren't searched.
-    for line in region.split("\n"):
-        text = line.strip()
-        if not text:
+    #      LaTeX-math superscripts) glued to surnames
+    # First match wins.
+    lines = region.split("\n")
+    for i, line in enumerate(lines):
+        if not line.strip():
             continue
-        in_table = _maybe_table_cell(text)
-        if in_table and in_table != text:
-            text = in_table
-        depref = _strip_line_prefix(text)
-        for candidate in (text, depref, _strip_affil_markers(depref)):
-            if not candidate:
-                continue
-            csv_match = _PLAIN_CSV_AUTHORS_LINE_RE.fullmatch(candidate)
-            if csv_match:
-                return _seen_list(_split_authors(csv_match.group(0)))
+        # Build join variants: this line alone + this+next + this+next+next.
+        variants: list[str] = []
+        accumulated: list[str] = []
+        j = i
+        while len(accumulated) < 3 and j < len(lines):
+            t = lines[j].strip()
+            if t:
+                accumulated.append(t)
+                variants.append(" ".join(accumulated))
+            j += 1
+
+        for raw in variants:
+            text = raw
+            in_table = _maybe_table_cell(text)
+            if in_table and in_table != text:
+                text = in_table
+            depref = _strip_line_prefix(text)
+            for candidate in (text, depref, _strip_affil_markers(depref)):
+                if not candidate:
+                    continue
+                csv_match = _PLAIN_CSV_AUTHORS_LINE_RE.fullmatch(candidate)
+                if csv_match:
+                    return _seen_list(_split_authors(csv_match.group(0)))
 
     return []
 
