@@ -107,6 +107,13 @@ _AFFIL_MARKER_RE = re.compile(
     + r"\*" + chr(0x00A7) + chr(0x00B6) + r"]+|\([^)]+\)"
 )
 
+# LaTeX-math superscripts that some bioRxiv preprints render
+# explicitly as `$^{1}$`, `$^{2,3}$`, `$^{*}$`, `$^{3*}$` after
+# Docling conversion. Treated as affiliation markers for stripping
+# purposes; matches the whole LaTeX expression so the resulting
+# author line is `Author, Author, Author` with nothing leftover.
+_LATEX_SUPERSCRIPT_RE = re.compile(r"\$\^\{[^}]*\}\$|\^\{[^}]*\}")
+
 # Author lift from Docling-style author lines: `## [Name](url)` or
 # `[Name](url)` immediately after the title. Filter out obvious non-
 # author URLs (CC licence badges, ORCID images, etc.) by requiring
@@ -211,22 +218,52 @@ def _looks_like_section_heading(heading: str) -> bool:
 
 
 def _extract_title(markdown: str) -> str | None:
-    """Pick the paper title from `Title:` label or the first non-section heading.
+    """Pick the paper title from `Title:` label, heading, or table cell.
 
-    Walks markdown headings in order and returns the first one whose
-    normalised stem is NOT a known section name. This fixes the
-    failure mode where Docling renders the abstract section as
-    `## Abstract` before the actual title heading, which a naive
-    "first heading wins" rule treats as the title.
+    Cascades three sources in order:
+
+    1. `Title:` labelled line (`_TITLE_LABEL_RE`).
+    2. First `#{1,3} heading` whose normalised stem is NOT a known
+       section name (filters out `## Abstract` / `## Introduction`
+       headings Docling sometimes emits before the actual title).
+    3. First markdown-table cell in the document's leading region
+       whose contents look like a title (long enough, not a section
+       name) — bioRxiv preprints with line-numbered Word manuscripts
+       can come through as `| 1 | Title... |` tables. Stops at the
+       first match.
+
+    Returns None when none of the three find a candidate.
     """
     labelled = _first_match(_TITLE_LABEL_RE, markdown)
     if labelled:
         return labelled
     for m in _HEADING_TITLE_RE.finditer(markdown):
-        candidate = m.group(1).strip()
-        if _looks_like_section_heading(candidate):
+        candidate = _LATEX_SUPERSCRIPT_RE.sub("", m.group(1)).strip()
+        candidate = re.sub(r"\s+\d+\s*$", "", candidate).strip()  # trailing line number
+        if not candidate or _looks_like_section_heading(candidate):
             continue
         return candidate
+    # Fallback: walk the first ~30 non-blank table-cell lines.
+    seen_lines = 0
+    for line in markdown.split("\n"):
+        if seen_lines >= 30:
+            break
+        cell = _maybe_table_cell(line)
+        if not cell or cell == line:
+            continue
+        seen_lines += 1
+        cleaned = _LATEX_SUPERSCRIPT_RE.sub("", cell).strip()
+        cleaned = re.sub(r"\s+\d+\s*$", "", cleaned).strip()
+        if not cleaned or _looks_like_section_heading(cleaned):
+            continue
+        # Skip cells that look like author CSV lines (have commas
+        # and Title-Case run patterns); titles are usually free prose.
+        if "," in cleaned and _PLAIN_CSV_AUTHORS_LINE_RE.fullmatch(
+            _strip_affil_markers(cleaned)
+        ):
+            continue
+        if len(cleaned) >= 20:
+            return cleaned
     return None
 
 
@@ -252,13 +289,16 @@ def _strip_affil_markers(line: str) -> str:
     """Remove affiliation digits / asterisks / daggers from an author line.
 
     Docling glues affiliation references directly onto surnames
-    (`Buralkin1,2,3`, `Park2,3,*`, `Mattick† 1`). Naive removal of the
-    marker characters alone leaves stray punctuation (`Buralkin,, ,`)
-    that the multi-name regex cannot recover from; we additionally
+    (`Buralkin1,2,3`, `Park2,3,*`, `Mattick† 1`). Some bioRxiv
+    preprints encode the markers as explicit LaTeX-math superscripts
+    (`Sun$^{1}$, Choi$^{2}$, Yin$^{3*}$`). Naive removal of marker
+    characters alone leaves stray punctuation (`Buralkin,, ,`) that
+    the multi-name regex cannot recover from; we additionally
     collapse runs of `,` and surrounding whitespace introduced by
     the strip.
     """
-    cleaned = _AFFIL_MARKER_RE.sub("", line)
+    cleaned = _LATEX_SUPERSCRIPT_RE.sub("", line)
+    cleaned = _AFFIL_MARKER_RE.sub("", cleaned)
     # Collapse comma runs introduced when the marker was sandwiched
     # between commas: `Buralkin,, , Hu` -> `Buralkin , Hu`.
     cleaned = re.sub(r"(?:\s*,)+\s*,", ",", cleaned)
@@ -269,6 +309,28 @@ def _strip_affil_markers(line: str) -> str:
     # Collapse whitespace runs.
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
+
+
+def _maybe_table_cell(line: str) -> str:
+    """If `line` is a markdown table row, return its rightmost non-empty cell.
+
+    Docling renders some bioRxiv title pages as multi-column tables
+    (line-number column + content column). The data we care about
+    lives in the last cell; the leading `|` and number columns are
+    structure, not content. Lines that are not table rows pass through
+    unchanged. Separator rows (`|---|---|`) collapse to empty so the
+    caller skips them.
+    """
+    s = line.strip()
+    if not (s.startswith("|") and s.count("|") >= 2):
+        return line
+    cells = [c.strip() for c in s.split("|") if c.strip()]
+    if not cells:
+        return ""
+    # If every cell is just dashes (separator row), return empty.
+    if all(set(c) <= set("-:") for c in cells):
+        return ""
+    return cells[-1]
 
 
 def _extract_abstract(markdown: str) -> str | None:
@@ -346,18 +408,24 @@ def _extract_leading_authors(markdown: str) -> list[str]:
         return _seen_list(email_form)
 
     # Pattern 3: a single line of comma/and-separated Title-Case names.
-    # Walk lines, applying THREE progressive cleaners and trying the
+    # Walk lines, applying FOUR progressive cleaners and trying the
     # CSV regex on each cleaned form. Order:
     #   1. raw line
-    #   2. + strip leading markdown list marker / line number
+    #   2. + extract rightmost table cell when the line is a
+    #      markdown table row (Docling renders some bioRxiv title
+    #      pages as `| 1 | Title |` / `| 2 | Author, Author |` tables)
+    #   3. + strip leading markdown list marker / line number
     #      (`- Author, Author` rendered as a list item)
-    #   3. + strip affiliation markers (digits / `*` / daggers)
-    #      glued to surnames
+    #   4. + strip affiliation markers (digits / `*` / daggers /
+    #      LaTeX-math superscripts `$^{...}$`) glued to surnames
     # First match wins; subsequent lines aren't searched.
     for line in region.split("\n"):
         text = line.strip()
         if not text:
             continue
+        in_table = _maybe_table_cell(text)
+        if in_table and in_table != text:
+            text = in_table
         depref = _strip_line_prefix(text)
         for candidate in (text, depref, _strip_affil_markers(depref)):
             if not candidate:

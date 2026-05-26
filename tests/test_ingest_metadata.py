@@ -222,6 +222,35 @@ class TestExtractMetadataHeuristic:
         out = extract_metadata_heuristic(md)
         assert out["authors"] == ["Xiaoqin Huang", "Ivan Ovcharenko"]
 
+    def test_csv_authors_with_latex_superscript_markers(self) -> None:
+        # Some bioRxiv preprints encode affiliation markers as
+        # explicit LaTeX math: `Sun$^{1}$, Choi$^{2}$, Yin$^{3*}$`.
+        # The strip must remove the whole `$^{...}$` expression.
+        md = (
+            "## AI predictions and the expansion of scientific frontiers\n\n"
+            "Mengyi Sun$^{1}$, Sukwoong Choi$^{2}$, Yian Yin$^{3*}$\n\n"
+            "## Abstract\n\n"
+            "We show that...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == ["Mengyi Sun", "Sukwoong Choi", "Yian Yin"]
+
+    def test_title_and_authors_from_markdown_table(self) -> None:
+        # Docling renders some line-numbered bioRxiv Word manuscripts
+        # as a multi-column markdown table; both title and author
+        # extraction must walk table cells.
+        md = (
+            "| 1   | Using Deep Learning Models of Gene Regulation to Guide Drug Prioritization |\n"
+            "|-----|--------------------------------------------------------------------------|\n"
+            "| 2   | Xiaoqin Huang 1 , Ivan Ovcharenko 1 *                                    |\n"
+            "| 3   |                                                                          |\n\n"
+            "## Abstract\n\n"
+            "We present...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert "Using Deep Learning Models" in out["title"]
+        assert out["authors"] == ["Xiaoqin Huang", "Ivan Ovcharenko"]
+
     def test_csv_authors_with_parenthesised_orcid_ids(self) -> None:
         # bioRxiv: `Abbey Ramirez1* (ORCID iD: 0009-...) and Amanda Gibson1 (ORCID iD: 0000-...)`
         # Parenthesised groups + affiliation digits stripped together.
