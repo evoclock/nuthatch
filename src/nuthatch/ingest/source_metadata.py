@@ -62,7 +62,7 @@ _BIORXIV_DOI_TAIL_FROM_FILENAME = re.compile(
     re.IGNORECASE,
 )
 
-_ARXIV_API = "http://export.arxiv.org/api/query?id_list={id}"
+_ARXIV_API = "https://export.arxiv.org/api/query?id_list={id}"
 _BIORXIV_API = "https://api.biorxiv.org/details/biorxiv/{doi}"
 
 # Atom namespaces used by arxiv's API response.
@@ -71,9 +71,17 @@ _ATOM_NS = {
     "arxiv": "http://arxiv.org/schemas/atom",
 }
 
-# Conservative network timeout; the publisher APIs are usually
-# sub-second but we don't want a hung connection to block ingest.
-_FETCH_TIMEOUT_SECONDS: float = 10.0
+# Network timeout. Empirically, arxiv's API responds in ~0.1-15s for
+# uncached recent records (cached records: sub-second). The previous
+# 10s cap was too aggressive: papers from the last few days regularly
+# took 10-15s on the first hit, dropping into the filename-fallback
+# path and losing authors / abstract / year.
+_FETCH_TIMEOUT_SECONDS: float = 30.0
+
+# Retry on HTTP 429 (rate-limit). arxiv's CDN periodically denies
+# bursts; backoff is the polite recourse.
+_MAX_RETRY_ON_429: int = 3
+_RETRY_BASE_DELAY_SECONDS: float = 2.0
 
 # Default User-Agent. arxiv asks for a non-default UA; this string
 # identifies nuthatch's traffic so they can rate-limit / debug us.
@@ -163,20 +171,41 @@ def _fetch_url(
     *,
     url_validator: Callable[[str], SecurityResult] = validate_url,
 ) -> str | None:
-    """Validated HTTP GET. Returns body text on 200, None otherwise."""
+    """Validated HTTP GET. Returns body text on 200, None otherwise.
+
+    Retries on HTTP 429 with exponential backoff (up to
+    `_MAX_RETRY_ON_429` attempts). Other transient errors propagate
+    as a None return.
+    """
+    import time
+
     check = url_validator(url)
     if not check.allowed:
         _LOG.warning("URL %s blocked by validator: %s", url, check.reason)
         return None
     req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
-    try:
-        with urllib.request.urlopen(req, timeout=_FETCH_TIMEOUT_SECONDS) as resp:
-            if resp.status != 200:
-                return None
-            return resp.read().decode("utf-8", errors="replace")
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        _LOG.warning("fetch of %s failed: %s", url, exc)
-        return None
+
+    for attempt in range(_MAX_RETRY_ON_429 + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=_FETCH_TIMEOUT_SECONDS) as resp:
+                if resp.status != 200:
+                    return None
+                return resp.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429 and attempt < _MAX_RETRY_ON_429:
+                delay = _RETRY_BASE_DELAY_SECONDS * (2**attempt)
+                _LOG.info(
+                    "rate-limited (429) on %s; retry %d/%d in %.1fs",
+                    url, attempt + 1, _MAX_RETRY_ON_429, delay,
+                )
+                time.sleep(delay)
+                continue
+            _LOG.warning("fetch of %s failed: %s", url, exc)
+            return None
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            _LOG.warning("fetch of %s failed: %s", url, exc)
+            return None
+    return None
 
 
 def fetch_arxiv_metadata(

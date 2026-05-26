@@ -89,6 +89,52 @@ _AUTHOR_SCAN_HEADING_RE = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 
+# Plain-text author extraction. Three patterns observed in
+# Docling-converted preprints:
+#   (a) `Name1, Name2, Name3, and Name4`  — one comma-separated line
+#   (b) `Name <affiliation> email@inst.tld`  — one author per line, with email
+#   (c) `[Name](orcid|mailto:url)` — handled by _LEADING_MD_LINK_AUTHOR_RE
+#
+# A "name token" must have lowercase characters following the leading
+# capital (e.g. `Jueun`), or be a single capital + period (e.g. `J.`).
+# This excludes all-caps acronyms (KAIST, MIT, ACM) so the multi-token
+# match stops at the first affiliation word.
+_NAME_TOKEN = r"[A-Z](?:\.|[a-z][\w'.-]*)"
+_NAME = rf"{_NAME_TOKEN}(?:\s+{_NAME_TOKEN}){{0,3}}"
+
+# Author-footnote markers Docling emits next to names. Built from
+# chr() so the source file stays ASCII-only (avoids RUF001 on the
+# literal glyphs): U+2217 ASTERISK OPERATOR, U+2020 DAGGER,
+# U+2021 DOUBLE DAGGER.
+_FOOTNOTE_MARKERS = chr(0x2217) + chr(0x2020) + chr(0x2021)
+
+_EMAIL_BEARING_AUTHOR_LINE_RE = re.compile(
+    rf"""
+    ^\s*                                # line start
+    (?P<name>{_NAME})                   # the name (1-4 tokens; no acronyms)
+    (?:\s|[{_FOOTNOTE_MARKERS}]|\*)     # whitespace, footnote marker, or ASCII asterisk
+    .*?                                 # affiliation text (any)
+    [\w._%+-]+@[\w.-]+\.[A-Za-z]{{2,}}  # an email anywhere in the rest
+    """,
+    re.MULTILINE | re.VERBOSE | re.UNICODE,
+)
+
+# A line of comma/and-separated name-shaped tokens.
+_PLAIN_CSV_AUTHORS_LINE_RE = re.compile(
+    rf"""
+    ^\s*
+    (?:
+        {_NAME}                                       # first name
+        (?:                                           # then 1+ separators + name
+            (?:\s*,\s*(?:and\s+)?|\s+and\s+)
+            {_NAME}
+        )+
+    )
+    \s*$
+    """,
+    re.MULTILINE | re.VERBOSE,
+)
+
 # Signature for a metadata extractor; default is the heuristic below.
 # Sprint 3+ ships an LLM-driven extractor as an optional plugin.
 MetadataExtractor = Callable[[str], dict[str, Any]]
@@ -110,20 +156,52 @@ def _split_authors(raw: str) -> list[str]:
 
 
 def _extract_leading_authors(markdown: str) -> list[str]:
-    """Lift authors from leading `[Name](orcid|mailto:...)` lines.
+    """Lift authors from the post-title, pre-abstract region.
 
-    Scans from the start of the document down to the first content
-    section heading (Abstract / Introduction / ...) so we only consider
-    the author block. Deduplicates while preserving order.
+    Cascades three patterns until one yields names:
+
+    1. `[Name](orcid|mailto:url)` markdown links — papers that
+       Docling renders with orcid hyperlinks (e.g. ACM venues).
+    2. Per-line `Name <affiliation> email@inst.tld` — common
+       Docling output for arxiv preprints where each author has
+       their own line with affiliation + contact mashed in.
+    3. A single line of comma/and-separated Title-Case names
+       (e.g. `Clement Wang, Antoine Vialle, Robin Vaysse, and
+       Thomas Bonald`) — minimal-formatting preprints.
+
+    Scans only the post-title region, stopping at the first
+    content section heading (Abstract / Introduction / ...) or
+    after 5000 chars to keep false-positives down. Deduplicates
+    while preserving order.
     """
     cutoff = _AUTHOR_SCAN_HEADING_RE.search(markdown)
     region = markdown[: cutoff.start()] if cutoff else markdown[:5000]
-    seen: dict[str, None] = {}
-    for m in _LEADING_MD_LINK_AUTHOR_RE.finditer(region):
-        name = re.sub(r"\s+", " ", m.group(1)).strip()
-        if name and name not in seen:
-            seen[name] = None
-    return list(seen)
+
+    def _seen_list(names):
+        seen: dict[str, None] = {}
+        for n in names:
+            cleaned = re.sub(r"\s+", " ", n).strip()
+            if cleaned and cleaned not in seen:
+                seen[cleaned] = None
+        return list(seen)
+
+    # Pattern 1: markdown-link authors (orcid / mailto).
+    linked = [m.group(1) for m in _LEADING_MD_LINK_AUTHOR_RE.finditer(region)]
+    if linked:
+        return _seen_list(linked)
+
+    # Pattern 2: email-bearing one-per-line author lines.
+    email_form = [m.group("name") for m in _EMAIL_BEARING_AUTHOR_LINE_RE.finditer(region)]
+    if email_form:
+        return _seen_list(email_form)
+
+    # Pattern 3: a single line of comma/and-separated Title-Case names.
+    csv_match = _PLAIN_CSV_AUTHORS_LINE_RE.search(region)
+    if csv_match:
+        # _split_authors handles commas / semicolons / "and" / &.
+        return _seen_list(_split_authors(csv_match.group(0)))
+
+    return []
 
 
 def extract_metadata_heuristic(markdown: str) -> dict[str, Any]:

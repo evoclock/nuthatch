@@ -65,6 +65,53 @@ class TestExtractMetadataHeuristic:
         out = extract_metadata_heuristic(md)
         assert out["authors"] == ["Alice Smith"]
 
+    def test_pulls_authors_from_email_bearing_lines(self) -> None:
+        # Docling's typical output for arxiv preprints: one author per
+        # line with affiliation and email mashed together. No orcid links.
+        md = (
+            "## AMUSE: Anytime Muon with Stable Gradient Evaluation\n\n"
+            "Jueun Kim KAIST jueunkim@kaist.ac.kr\n\n"
+            "Jihun Yun KRAFTON jihuny@krafton.com\n\n"
+            "Chulhee Yun KAIST chulhee.yun@kaist.ac.kr\n\n"
+            "## Abstract\n\n"
+            "Modern deep learning relies on AdamW...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == ["Jueun Kim", "Jihun Yun", "Chulhee Yun"]
+
+    def test_pulls_authors_from_plain_csv_line(self) -> None:
+        # Minimal-formatting preprints render authors as a single line
+        # of comma- and "and"-separated names.
+        md = (
+            "## Implicit Regularization of Mini-Batch Training in GNNs\n\n"
+            "Clement Wang, Antoine Vialle, Robin Vaysse, and Thomas Bonald\n\n"
+            "Institut Polytechnique de Paris\n\n"
+            "## Abstract\n\n"
+            "Mini-batch training of GNNs...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["authors"] == [
+            "Clement Wang",
+            "Antoine Vialle",
+            "Robin Vaysse",
+            "Thomas Bonald",
+        ]
+
+    def test_no_false_positive_authors_from_body_text(self) -> None:
+        # Body sentences that happen to contain capitalized words
+        # must NOT be parsed as authors. The post-title region is
+        # bounded by the first content-section heading.
+        md = (
+            "## A Paper Title\n\n"
+            "## Abstract\n\n"
+            "We compare Adam, SGD, and Muon. Authors of those "
+            "optimizers include Kingma, Loshchilov, and others.\n"
+        )
+        out = extract_metadata_heuristic(md)
+        # No authors found in the post-title pre-abstract region
+        # (which is empty here).
+        assert "authors" not in out
+
     def test_pulls_year(self) -> None:
         md = "Published in 2017 in Nature."
         assert extract_metadata_heuristic(md)["year"] == 2017
