@@ -237,6 +237,17 @@ def build_parser() -> argparse.ArgumentParser:
             "switching the embedding model via .kg/config.yaml."
         ),
     )
+    embed_p.add_argument(
+        "--accelerator",
+        choices=("auto", "cpu", "cuda", "mps", "xpu"),
+        default=None,
+        help=(
+            "device for the BGE-M3 sentence-transformer. Default `auto` picks "
+            "CUDA on Nvidia, MPS on Apple Silicon, CPU as fallback. Override "
+            "with `cuda` / `mps` / `cpu` to force. Equivalent to setting "
+            "NUTHATCH_ACCELERATOR in the environment; the CLI flag wins."
+        ),
+    )
 
     graph_p = subparsers.add_parser(
         "graph",
@@ -632,6 +643,16 @@ def _cmd_decay(args: argparse.Namespace) -> int:
 
 
 def _cmd_embed(args: argparse.Namespace) -> int:
+    # Set NUTHATCH_ACCELERATOR BEFORE any heavy import so the Embedder
+    # constructor (which reads the env var) sees it. The CLI flag wins
+    # over an inherited env value.
+    import os
+    accel = getattr(args, "accelerator", None)
+    if accel:
+        os.environ["NUTHATCH_ACCELERATOR"] = accel
+    effective_accel = os.environ.get("NUTHATCH_ACCELERATOR", "auto")
+    print(f"[embed] accelerator: {effective_accel}", flush=True)
+
     layout = _resolve_layout_or_die(args)
     config = load_corpus_config(layout.config_path)
     result = embed_corpus(layout, config=config, force=args.force)
