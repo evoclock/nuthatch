@@ -174,6 +174,59 @@ edits?"), Nuthatch chooses the rule.
   MCP-served subgraphs so the consuming agent knows what is
   evidence vs what is inference.
 
+## Notes on source-format reliability: arxiv vs bioRxiv
+
+This section records an honest, evidence-backed observation from
+building nuthatch. It is a criticism of submission infrastructure,
+not of the research communities those servers host.
+
+**Empirical asymmetry.** On the test corpus used during initial
+development (157 preprints across the two servers), arxiv ingestion
+needed two targeted fixes in the body-metadata extractor to reach
+near-100% success. bioRxiv ingestion needed twelve. The fixes
+themselves are tracked in the test suite; the cumulative effect was
+two ingest-and-iterate days for a server class that should have been
+a one-day exercise.
+
+**Where the difference comes from.** arxiv is, in practice, a
+LaTeX-monoculture: submissions go through `arxiv.sty` and produce
+a remarkably consistent first-page layout (title at the top,
+single-line `\author{}` block, `\begin{abstract}` heading,
+optional ORCID hyperlinks Docling parses cleanly). The
+`export.arxiv.org` API returns Atom XML within minutes of
+submission and the schema is stable.
+
+bioRxiv accepts Word, LaTeX, Google Docs, and Pages exports through
+a permissive web upload. The resulting PDFs vary substantially in
+layout: affiliation superscripts glued to surnames
+(`Buralkin1,2,3`), compound author initials (`John S.A. Mattick`),
+dagger / asterisk / pilcrow corresponding-author markers,
+parenthesised ORCID IDs inline with names, line-numbered Word
+manuscripts (the journal-review default) where Docling renders
+author blocks as markdown list items, and abstracts that often
+appear as a long paragraph with no `## Abstract` heading. The
+`api.biorxiv.org/details/biorxiv` endpoint also lags arxiv's: new
+preprints commonly return `no posts found` for the first several
+days after submission, and Crossref does not fill the gap
+(verified by HTTP probes during the May 2026 development run).
+
+**Concrete fix count.** For arxiv: profile-routing by filename
+pattern + filename-as-fallback when the API misses. For bioRxiv:
+all of the above plus markdown-list-item author stripping,
+affiliation-marker stripping, compound-initial name tokens,
+abstract-fallback-without-heading, section-name filter on title
+candidates, leading line-number stripping, parenthesised-group
+stripping. Each fix is locked in by a regression test in
+`tests/test_ingest_metadata.py`.
+
+**Posture.** Nuthatch reads the PDF you give it. The submission
+server is upstream and outside scope; future-proofing the extractor
+against new dialects is on us. But the cumulative cost of bioRxiv's
+"submit anything" policy is real and worth recording. A more
+consistent submission template (or a faster + more complete API
+backfill) would meaningfully reduce the parsing complexity for any
+downstream tool that ingests bioRxiv preprints, including this one.
+
 ## Extraction
 
 Nuthatch is a routing layer that calls user-installed OCR backends.
