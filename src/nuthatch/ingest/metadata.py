@@ -246,6 +246,11 @@ def _extract_title(markdown: str) -> str | None:
         return labelled
     for m in _HEADING_TITLE_RE.finditer(markdown):
         candidate = _LATEX_SUPERSCRIPT_RE.sub("", m.group(1)).strip()
+        # Strip leading line numbers (`## 1 Title text`) and `Title:`
+        # labels (`## Title: Real title`) introduced by Docling on
+        # line-numbered Word manuscripts.
+        candidate = re.sub(r"^\d+\s+", "", candidate).strip()
+        candidate = re.sub(r"^Title:\s*", "", candidate, flags=re.IGNORECASE).strip()
         candidate = re.sub(r"\s+\d+\s*$", "", candidate).strip()  # trailing line number
         if not candidate or _looks_like_section_heading(candidate):
             continue

@@ -235,6 +235,31 @@ class TestExtractMetadataHeuristic:
         out = extract_metadata_heuristic(md)
         assert out["authors"] == ["Mengyi Sun", "Sukwoong Choi", "Yian Yin"]
 
+    def test_title_strips_leading_line_number(self) -> None:
+        # Line-numbered Word manuscripts get rendered by Docling as
+        # `## 1 Real Title Text` — the leading line number must be
+        # stripped from the title candidate.
+        md = (
+            "## 1 Loss of Adaptive Capacity Drives Climate Vulnerability\n\n"
+            "Kristen Ruegg, Christen M. Bossu\n\n"
+            "## Abstract\n\n"
+            "We show...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["title"] == "Loss of Adaptive Capacity Drives Climate Vulnerability"
+
+    def test_title_strips_label_prefix(self) -> None:
+        # Some PDFs render `## Title: Real Title Here`; the label
+        # is metadata, not part of the title.
+        md = (
+            "## Title: Combinatorial transcription factor interactions\n\n"
+            "Author A, Author B\n\n"
+            "## Abstract\n\n"
+            "We show...\n"
+        )
+        out = extract_metadata_heuristic(md)
+        assert out["title"] == "Combinatorial transcription factor interactions"
+
     def test_csv_authors_with_hash_co_first_author_marker(self) -> None:
         # bioRxiv co-first-author convention: `Author 1#, Author 1#`.
         # `#` must strip alongside digits + asterisks.

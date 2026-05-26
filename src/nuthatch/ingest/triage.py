@@ -86,7 +86,18 @@ _SINGLE_AUTHOR_WITH_EMAIL_RE = re.compile(
 )
 _LONG_PARA_RE = re.compile(r"\n\s*\n([^\n]{250,})", re.DOTALL)
 _ABSTRACT_WORD_RE = re.compile(r"\b[Aa]bstract\b|\bSUMMARY\b")
-_TITLE_LINE_RE = re.compile(r"^\s*[A-Z][^\n]{15,200}$", re.MULTILINE)
+# Title-line detector. Accepts an optional leading line number
+# (`1   Title text`), an optional `Title:` label (`Title: Real title`),
+# or an `Article type: X` preamble (in which case the next non-blank
+# line should be the title — handled by the broader search below).
+_TITLE_LINE_RE = re.compile(
+    r"^\s*(?:\d+\s+)?(?:Title:\s*)?[A-Z][^\n]{15,200}$",
+    re.MULTILINE,
+)
+_ARTICLE_TYPE_PRECEDES_TITLE_RE = re.compile(
+    r"^\s*(?:\d+\s+)?Article type:[^\n]+\n+\s*(?:\d+\s+)?([A-Z][^\n]{15,200})$",
+    re.MULTILINE,
+)
 
 
 def triage_pdf(pdf: Path) -> TriageResult:
@@ -107,7 +118,10 @@ def triage_pdf(pdf: Path) -> TriageResult:
     # Skip the bioRxiv watermark paragraph (always lines 1-3 of page 1).
     body = "\n".join(out.split("\n")[5:])
 
-    has_title = bool(_TITLE_LINE_RE.search(body))
+    has_title = bool(
+        _TITLE_LINE_RE.search(body)
+        or _ARTICLE_TYPE_PRECEDES_TITLE_RE.search(body)
+    )
     has_authors = bool(
         _AUTHOR_CSV_RE.search(body)
         or _AFFIL_DIGIT_NAME_RE.search(body)
