@@ -20,7 +20,17 @@ class TestInitCorpus:
         layout = init_corpus(tmp_path / "ml-papers")
         assert layout.kg.is_dir()
         assert layout.kg.name == CORPUS_MARKER
-        for sub in ("inbox", "quarantine", "papers", "cards", "html", "notes", "graph", "exports"):
+        for sub in (
+            "inbox",
+            "processed",
+            "quarantine",
+            "rejected",
+            "cards",
+            "html",
+            "notes",
+            "graph",
+            "exports",
+        ):
             assert (layout.root / sub).is_dir(), f"{sub} not created"
 
     def test_idempotent(self, tmp_path: Path) -> None:
@@ -37,7 +47,7 @@ class TestInitCorpus:
 
     def test_resolved_paths_are_absolute(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
-        for attr in ("kg", "inbox", "papers", "manifest_path", "audit_dir"):
+        for attr in ("kg", "inbox", "processed", "rejected", "manifest_path", "audit_dir"):
             assert getattr(layout, attr).is_absolute()
 
 
@@ -47,7 +57,8 @@ class TestCorpusLayout:
         assert layout.kg == tmp_path / "c" / ".kg"
         assert layout.manifest_path == tmp_path / "c" / ".kg" / "manifest.jsonl"
         assert layout.inbox == tmp_path / "c" / "inbox"
-        assert layout.papers == tmp_path / "c" / "papers"
+        assert layout.processed == tmp_path / "c" / "processed"
+        assert layout.rejected == tmp_path / "c" / "rejected"
         assert layout.quarantine == tmp_path / "c" / "quarantine"
 
 
@@ -60,8 +71,8 @@ class TestDiscoverCorpusRoot:
 
     def test_finds_root_from_subdir(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
-        (layout.papers / "sub").mkdir()
-        found = discover_corpus_root(layout.papers / "sub")
+        (layout.processed / "sub").mkdir()
+        found = discover_corpus_root(layout.processed / "sub")
         assert found == layout.root
 
     def test_returns_none_when_no_marker(self, tmp_path: Path) -> None:

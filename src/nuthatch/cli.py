@@ -292,7 +292,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
     print(f"[OK] initialised corpus at {layout.root}")
     print(f"     marker:   {layout.kg}")
     print(f"     inbox:    {layout.inbox}")
-    print(f"     papers:   {layout.papers}")
+    print(f"     processed: {layout.processed}")
     print(f"     manifest: {layout.manifest_path}")
 
     if args.register_as is not None:

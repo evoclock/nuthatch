@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
-"""Ingest orchestrator: walks files from `inbox/` to `papers/` via the spine.
+"""Ingest orchestrator: walks files from a user subdir to `processed/<subdir>/`.
 
 The Sprint 2 spine:
 
-    inbox file
+    source file (anywhere under <corpus>/, outside reserved dirs)
       -> hash dedup
       -> preflight (suffix + non-zero size)
       -> extract (real OCR via `ingest.extract` for PDFs;
@@ -17,11 +17,17 @@ The Sprint 2 spine:
 
 `route` moves the file to one of:
 
-- `papers/`           on success (`IngestStatus.INGESTED`)
-- (left in inbox)     on byte-exact dedup hit (`IngestStatus.DUPLICATE`)
+- `processed/<source_subdir>/`  on success (`IngestStatus.INGESTED`).
+  Source provenance is preserved: a file ingested from
+  `<corpus>/bioarxiv/foo.pdf` lands at
+  `<corpus>/processed/bioarxiv/foo.pdf`. Watcher/scan skips this
+  subtree so it's never re-fed.
+- (left in place)               on byte-exact dedup hit (`IngestStatus.DUPLICATE`)
 - `quarantine/<reason>/` on any pipeline-stage failure
   (`IngestStatus.QUARANTINED`); a `.reason.json` sidecar lands next
-  to the file (see `ingest.quarantine`)
+  to the file recording the original subdir so a fix-pass can route
+  the file back to `processed/<original_subdir>/` after the issue
+  is resolved (see `ingest.quarantine`).
 
 The extractor is dependency-injected so tests can substitute a
 fast no-op while the real path runs Docling / Chandra-OCR / EasyOCR
@@ -260,6 +266,7 @@ class IngestOrchestrator:
                     self._layout.quarantine,
                     reason=preflight_reason or "preflight_failed",
                     details={"stage": "preflight"},
+                    corpus_root=self._layout.root,
                 )
                 yield (
                     self._record_and_result(
@@ -297,6 +304,7 @@ class IngestOrchestrator:
                     self._layout.quarantine,
                     reason=qc.reason or "extract_yield_failed",
                     details={"stage": "qc", "qc": qc.details},
+                    corpus_root=self._layout.root,
                 )
                 yield (
                     self._record_and_result(
@@ -328,6 +336,7 @@ class IngestOrchestrator:
                         "missing_required": validation.missing_required,
                         "type_mismatches": validation.type_mismatches,
                     },
+                    corpus_root=self._layout.root,
                 )
                 yield (
                     self._record_and_result(
@@ -340,7 +349,7 @@ class IngestOrchestrator:
                 )
                 continue
 
-            dest = self._move(source, self._layout.papers / source.name)
+            dest = self._move(source, self._processed_destination(source))
             # Persist extracted markdown + meta so `nuthatch embed` can
             # consume without re-running OCR / Docling. doc_id is the
             # FINAL papers/ filename stem (handles name collisions
@@ -500,6 +509,24 @@ class IngestOrchestrator:
         final = _unique_destination(dest)
         shutil.move(str(source), str(final))
         return final
+
+    def _processed_destination(self, source: Path) -> Path:
+        """Mirror the source subdir under `processed/`.
+
+        A file ingested from `<corpus>/bioarxiv/foo.pdf` returns
+        `<corpus>/processed/bioarxiv/foo.pdf`. Files at corpus root
+        (no subdir) go straight to `<corpus>/processed/foo.pdf`.
+
+        Files outside the corpus root fall back to a flat
+        `processed/<filename>` placement; that shouldn't happen
+        through the normal scan but the fallback keeps the move safe
+        if a test passes an unrelated path.
+        """
+        try:
+            rel = source.resolve().relative_to(self._layout.root)
+        except ValueError:
+            return self._layout.processed / source.name
+        return self._layout.processed / rel
 
     def _record(
         self,

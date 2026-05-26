@@ -47,8 +47,15 @@ def quarantine_file(
     *,
     reason: str,
     details: dict[str, Any] | None = None,
+    corpus_root: Path | None = None,
 ) -> Path:
     """Move `source` to `<quarantine_root>/<reason-slug>/` + write sidecar.
+
+    Records `original_subdir` (relative to `corpus_root`, when given)
+    in the sidecar JSON. A later fix-pass uses that field to route
+    the file back to `processed/<original_subdir>/` after the
+    underlying schema / qc issue is resolved. Quarantine is a
+    transient state in the corpus lifecycle, not a terminus.
 
     Returns the final destination path of the moved file.
     """
@@ -65,6 +72,15 @@ def quarantine_file(
             dest = target_dir / f"{stem}-{counter}{suffix}"
             counter += 1
 
+    original_subdir: str | None = None
+    if corpus_root is not None:
+        try:
+            rel_parent = source.resolve().relative_to(corpus_root.resolve()).parent
+            # parent of a top-level file is "."; treat that as no subdir.
+            original_subdir = str(rel_parent) if rel_parent != Path(".") else ""
+        except ValueError:
+            original_subdir = None
+
     shutil.move(str(source), str(dest))
 
     sidecar = dest.with_suffix(dest.suffix + ".reason.json")
@@ -72,6 +88,7 @@ def quarantine_file(
         "reason": reason,
         "reason_slug": reason_slug,
         "original_filename": source.name,
+        "original_subdir": original_subdir,
         "quarantined_at_utc": datetime.now(UTC).isoformat(),
         "details": details or {},
     }
