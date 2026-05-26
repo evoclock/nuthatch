@@ -85,12 +85,31 @@ class SBMBackend:
         gtg, node_id_by_index = _nx_to_graph_tool(nxg, gt)
 
         t0 = time.perf_counter()
+        hierarchy: list[dict[str, int]] | None = None
         if self.nested:
             state = gt.minimize_nested_blockmodel_dl(
                 gtg,
                 state_args={"deg_corr": self.degree_corrected},
             )
-            partition_array = state.get_bs()[0]  # top-level partition
+            bs = state.get_bs()
+            # bs[0] is per-node block (length N). bs[i>=1] is per-(level i-1
+            # block) super-block (length B_{i-1}). To produce a node-keyed
+            # path through the hierarchy we cascade: level 0 block id is
+            # b0 = bs[0][node_idx]; level 1 super-block is b1 = bs[1][b0];
+            # level 2 is bs[2][b1]; etc. The result is a node -> [b0, b1, b2, ...]
+            # mapping per level so an agent can navigate from leaf community
+            # up to the root super-community.
+            n_levels = len(bs)
+            partition_array = bs[0]
+            hierarchy = []
+            for level in range(n_levels):
+                level_map: dict[str, int] = {}
+                for idx, node_id in node_id_by_index.items():
+                    b = int(bs[0][idx])  # leaf block id
+                    for lvl in range(1, level + 1):
+                        b = int(bs[lvl][b])
+                    level_map[node_id] = b
+                hierarchy.append(level_map)
         else:
             state = gt.minimize_blockmodel_dl(
                 gtg,
@@ -112,8 +131,10 @@ class SBMBackend:
             block_state=None,  # in-memory only; pickling graph-tool state is fragile
             notes=(
                 f"nested={self.nested}, "
-                f"degree_corrected={self.degree_corrected}"
+                f"degree_corrected={self.degree_corrected}, "
+                f"n_levels={len(hierarchy) if hierarchy else 1}"
             ),
+            hierarchy=hierarchy,
         )
 
 

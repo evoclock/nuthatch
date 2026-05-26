@@ -93,11 +93,23 @@ def build_frontmatter(
     relevance: float = 1.0,
     half_life_days: int | None = _PAPER_HALF_LIFE_DAYS,
     aim_ref: str | None = None,
+    community_id: int | None = None,
+    community_path: list[int] | None = None,
+    community_label: str | None = None,
 ) -> dict[str, Any]:
     """Build the kb-reports-aligned frontmatter dict for a per-paper card.
 
     Field order matches the kb-reports.md contract so a human scanning
     the YAML sees the same shape across all knowledge-base artifacts.
+
+    `community_id` is the leaf SBM block; `community_path` is the full
+    nested chain (level 0 = leaf, deeper levels = super-blocks);
+    `community_label` is a short label generated from member titles.
+    All three are present only after `nuthatch cluster` has run; cards
+    rendered before clustering omit them entirely. An agent that reads
+    a card frontmatter can route directly into `community_brief` or
+    `community_search` MCP tools without paying a card.get round-trip
+    to learn which community the card belongs to.
     """
     title = str(metadata.get("title") or doc_id)
     front: dict[str, Any] = {
@@ -115,6 +127,9 @@ def build_frontmatter(
         "doi": metadata.get("doi", ""),
         "arxiv_id": metadata.get("arxiv_id", ""),
         "topics": _as_list(metadata.get("topics")),
+        "community_id": community_id,
+        "community_path": community_path,
+        "community_label": community_label,
         "relevance": float(relevance),
         "half_life_days": half_life_days,
         "ingested": _now_iso(),
@@ -136,6 +151,9 @@ def render_card(
     relevance: float = 1.0,
     half_life_days: int | None = _PAPER_HALF_LIFE_DAYS,
     aim_ref: str | None = None,
+    community_id: int | None = None,
+    community_path: list[int] | None = None,
+    community_label: str | None = None,
 ) -> str:
     """Render the full per-paper card markdown.
 
@@ -143,6 +161,12 @@ def render_card(
     `02_assemble_wiki_page.py`: Authors / Year / DOI header line,
     then Abstract, Key Claims, Methods, Topics (with Obsidian
     `[[Concept]]` links), and Relevance.
+
+    Community fields are optional and only populated when the
+    cluster stage has run (see `clustering/persist.py`). Cards
+    rendered before clustering omit them; cards rendered after
+    carry the leaf community_id, the nested community_path, and
+    a human-readable community_label for navigation.
     """
     front = build_frontmatter(
         doc_id=doc_id,
@@ -152,6 +176,9 @@ def render_card(
         status=status,
         relevance=relevance,
         half_life_days=half_life_days,
+        community_id=community_id,
+        community_path=community_path,
+        community_label=community_label,
         aim_ref=aim_ref,
     )
     yaml_text = yaml.dump(front, default_flow_style=False, sort_keys=False).rstrip()

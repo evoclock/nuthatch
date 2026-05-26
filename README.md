@@ -43,10 +43,21 @@ nano-graphrag) plus adjacent tools (Cognee, PaperQA2, Khoj, Verba).
 We surveyed them and built Nuthatch anyway because we wanted a
 specific combination of choices none of them makes:
 
+- **Community-aware retrieval, not just clustering.** Every chunk
+  hit carries `community_id`, `community_path` (the nested SBM
+  chain), and `community_label` so an agent can route directly
+  into the relevant cluster without paying for a card fetch first.
+  Plus `community_search` ranks communities semantically by
+  query-to-centroid cosine — flat modularity-based clustering
+  (Leiden, Louvain) cannot do this. See
+  [`docs/Design_Decisions.md`](docs/Design_Decisions.md) §
+  *Community-aware retrieval*.
 - Bayesian Stochastic Block Model (Peixoto, via
   [graph-tool](https://graph-tool.skewed.de/)) as the principled
   clustering ceiling, with Leiden as a graceful fallback when
-  graph-tool is unavailable
+  graph-tool is unavailable. The SBM tier emits a nested hierarchy
+  that flat methods cannot, and Nuthatch persists every level so
+  agents can zoom from leaf clusters up to coarser super-clusters.
 - Honest per-tool token-economy accounting (BM25 baseline for
   search, card-token-sum baseline for subgraph and community)
   instead of whole-corpus headline ratios
@@ -68,14 +79,19 @@ graph-augmented retrieval helps.
 
 The build pipeline is operational. Five CLI subcommands
 (`ingest`, `embed`, `graph`, `cluster`, `render`) chain into a
-queryable corpus that the MCP server exposes via five tools
-(`corpus_search`, `subgraph_extract`, `card_get`, `community_get`,
-`token_econ_report`). The test suite covers every contract
+queryable corpus that the MCP server exposes via nine tools:
+`corpus_search`, `subgraph_extract`, `card_get`, `community_get`,
+`community_brief`, `community_search`, `community_core_nodes`,
+`community_hierarchy`, and `token_econ_report`. The community
+tools — and the routing keys (`community_id`, `community_path`,
+`community_label`) carried inside every search hit and every
+card's frontmatter — are what make graph-RAG actually work
+without per-card lookups. The test suite covers every contract
 (routing thresholds, model defaults, chunk coverage, reranker
 invocation, schema validation, end-to-end pipeline integration).
 
-Not yet shipped: a pre-built reference corpus, a hosted demo, a
-flow diagram. PyPI publication is in flight.
+Not yet shipped: a pre-built reference corpus, a hosted demo.
+PyPI publication is in flight.
 
 ## Quick start
 

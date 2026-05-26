@@ -28,6 +28,7 @@ import time
 from collections import Counter
 from pathlib import Path
 from types import FrameType
+from typing import Any
 
 from nuthatch import __version__
 from nuthatch.corpus import (
@@ -634,6 +635,27 @@ def _cmd_cluster(args: argparse.Namespace) -> int:
             g.nodes[node_id]["community_id"] = int(community_id)
     save_graph(g, graph_path)
 
+    # Persist the canonical community index at <corpus>/.kg/communities.json.
+    # This is what the MCP server's community-aware tools read at query
+    # time: per-doc community_id, the nested hierarchy chain (SBM), per-
+    # community core nodes, and human-readable labels. Centroids (for
+    # semantic community.search) are computed below when embeddings are
+    # available.
+    from nuthatch.clustering.persist import persist_communities
+
+    paper_metadata = _load_paper_metadata(layout)
+    centroids = _compute_community_centroids(
+        layout=layout,
+        partition=response.partition,
+    )
+    index_path = persist_communities(
+        layout=layout,
+        response=response,
+        graph=g,
+        paper_metadata=paper_metadata,
+        centroids=centroids,
+    )
+
     n_communities = len(set(response.partition.values()))
     print(
         f"[OK] cluster: {len(response.partition)} nodes -> "
@@ -642,9 +664,90 @@ def _cmd_cluster(args: argparse.Namespace) -> int:
         f"backend={response.backend_used}, "
         f"{response.runtime_seconds:.1f}s)"
     )
+    print(f"     index:  {index_path.relative_to(layout.root)}")
+    if centroids:
+        print(f"     centroids: {len(centroids)} communities x "
+              f"{len(next(iter(centroids.values())))} dims")
     if response.notes:
-        print(f"     notes: {response.notes}")
+        print(f"     notes:  {response.notes}")
     return 0
+
+
+def _load_paper_metadata(layout: Any) -> dict[str, dict[str, Any]]:
+    """Read every .kg/extracted/<doc_id>.meta.json into a dict keyed by doc_id.
+
+    Used by persist_communities to generate per-community labels from
+    member titles. Returns an empty dict when no extracted metadata
+    is present (cluster-without-ingest, tests).
+    """
+    extracted = layout.extracted_dir
+    if not extracted.is_dir():
+        return {}
+    import json as _json
+    out: dict[str, dict[str, Any]] = {}
+    for meta_path in sorted(extracted.glob("*.meta.json")):
+        try:
+            data = _json.loads(meta_path.read_text(encoding="utf-8"))
+        except _json.JSONDecodeError:
+            continue
+        doc_id = data.get("doc_id") or meta_path.stem.removesuffix(".meta")
+        meta_block = data.get("metadata") or {}
+        if doc_id:
+            out[str(doc_id)] = meta_block
+    return out
+
+
+def _compute_community_centroids(
+    *,
+    layout: Any,
+    partition: dict[str, int],
+) -> dict[int, list[float]]:
+    """Average per-doc chunk embeddings into per-community centroids.
+
+    Powers `community_search` (semantic match query -> community).
+    Pulls embeddings directly from the Chroma collection via a
+    `where={"doc_id": ...}` filter so we don't need a dedicated
+    store API. Returns an empty dict when the embed stage hasn't
+    run or when Chroma is not reachable; the persistence layer
+    handles the absence gracefully (community_search will be
+    unavailable, but every other tool still works).
+    """
+    try:
+        from nuthatch.embed.store import ChromaVectorStore
+    except ImportError:
+        return {}
+    try:
+        store = ChromaVectorStore(layout.embeddings_dir, collection_name="corpus")
+        coll = store._ensure_collection()
+    except Exception:
+        return {}
+
+    from collections import defaultdict
+
+    by_community: dict[int, list[list[float]]] = defaultdict(list)
+    for doc_id, community_id in partition.items():
+        try:
+            got = coll.get(where={"doc_id": str(doc_id)}, include=["embeddings"])
+        except Exception:
+            continue
+        vecs = got.get("embeddings") or []
+        if not vecs:
+            continue
+        n = len(vecs)
+        dim = len(vecs[0])
+        # Average doc's chunk embeddings into one doc-level vector,
+        # then aggregate doc-vectors per community for the final mean.
+        doc_centroid = [sum(v[d] for v in vecs) / n for d in range(dim)]
+        by_community[int(community_id)].append(doc_centroid)
+
+    out: dict[int, list[float]] = {}
+    for cid, doc_vectors in by_community.items():
+        if not doc_vectors:
+            continue
+        dim = len(doc_vectors[0])
+        n = len(doc_vectors)
+        out[cid] = [sum(v[d] for v in doc_vectors) / n for d in range(dim)]
+    return out
 
 
 def _cmd_render(args: argparse.Namespace) -> int:

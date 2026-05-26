@@ -126,16 +126,27 @@ nuthatch-managed subdirs above (`.kg/`, `papers/`, `quarantine/`,
 
 ## MCP query surface
 
-The server exposes five tools over stdio JSON-RPC 2.0. None mutate
+The server exposes nine tools over stdio JSON-RPC 2.0. None mutate
 corpus state.
 
 | Tool | Returns |
 | --- | --- |
-| `corpus_search(query, k)` | Top-`k` chunk hits with doc_id, score, text preview, metadata |
+| `corpus_search(query, k)` | Top-`k` chunk hits with doc_id, score, text preview, metadata + `community_id` / `community_path` / `community_label` so agents can route directly into community tools |
 | `subgraph_extract(seed_nodes, depth)` | BFS subgraph (nodes + edges) around the seeds |
-| `card_get(doc_id)` | Full rendered per-doc card markdown |
+| `card_get(doc_id)` | Full rendered per-doc card markdown (frontmatter carries community fields) |
 | `community_get(community_id)` | Rendered per-cluster page markdown |
+| `community_brief(community_id, top_n)` | Short structured preamble: label, n_members, top-N representative doc_ids. Cheap lead-in before drilling into a full card / community page |
+| `community_search(query, k)` | Semantic search at the community level. Ranks communities by query-to-centroid cosine. Lets agents jump straight to the relevant cluster without a chunk-level intermediate |
+| `community_core_nodes(community_id)` | High-degree members within a community's induced subgraph — the "key papers" of the cluster |
+| `community_hierarchy(doc_id)` | Full nested-SBM path from leaf community up through super-communities. Single-level for flat backends; multi-level for the principled SBM tier |
 | `token_econ_report(group_by, since, until, ...)` | Aggregate token-economy stats with per-tool BM25 / card-sum counterfactual baselines |
+
+The community tools together make Nuthatch's headline feature
+work: chunk-level retrieval surfaces routing keys, and the agent
+can choose chunk-level / community-level / hierarchy-level zoom
+without ever having to walk the global graph. See
+`docs/Design_Decisions.md` § *Community-aware retrieval* for the
+full rationale.
 
 Per-agent registration recipes live in the `skill-*.md` files at
 the repo root (one per supported host: `skill-claude-code.md`,

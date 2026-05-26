@@ -87,8 +87,12 @@ _PACKAGE_BLURBS = {
     "graph": "Stage 3: build the document graph from embeddings + co-citation + "
              "semantic similarity edges. Outputs to `graph/`.",
     "clustering": "Stage 4: community detection. SBM via graph-tool when "
-                  "available, Leiden fallback. Hub exclusion + reattachment by "
-                  "majority neighbour. Stable cluster IDs across re-runs.",
+                  "available (nested hierarchy), Leiden fallback (flat). Hub "
+                  "exclusion + reattachment by majority neighbour. Stable "
+                  "cluster IDs across re-runs. `persist.py` writes "
+                  "`.kg/communities.json` + `.kg/community_centroids.npy` so "
+                  "the MCP server's community tools can run without "
+                  "re-clustering.",
     "render": "Stage 5: render the corpus as an Obsidian-compatible vault. "
               "Per-paper cards under `cards/`, community pages under "
               "`communities/`, plus top-level `dashboard.md`, `index.md`, "
@@ -102,8 +106,12 @@ _PACKAGE_BLURBS = {
               "`processed/<subdir>/` and `quarantine/<reason>/` lifecycle.",
     "retrieve": "Query-side helpers used by the MCP server: BM25, Chroma vector "
                 "search, reranker invocation, hybrid result merging.",
-    "mcp": "Read-only MCP server exposing five tools to agents: `corpus.search`, "
-           "`card.get`, `subgraph.get`, `community.brief`, `token.report`.",
+    "mcp": "Read-only MCP server exposing nine tools to agents: "
+           "`corpus_search`, `subgraph_extract`, `card_get`, "
+           "`community_get`, `community_brief`, `community_search`, "
+           "`community_core_nodes`, `community_hierarchy`, "
+           "`token_econ_report`. Community-aware retrieval (4 of the 9 "
+           "tools) is the headline feature.",
     "dedup": "Semantic dedup after embed: collapse near-duplicate chunks while "
              "respecting full-doc coverage invariant.",
     "decay": "Sprint-8 relevance decay + supersession. `relevance(t) = "

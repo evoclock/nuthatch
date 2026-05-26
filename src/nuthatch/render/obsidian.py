@@ -66,9 +66,30 @@ def export_vault(
     cards_dir.mkdir(parents=True, exist_ok=True)
     communities_dir.mkdir(parents=True, exist_ok=True)
 
+    # Load the persisted community index if cluster stage has run.
+    # When present, every card gets community_id + community_path +
+    # community_label injected into its frontmatter so agents can
+    # navigate community-aware retrieval directly from the card.
+    from nuthatch.clustering.persist import load_community_index
+
+    community_index = load_community_index(layout)
+
     n_cards = 0
     for doc_id, meta in paper_metadata.items():
-        card_md = render_card(doc_id=doc_id, metadata=dict(meta))
+        cid = community_index.community_for(doc_id) if community_index else None
+        cpath = community_index.hierarchy_for(doc_id) if community_index else None
+        clabel = (
+            community_index.labels.get(cid)
+            if community_index and cid is not None
+            else None
+        )
+        card_md = render_card(
+            doc_id=doc_id,
+            metadata=dict(meta),
+            community_id=cid,
+            community_path=cpath if cpath else None,
+            community_label=clabel,
+        )
         (cards_dir / f"{doc_id}.md").write_text(card_md, encoding="utf-8")
         n_cards += 1
 

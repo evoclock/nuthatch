@@ -404,9 +404,41 @@ an MCP-aware agent at it:
 nuthatch serve --corpus my-corpus
 ```
 
-The server exposes five tools (`corpus_search`, `subgraph_extract`,
-`card_get`, `community_get`, `token_econ_report`) over stdio
-JSON-RPC. Each skill file in the repo (`skill-claude-code.md`,
+The server exposes nine tools over stdio JSON-RPC:
+
+| Tool | Purpose |
+| --- | --- |
+| `corpus_search(query, k)` | Chunk-level dense retrieval. Hits include `community_id`, `community_path`, `community_label` so the agent can route directly into community tools without an extra round-trip. |
+| `subgraph_extract(seed_nodes, depth)` | BFS subgraph around seeds. |
+| `card_get(doc_id)` | Full per-doc card markdown (frontmatter has community fields). |
+| `community_get(community_id)` | Full per-community page markdown. |
+| `community_brief(community_id, top_n)` | Cheap structured preamble (label, n_members, top-N representatives) before paying card-fetch cost. |
+| `community_search(query, k)` | Semantic search at the community level — ranks communities by query-to-centroid cosine. Jump straight to the relevant cluster. |
+| `community_core_nodes(community_id)` | High-degree members within the community. The "key papers" of the cluster. |
+| `community_hierarchy(doc_id)` | Walk the nested SBM hierarchy (leaf → super-communities). Progressive zoom for context expansion / contraction. |
+| `token_econ_report(group_by, since, until)` | Aggregate per-tool counterfactual savings. |
+
+The community tools are the headline of Nuthatch — they let
+agents do graph-RAG over your corpus without paying full-card
+costs to learn community membership. See
+[`docs/Design_Decisions.md`](Design_Decisions.md) §
+*Community-aware retrieval* for the rationale. A typical
+LLM-facing recipe:
+
+```text
+1. agent calls community_search("relevant topic", k=3)
+   -> three community_ids ranked by semantic match
+2. agent calls community_brief(community_id, top_n=5) on the winner
+   -> label + 5 representative doc_ids, ~200 tokens
+3. agent decides: drill into one card (card_get) or read the
+   whole community page (community_get) or walk the parent
+   community (community_hierarchy)
+```
+
+That flow replaces what an Obsidian-only setup or a flat-vector-
+search tool would force into N round-trips, one per hit.
+
+Each skill file in the repo (`skill-claude-code.md`,
 `skill-codex.md`, `skill-aider.md`, `skill-opencode.md`,
 `skill-pi.md`, `skill-hermes.md`) shows the host-specific
 registration steps.

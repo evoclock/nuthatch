@@ -18,12 +18,12 @@ Source: `nuthatch_module_graph.d2`. Edges colored by source module (CLI=apricot,
 | `ingest` | 15 | Stage 1: extract markdown from sources, validate schema, route to `processed/<subdir>/` or `quarantine/<reason>/`. Handles arxiv / bioRxiv metadata enrichment, math-retry flagging, dedup, and orchestrator state machine. |
 | `embed` | 5 | Stage 2: chunk extracted markdown and persist embeddings into Chroma (`.kg/embeddings/`). Hybrid chunker with full-doc coverage invariant; orchestrator handles incremental + `--force` re-embed. |
 | `graph` | 7 | Stage 3: build the document graph from embeddings + co-citation + semantic similarity edges. Outputs to `graph/`. |
-| `clustering` | 9 | Stage 4: community detection. SBM via graph-tool when available, Leiden fallback. Hub exclusion + reattachment by majority neighbour. Stable cluster IDs across re-runs. |
+| `clustering` | 10 | Stage 4: community detection. SBM via graph-tool when available (nested hierarchy), Leiden fallback (flat). Hub exclusion + reattachment by majority neighbour. Stable cluster IDs across re-runs. `persist.py` writes `.kg/communities.json` + `.kg/community_centroids.npy` so the MCP server's community tools can run without re-clustering. |
 | `render` | 4 | Stage 5: render the corpus as an Obsidian-compatible vault. Per-paper cards under `cards/`, community pages under `communities/`, plus top-level `dashboard.md`, `index.md`, `log.md`. Wikilinks between cards form the navigable graph Obsidian's graph view picks up automatically; Dataview queries in the dashboard filter by tag / year / community. |
 | `schema` | 7 | Per-corpus metadata contracts. Profiles for arxiv, bioRxiv, internal docs, patents. Profile-router picks per-file by filename pattern. |
 | `corpus` | 4 | Corpus discovery, layout, init, and registry. Defines the `processed/<subdir>/` and `quarantine/<reason>/` lifecycle. |
 | `retrieve` | 2 | Query-side helpers used by the MCP server: BM25, Chroma vector search, reranker invocation, hybrid result merging. |
-| `mcp` | 2 | Read-only MCP server exposing five tools to agents: `corpus.search`, `card.get`, `subgraph.get`, `community.brief`, `token.report`. |
+| `mcp` | 2 | Read-only MCP server exposing nine tools to agents: `corpus_search`, `subgraph_extract`, `card_get`, `community_get`, `community_brief`, `community_search`, `community_core_nodes`, `community_hierarchy`, `token_econ_report`. Community-aware retrieval (4 of the 9 tools) is the headline feature. |
 | `dedup` | 2 | Semantic dedup after embed: collapse near-duplicate chunks while respecting full-doc coverage invariant. |
 | `decay` | 4 | Sprint-8 relevance decay + supersession. `relevance(t) = max(backlinks, 1) * exp(-ln2 * Δt / half_life_days)`. |
 | `token_econ` | 5 | Token-economy instrumentation. Per-tool cost / yield log + report generator. |
@@ -57,7 +57,7 @@ Stage 1: extract markdown from sources, validate schema, route to `processed/<su
 | `src/nuthatch/ingest/profile_routing.py` | Pick a `SchemaProfile` for a given source filename. | `select_profile_for_filename` |
 | `src/nuthatch/ingest/qc.py` | assert pipeline-stage invariants. The Sprint 2 surface is `check_extract_yield(markdown)` — confirms an extractor produced enough text to be worth keeping. The Sprint 3 surface adds `check_chunk_cove... | `CheckResult`, `check_extract_yield` |
 | `src/nuthatch/ingest/quarantine.py` | move a failed-ingest file to `<corpus>/quarantine/<reason>/` and write a `.reason.json` sidecar capturing why. Per the DECISIONS.md ingest rule, schema-failed files do NOT enter the graph and must be... | `quarantine_file` |
-| `src/nuthatch/ingest/security.py` | prevent SSRF and accidental fetches of local / private addresses when the corpus accepts URL-based ingest in addition to file-system drops. Validates a URL is safe to fetch _before_ the fetch happens... | `SecurityResult`, `validate_url` |
+| `src/nuthatch/ingest/security.py` | prevent SSRF and accidental fetches of local / private addresses when the corpus accepts URL-based ingest in addition to file-system drops. Validates a URL is safe to fetch *before* the fetch happens... | `SecurityResult`, `validate_url` |
 | `src/nuthatch/ingest/source_metadata.py` | Authoritative metadata fetchers for arxiv + bioRxiv source files. | `SourceMetadata`, `extract_arxiv_id_from_filename`, `extract_biorxiv_doi_from_filename` |
 | `src/nuthatch/ingest/state_machine.py` | Ingest orchestrator: walks files from a user subdir to `processed/<subdir>/`. | `IngestResult`, `IngestOrchestrator` |
 | `src/nuthatch/ingest/watch.py` | Filesystem-event-driven ingest for `nuthatch watch`. | `_DebouncedHandler`, `InboxWatcher` |
@@ -90,7 +90,7 @@ Stage 3: build the document graph from embeddings + co-citation + semantic simil
 
 ## `clustering`
 
-Stage 4: community detection. SBM via graph-tool when available, Leiden fallback. Hub exclusion + reattachment by majority neighbour. Stable cluster IDs across re-runs.
+Stage 4: community detection. SBM via graph-tool when available (nested hierarchy), Leiden fallback (flat). Hub exclusion + reattachment by majority neighbour. Stable cluster IDs across re-runs. `persist.py` writes `.kg/communities.json` + `.kg/community_centroids.npy` so the MCP server's community tools can run without re-clustering.
 
 | Path | Purpose | Key symbols |
 | --- | --- | --- |
@@ -100,6 +100,7 @@ Stage 4: community detection. SBM via graph-tool when available, Leiden fallback
 | `src/nuthatch/clustering/backends/leiden.py` | Leiden clustering backend (`leidenalg` + `python-igraph`). | `LeidenBackend` |
 | `src/nuthatch/clustering/backends/sbm.py` | Stochastic Block Model clustering via Tiago Peixoto's `graph-tool`. | `SBMBackend` |
 | `src/nuthatch/clustering/hub_exclusion.py` | paper knowledge graphs contain a small number of enormously-cited "core" papers (the Darwins, the BLAST papers, the Word2Vec papers) that touch every community. Including them in the partition pulls ... | `core_nodes`, `exclude_core_nodes`, `reattach_by_majority_neighbour` |
+| `src/nuthatch/clustering/persist.py` | emit `<corpus>/.kg/communities.json` so downstream consumers (the render layer's card frontmatter, the MCP server's community-aware retrieval tools) can look up a doc's community membership, the nest... | `CommunityIndex` |
 | `src/nuthatch/clustering/protocol.py` | Clustering backend protocol; the first concrete spec artifact. | `Rigor`, `BackendLocation`, `ClusteringRequest` |
 | `src/nuthatch/clustering/router.py` | nuthatch ships three backends (SBM, Leiden, embeddings) behind the `ClusteringBackend` protocol. At runtime not all are necessarily available (graph-tool is conda-only, leidenalg may not be installed... | `ClusteringRouter`, `default_backends` |
 | `src/nuthatch/clustering/stable_ids.py` | when a corpus is re-clustered (new papers added, refit triggered), the partitioner returns community IDs that don't necessarily match the previous run. For UX continuity (saved queries, citation patt... | `remap_to_previous` |
@@ -151,7 +152,7 @@ Query-side helpers used by the MCP server: BM25, Chroma vector search, reranker 
 
 ## `mcp`
 
-Read-only MCP server exposing five tools to agents: `corpus.search`, `card.get`, `subgraph.get`, `community.brief`, `token.report`.
+Read-only MCP server exposing nine tools to agents: `corpus_search`, `subgraph_extract`, `card_get`, `community_get`, `community_brief`, `community_search`, `community_core_nodes`, `community_hierarchy`, `token_econ_report`. Community-aware retrieval (4 of the 9 tools) is the headline feature.
 
 | Path | Purpose | Key symbols |
 | --- | --- | --- |

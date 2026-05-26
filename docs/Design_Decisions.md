@@ -242,17 +242,122 @@ not redistribute model weights or run inference as a service.
 
 - **MCP stdio server** as the agent-facing surface
   (`nuthatch serve --corpus <name>`). Raw STDIO JSON-RPC 2.0,
-  no MCP SDK dependency. The five tools are:
+  no MCP SDK dependency. The nine tools are:
   `corpus_search`, `subgraph_extract`, `card_get`,
-  `community_get`, `token_econ_report`.
+  `community_get`, `community_brief`, `community_search`,
+  `community_core_nodes`, `community_hierarchy`,
+  `token_econ_report`.
 - **Per-document markdown card** (Obsidian-compatible YAML
   frontmatter, queryable via Dataview). One per ingested doc,
-  under `<corpus>/cards/`.
+  under `<corpus>/cards/`. Frontmatter carries `community_id`,
+  `community_path` (the nested SBM chain), and `community_label`
+  so agents reading a card can route directly into community
+  tools without a separate lookup.
 - **Per-community markdown page** under `<corpus>/communities/`,
   listing members as wikilinks for one-click navigation in
   Obsidian.
 - **Dashboard / index / log** at the corpus root for the
   human-readable view.
+
+## Community-aware retrieval
+
+This is the headline of the tool. Most graph-RAG tools cluster
+their corpus and stop there: the agent does vector search, gets
+chunks back, and has no way to route into the community without
+extra round-trips. That collapses the token-economy benefit of
+clustering in the first place. Nuthatch closes that gap.
+
+### Three things every search hit carries
+
+Every `corpus_search` result includes:
+
+- `community_id` — the leaf SBM block this doc lives in.
+- `community_path` — the nested hierarchy from leaf up through
+  super-blocks (only populated when the SBM backend runs;
+  single-element list for flat backends).
+- `community_label` — a short human-readable handle, derived
+  from member titles.
+
+The same fields land in each card's YAML frontmatter, so an
+agent already holding a card has the routing keys without
+asking again.
+
+### Five MCP tools, three retrieval shapes
+
+| Shape | Tool | What it returns | When to call |
+| --- | --- | --- | --- |
+| chunk-level | `corpus_search(query, k)` | top-k chunks with community fields in metadata | "find me passages about X" |
+| community-level | `community_search(query, k)` | top-k communities ranked by query-to-centroid cosine | "what topic clusters of mine are about X" |
+| | `community_brief(community_id, top_n)` | label, member count, top-N representatives | cheap preamble before drilling in |
+| | `community_get(community_id)` | full community markdown page | when you want every member |
+| | `community_core_nodes(community_id)` | high-degree members within the community | "what are the key members of this cluster" |
+| hierarchy | `community_hierarchy(doc_id)` | full nested path leaf → super-community | progressive zoom in or out |
+
+### Why each component matters
+
+- **`community_id` on every chunk hit** is the gateway. Without it
+  the agent has to fetch a full card just to learn which community
+  a hit belongs to. With it, one search returns "you want
+  community 7" without any second round-trip.
+
+- **`community_search`** is the unique-to-Nuthatch tool. Flat
+  community detection (Leiden, Louvain, modularity-based methods)
+  has no notion of comparing communities to a query semantically;
+  the agent can fetch a community by ID but cannot ask "rank my
+  communities by relevance to X." Nuthatch persists per-community
+  centroids (the mean of member-chunk embeddings) at cluster time;
+  `community_search` embeds the query under the same model and
+  ranks by cosine similarity. The agent jumps straight to the
+  cluster, skipping the chunk-level intermediate entirely.
+
+- **`community_brief`** is the cheap-preview design. It returns
+  the label, member count, and 3-5 representative doc_ids (core
+  nodes when available, else first-N members). The agent decides
+  whether to drill in via `community_get` (full page) or
+  `card_get` (specific member) without committing tokens to a
+  full read.
+
+- **`community_core_nodes`** scopes the "key entities" concept
+  per-community. A globally-high-degree node tells you about
+  graph topology; a community-locally-high-degree node tells you
+  who matters to *this conversation*.
+
+- **`community_hierarchy`** is the nested-SBM payoff. The
+  graph-tool Bayesian SBM fits a hierarchy by default
+  (`minimize_nested_blockmodel_dl`); we persist every level and
+  let the agent walk from a focused leaf (one paper's specific
+  cluster) up to a coarser super-community for broader context.
+  Modularity-based methods (Leiden, Louvain) don't compute a
+  hierarchy at all — they emit a flat partition and stop. This
+  is one of the principled-vs-heuristic differences that
+  motivated picking SBM as the default backend.
+
+### Persistence shape
+
+After `nuthatch cluster` runs, `<corpus>/.kg/` carries:
+
+- `communities.json` — full index: per-doc `community_id`, the
+  nested `hierarchy` chain, per-community `members`,
+  `core_nodes`, `labels`, plus backend / rigor metadata.
+- `community_centroids.npy` — float32 matrix, row *i* = mean
+  embedding for community `community_ids[i]`. Powers
+  `community_search`'s cosine ranking.
+
+Both files are MCP-server-readable; both are regenerated
+deterministically from the graph + embeddings on each cluster
+run.
+
+### Honest limits
+
+- Centroids are only available when the embed stage ran first.
+  Cluster-then-embed pipelines produce a partial index with no
+  `community_search` until centroids land.
+- A flat backend (Leiden / Louvain fallback) yields a single-
+  level `community_path`; the SBM-only tools still work but the
+  hierarchy collapses to one level.
+- Per-community labels are heuristic (title-word frequencies);
+  an LLM-driven labeller is a defensible future enhancement but
+  not in scope for the first release.
 
 ## Token-economy methodology
 
