@@ -159,14 +159,19 @@ cluster: "Stage 4\ncluster" {
   sbm: "SBM\n(graph-tool, primary)" { class: substep }
   leiden: "Leiden\n(leidenalg, fallback)" { class: substep }
   hub: "hub exclusion +\nstable cluster IDs" { class: substep }
+  relabel: "--relabel-llm\n(optional;\ngranite3-dense:8b)" { class: substep }
 
   router -> sbm: "if graph-tool present"
   router -> leiden: "fallback"
   sbm -> hub
   leiden -> hub
+  hub -> relabel: "optional"
 }
 
 render: "Stage 5\nrender\n(cards, HTML, exports)" { class: stage }
+viz: "viz d3\n(D3 + canvas topology)" { class: stage }
+publish: "publish\n(promote to KB dir)" { class: stage }
+serve: "serve\n(MCP stdio, 9 tools)" { class: stage }
 
 processed: "processed/\n<original_subdir>/" { class: processed }
 quarantine: "quarantine/\n<reason>/" { class: quarantine }
@@ -237,3 +242,26 @@ extracted -> render: "" { style.stroke: "#e77843"; style.stroke-width: 2 }
 render -> cards: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
 render -> html_out: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
 render -> exports: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+
+# Post-render terminal commands (dim sage continues):
+#   viz d3   reads graph + communities; emits docs/graph.html
+#   publish  promotes cards + communities + .kg + chroma archive to a
+#            shareable destination KB directory
+#   serve    runs the MCP stdio server against canonical .kg/ contents
+cards -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+communities -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+communities_index -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+centroids -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+graphdir -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+embeddings -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+
+graphdir -> viz: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+communities_index -> viz: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+
+# serve consumes canonical .kg/ contents (community index + centroids
+# + chroma + graph). Render is upstream because it stamps community
+# fields into card frontmatter, but serve does not read cards/.
+communities_index -> serve: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+centroids -> serve: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+embeddings -> serve: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+graphdir -> serve: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }

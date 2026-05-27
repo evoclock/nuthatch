@@ -61,8 +61,10 @@ mcp: "nuthatch.mcp\n(agent, read-only)" { class: entry }
 ingest_m: "ingest" { class: stage }
 embed_m: "embed" { class: stage }
 graph_m: "graph" { class: stage }
-clustering_m: "clustering" { class: stage }
+clustering_m: "clustering\n(+ relabel.py: LLM relabel pass)" { class: stage }
 render_m: "render" { class: stage }
+publish_m: "publish\n(promote to shareable KB dir)" { class: stage }
+viz_m: "viz/d3_renderer\n(D3 + canvas topology)" { class: stage }
 
 corpus: "corpus" { class: support }
 schema: "schema" { class: support }
@@ -70,6 +72,9 @@ dedup: "dedup" { class: support }
 retrieve: "retrieve\n(BM25 + Chroma + rerank)" { class: support }
 decay: "decay" { class: support }
 token_econ: "token_econ" { class: support }
+eval: "eval\n(graph + cluster quality + RAGAS)" { class: support }
+semantic_extract: "semantic_extract" { class: support }
+util: "util\n(palette + llm_backends + ...)" { class: support }
 
 # CLI fans out to every stage + support module (apricot)
 cli -> ingest_m: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
@@ -80,6 +85,32 @@ cli -> render_m: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
 cli -> decay: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
 cli -> token_econ: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
 cli -> corpus: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> publish_m: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> viz_m: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> mcp: "serve" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> eval: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+cli -> semantic_extract: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+
+# publish promotes the corpus-side surface into a destination KB.
+# It consumes cards + communities + .kg/ but does not mutate them.
+publish_m -> corpus: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+publish_m -> render_m: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+
+# viz reads graph + communities for a one-shot D3 render.
+viz_m -> corpus: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+viz_m -> graph_m: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+viz_m -> clustering_m: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+
+# eval reads built state (corpus, graph, retrieve), produces reports.
+eval -> corpus: "" { style.stroke: "#c98a4a"; style.stroke-width: 2; style.stroke-dash: 4 }
+eval -> retrieve: "" { style.stroke: "#c98a4a"; style.stroke-width: 2; style.stroke-dash: 4 }
+eval -> util: "" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
+
+# semantic_extract: per-doc topic / method / gene enrichment via LLM.
+semantic_extract -> corpus: "" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
+semantic_extract -> util: "" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
+
+# Cross-cutting util dependencies (kept implicit unless noted above).
 
 # Stage 1 (rust)
 ingest_m -> schema: "" { style.stroke: "#e77843"; style.stroke-width: 2 }
