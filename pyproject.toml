@@ -137,6 +137,8 @@ module = [
     "scipy.*",
     "rank_bm25",
     "rank_bm25.*",
+    "ragas",
+    "ragas.*",
 ]
 ignore_missing_imports = true
 
