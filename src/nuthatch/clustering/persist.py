@@ -89,12 +89,29 @@ class CommunityIndex:
     rigor: str
     n_levels: int
     runtime_seconds: float
+    # SBM-only MDL (description length in nats from graph-tool state.entropy()).
+    # None for heuristic / embeddings-only backends.
+    mdl_nats: float | None
+    # SBM-only: full dict of graph-tool inference + structural metrics.
+    # Schema: see backends/sbm.py:_extract_gt_metrics.
+    # None for heuristic / embeddings-only backends.
+    gt_metrics: dict | None
 
     def community_for(self, doc_id: str) -> int | None:
-        return self.flat.get(doc_id)
+        # Persisted `flat` keys may be either bare doc_ids or graph node
+        # ids prefixed with `doc::` (the latter is the canonical shape
+        # written by `persist_communities`). Accept both so callers
+        # working from either side of the rendering pipeline get a hit.
+        cid = self.flat.get(doc_id)
+        if cid is None and not doc_id.startswith("doc::"):
+            cid = self.flat.get(f"doc::{doc_id}")
+        return cid
 
     def hierarchy_for(self, doc_id: str) -> list[int]:
-        return self.hierarchy.get(doc_id, [])
+        chain = self.hierarchy.get(doc_id, [])
+        if not chain and not doc_id.startswith("doc::"):
+            chain = self.hierarchy.get(f"doc::{doc_id}", [])
+        return chain
 
     def members_of(self, community_id: int) -> list[str]:
         return self.members.get(community_id, [])
@@ -244,6 +261,8 @@ def persist_communities(
         "runtime_seconds": float(response.runtime_seconds),
         "n_levels": len(response.hierarchy) if response.hierarchy else 1,
         "notes": response.notes,
+        "mdl_nats": response.mdl_nats,  # None for non-SBM backends
+        "gt_metrics": response.gt_metrics,  # None for non-SBM backends
         "flat": {doc_id: int(cid) for doc_id, cid in partition.items()},
         "hierarchy": hierarchy,
         "members": {str(cid): docs for cid, docs in members.items()},
@@ -273,21 +292,31 @@ def persist_communities(
     return index_path
 
 
-def load_community_index(layout: CorpusLayout) -> CommunityIndex | None:
+def load_community_index(
+    layout: CorpusLayout,
+    *,
+    index_filename: str | None = None,
+) -> CommunityIndex | None:
     """Read `<corpus>/.kg/communities.json` into a `CommunityIndex`.
 
     Returns None when no index has been written (cluster stage has
     not run, or backend failed). Consumers (MCP server, render
     layer) call this defensively so the absence of clustering is a
     soft-degraded behaviour, not an error.
+
+    `index_filename` lets callers point at a non-default file, e.g.
+    `communities_sbm.json`, when comparing multiple backend outputs
+    side-by-side via `nuthatch cluster --output-suffix`.
     """
-    index_path = layout.kg / COMMUNITIES_INDEX_FILENAME
+    fname = index_filename or COMMUNITIES_INDEX_FILENAME
+    index_path = layout.kg / fname
     if not index_path.is_file():
         return None
     try:
         data = json.loads(index_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return None
+    raw_mdl = data.get("mdl_nats")
     return CommunityIndex(
         schema_version=int(data.get("schema_version", 0)),
         flat={k: int(v) for k, v in data.get("flat", {}).items()},
@@ -299,6 +328,8 @@ def load_community_index(layout: CorpusLayout) -> CommunityIndex | None:
         rigor=str(data.get("rigor", "")),
         n_levels=int(data.get("n_levels", 1)),
         runtime_seconds=float(data.get("runtime_seconds", 0.0)),
+        mdl_nats=float(raw_mdl) if raw_mdl is not None else None,
+        gt_metrics=data.get("gt_metrics"),  # dict or None
     )
 
 
