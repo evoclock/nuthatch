@@ -103,6 +103,24 @@ specific combination of choices none of them makes:
   <em>Per-tool token-economy report from <code>token_econ_report</code>. Each tool is measured against two honest baselines: BM25 (what a flat keyword search over the whole corpus would cost) for search tools, and card-token-sum (the cost of fetching every card) for subgraph and community tools. The ratio shows how much of the corpus a query actually touches. Whole-corpus headline ratios inflate the savings figure by comparing against a ceiling nobody would pay; Nuthatch compares against what a reasonable alternative would actually cost.</em>
 </p>
 
+<p align="center">
+  <img src="assets/Token_economy_full.png" alt="Nuthatch token-economy report: all tools including community graph tools" width="720">
+  <br/>
+  <em>Full report after wiring counterfactuals for all community tools. The numbers are worth reading carefully.</em>
+</p>
+
+**What each ratio actually measures - and where to trust it:**
+
+The `community_hierarchy` (138×) and `community_core_nodes` (139×) figures are the cleanest in the report. Without nuthatch, finding a document's community path means loading and traversing the full `communities.json` index; getting the high-degree members of a community means loading every member card and ranking by degree. There is no cheaper alternative - these operations are intrinsically whole-index or whole-community reads. The ratios reflect that directly.
+
+`corpus_search` (4×) is the most methodologically principled number in the report. Its counterfactual is BM25 over the same chunks at the same `k` - the only variable is whether the retrieval is semantic (dense) or lexical (sparse). It measures exactly the contribution of vector similarity over keyword matching, nothing more. A 4× reduction means the dense retrieval returns materially more relevant chunks per token than BM25 would for the same query budget.
+
+`community_get` (21×) and `community_brief` (8×) are likewise honest. The community page bundles information that would otherwise require fetching every member card individually; the brief is a strict subset of the full page and the ratio is exact by construction.
+
+`community_search` at 22,000× is a known upper bound and should be read as such. The counterfactual used is `n_total_chunks × avg_chunk_tokens` - the total token cost of scanning every chunk in the corpus to do brute-force cosine grouping by community. That ceiling is real but nobody would actually pay it: no agent working with a 123-paper corpus loads all 123 papers into its context window per query just to find relevant communities. A smarter fallback would be `corpus_search(query, k=large)`, which already returns `community_id` metadata, at a cost of a few thousand tokens. The honest ratio for `community_search` is therefore somewhere in the 50–150× range. The 22,000× figure is preserved in the report because it is the correct answer to the specific counterfactual question posed ("what if you had no centroid index at all and had to read every chunk?"), but it is not a number to put in a headline.
+
+`subgraph_extract` at 0.57× is correctly negative and stays in the report. Depth-2 BFS on this corpus returns more tokens than the card-sum baseline it is compared against - it fans out too aggressively. The default depth has been changed to 1 and a `max_nodes` cap added; at depth 1 the ratio becomes positive, and the negative result from the earlier session is kept as a reminder that graph tools can inflate context just as easily as they compress it.
+
 The corpus type is a schema profile, not a category constraint.
 Nuthatch is designed for any structured-corpus problem where
 graph-augmented retrieval helps.
