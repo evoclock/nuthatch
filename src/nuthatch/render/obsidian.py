@@ -40,7 +40,6 @@ from typing import Any
 from nuthatch.corpus.layout import CorpusLayout
 from nuthatch.render.card import render_card
 
-
 # Catppuccin Mocha named accents, ordered so adjacent community ids
 # land on contrasting hues. Same ordering the D3 viz uses, so cards
 # and the HTML graph share a colour identity per community.
@@ -120,7 +119,7 @@ def _build_obsidian_graph_config(
     # adjacent KB (PhD knowledge-base). Panels expand by default so
     # the user sees groups + display options on first open; arrows
     # are on so directed edges read correctly; physics tweaked for
-    # graphs in the 1k–4k node range.
+    # graphs in the 1k-4k node range.
     #
     # `showTags: True` keeps Obsidian's tag pseudo-nodes visible in
     # the graph view. The default theme paints them lime-green; the

@@ -202,13 +202,13 @@ mock LLM). PyPI publication is in progress.
 Planned work, not yet landed:
 
 - **Air-gapped / corporate environments.** A Dockerfile + container
-  entrypoint so the published KB can be lifted into internal
-  runtimes (Microsoft Copilot Studio knowledge tool, team-internal
-  container hosts such as Testudo) and queried via MCP without any
-  outbound traffic. The published KB is already a self-contained
-  bundle (markdown cards + JSON indexes + chroma archive); this
-  task wraps it in a runtime so a corporate browser can reach a
-  full MCP server inside the firewall.
+  entrypoint so the published KB can be lifted into enterprise
+  DevOps environments (AWS, GCP, Azure DevOps, and similar internal
+  container runtimes) and queried via MCP without any outbound
+  traffic. The published KB is already a self-contained bundle
+  (markdown cards + JSON indexes + chroma archive); this task wraps
+  it in a runtime so an internal deployment can reach a full MCP
+  server inside the firewall.
 - **Routing hardening for heterogeneous inputs.** The current
   ingest pipeline routes by filename profile (arXiv preprint,
   bioRxiv, internal doc, patent); next is per-content-type

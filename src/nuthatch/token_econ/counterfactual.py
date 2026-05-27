@@ -167,7 +167,7 @@ class BM25Counterfactual:
         return n
 
     def total_chunk_cost(self) -> int:
-        """Total tokens across all chunks: n_total_chunks × avg_chunk_tokens.
+        """Total tokens across all chunks: n_total_chunks x avg_chunk_tokens.
 
         Counterfactual for `community_search`: the cost of brute-force
         cosine search over every chunk individually, approximated as the
@@ -188,11 +188,11 @@ class PerToolEstimator:
     __slots__ = (
         "_bm25",
         "_cards",
+        "_communities_json_tokens",
+        "_community_members_fn",
+        "_community_reader",
         "_default_k",
         "_extracted",
-        "_community_reader",
-        "_community_members_fn",
-        "_communities_json_tokens",
     )
 
     def __init__(
@@ -332,7 +332,7 @@ class PerToolEstimator:
         self, arguments: dict[str, Any]
     ) -> int | None:
         # Counterfactual: loading every member card to rank by degree manually.
-        # Cost = n_members × avg_card_tokens.
+        # Cost = n_members x avg_card_tokens.
         if self._community_members_fn is None:
             return None
         try:

@@ -76,7 +76,7 @@ def project_to_doc_doc(g: nx.MultiDiGraph) -> nx.Graph:
     for node, data in g.nodes(data=True):
         if data.get("node_type") == "document":
             doc_node_ids.append(str(node))
-            proj.add_node(str(node), **{k: v for k, v in data.items()})
+            proj.add_node(str(node), **dict(data.items()))
 
     if len(doc_node_ids) < 2:
         return proj
