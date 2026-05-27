@@ -14,7 +14,7 @@ Inputs: a corpus cache directory (`<corpus>/.kg/cache/`) and the
 
 Outputs: cached markdown / metadata when hit; `None` on miss.
 
-Pattern reused from `kestrel`'s `cache.py` (the semantic cache that
+Pattern reused from `a prior implementation`'s `cache.py` (the semantic cache that
 short-circuits repeat work in the external pipeline library
 nuthatch borrows from). nuthatch's implementation is a fresh write
 shaped by that pattern: a per-corpus on-disk cache keyed by the

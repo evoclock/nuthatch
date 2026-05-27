@@ -69,9 +69,34 @@ class Embedder:
         self,
         model_id: str = DEFAULT_EMBEDDING_MODEL,
         *,
-        device: str = "cpu",
+        device: str = "auto",
     ) -> None:
         self.model_id = model_id
+        # "auto" picks the best available device: CUDA on Nvidia,
+        # MPS on Apple Silicon, CPU as fallback. Mirrors the ingest
+        # --accelerator pattern; CLI honours `--accelerator` and
+        # `NUTHATCH_ACCELERATOR` env var. Explicit values pin the
+        # device. Default flipped from "cpu" to "auto" in 2026-05
+        # so embed uses the GPU without extra flags when present.
+        if device == "auto":
+            import os
+            env_override = os.environ.get("NUTHATCH_ACCELERATOR", "").strip().lower()
+            if env_override in ("cpu", "cuda", "mps", "xpu"):
+                device = env_override
+            else:
+                try:
+                    import torch
+                    if torch.cuda.is_available():
+                        device = "cuda"
+                    elif (
+                        getattr(torch.backends, "mps", None)
+                        and torch.backends.mps.is_available()
+                    ):
+                        device = "mps"
+                    else:
+                        device = "cpu"
+                except ImportError:
+                    device = "cpu"
         self.device = device
         self._model: Any = None
 

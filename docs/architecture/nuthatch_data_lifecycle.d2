@@ -1,0 +1,267 @@
+# Nuthatch data lifecycle, D2 source.
+# Palette: thermall-power-station with derived shades for distinct
+# outcome categories. Edge colors are per-stage so each pipeline
+# transition has its own hue.
+#
+# Render via:
+#   scripts/ops/render_d2_diagrams.sh
+#
+# Color key:
+#   apricot   #ee9b69 - inputs -> Stage 1
+#   rust      #e77843 - Stage 1 outgoing
+#   sage      #79c39e - Stage 2 outgoing (and: success outcome)
+#   cream     #ead1b5 - Stage 3 outgoing
+#   ochre     #c98a4a - Stage 4 outgoing (and: quarantine outcome)
+#   dim sage  #5a957a - Stage 5 outgoing
+#   brick     #9a3a25 - rejected outcome
+
+direction: down
+
+style.fill: "#1a1816"
+
+classes: {
+  src: {
+    shape: rectangle
+    style: {
+      fill: "#383431"
+      stroke: "#ee9b69"
+      stroke-width: 3
+      border-radius: 14
+      shadow: true
+      font-color: "#ee9b69"
+    }
+  }
+  stage: {
+    shape: rectangle
+    style: {
+      fill: "#4a4540"
+      stroke: "#e77843"
+      stroke-width: 3
+      border-radius: 14
+      shadow: true
+      font-color: "#ead1b5"
+      bold: true
+    }
+  }
+  substep: {
+    shape: rectangle
+    style: {
+      fill: "#383431"
+      stroke: "#e77843"
+      stroke-width: 2
+      border-radius: 10
+      font-color: "#ead1b5"
+    }
+  }
+  artifact: {
+    shape: rectangle
+    style: {
+      fill: "#5c564f"
+      stroke: "#ead1b5"
+      stroke-width: 2
+      border-radius: 14
+      shadow: true
+      font-color: "#ead1b5"
+    }
+  }
+  processed: {
+    shape: rectangle
+    style: {
+      fill: "#1a1816"
+      stroke: "#79c39e"
+      stroke-width: 4
+      border-radius: 14
+      shadow: true
+      font-color: "#79c39e"
+      bold: true
+    }
+  }
+  quarantine: {
+    shape: rectangle
+    style: {
+      fill: "#383431"
+      stroke: "#c98a4a"
+      stroke-width: 3
+      border-radius: 14
+      shadow: true
+      font-color: "#c98a4a"
+      bold: true
+    }
+  }
+  rejected: {
+    shape: rectangle
+    style: {
+      fill: "#2a1d17"
+      stroke: "#9a3a25"
+      stroke-width: 3
+      border-radius: 14
+      shadow: true
+      font-color: "#d68c70"
+      bold: true
+    }
+  }
+}
+
+sources: "Source files (any user layout)" {
+  style: {
+    fill: "#1a1816"
+    stroke: "#5c564f"
+    font-color: "#ee9b69"
+    border-radius: 8
+  }
+
+  arxiv: "inputs/arxiv/" { class: src }
+  bioarxiv: "inputs/bioarxiv/" { class: src }
+  bench: "inputs/benchmark_test/" { class: src }
+  inbox: "inputs/inbox/" { class: src }
+}
+
+triage: "Stage 0 (optional)\ntriage\npdftotext, no GPU" { class: stage }
+defer: "defer/\nreserved, scan-skipped\nawaiting Friday re-triage" { class: artifact }
+
+ingest: "Stage 1\ningest\n(Docling / Chandra / EasyOCR)" { class: stage }
+
+embed: "Stage 2\nembed" {
+  class: stage
+  style: {
+    fill: "#4a4540"
+    stroke: "#e77843"
+    stroke-width: 3
+    border-radius: 14
+    shadow: true
+    font-color: "#ead1b5"
+    bold: true
+  }
+
+  chunker: "chunker\n(hybrid; full-doc coverage)" { class: substep }
+  bge: "BGE-M3 embed" { class: substep }
+  dedup: "semantic dedup" { class: substep }
+  chroma: "Chroma store" { class: substep }
+
+  chunker -> bge -> dedup -> chroma
+}
+
+graph: "Stage 3\ngraph\n(NetworkX build, persisted)" { class: stage }
+
+cluster: "Stage 4\ncluster" {
+  class: stage
+  style: {
+    fill: "#4a4540"
+    stroke: "#e77843"
+    stroke-width: 3
+    border-radius: 14
+    shadow: true
+    font-color: "#ead1b5"
+    bold: true
+  }
+
+  router: "router" { class: substep }
+  sbm: "SBM\n(graph-tool, primary)" { class: substep }
+  leiden: "Leiden\n(leidenalg, fallback)" { class: substep }
+  hub: "hub exclusion +\nstable cluster IDs" { class: substep }
+  relabel: "--relabel-llm\n(optional;\ngranite3-dense:8b)" { class: substep }
+
+  router -> sbm: "if graph-tool present"
+  router -> leiden: "fallback"
+  sbm -> hub
+  leiden -> hub
+  hub -> relabel: "optional"
+}
+
+render: "Stage 5\nrender\n(cards, HTML, exports)" { class: stage }
+viz: "viz d3\n(D3 + canvas topology)" { class: stage }
+publish: "publish\n(promote to KB dir)" { class: stage }
+serve: "serve\n(MCP stdio, 9 tools)" { class: stage }
+
+processed: "processed/\n<original_subdir>/" { class: processed }
+quarantine: "quarantine/\n<reason>/" { class: quarantine }
+rejected: "rejected/\n<reason>/" { class: rejected }
+
+extracted: ".kg/extracted/\nmarkdown + meta" { class: artifact }
+embeddings: ".kg/embeddings/\nChroma persistent" { class: artifact }
+graphdir: "graph/\nnodes + edges" { class: artifact }
+communities: "communities/\nper-cluster markdown" { class: artifact }
+communities_index: ".kg/communities.json\nflat + nested hierarchy\n+ core nodes + labels" { class: artifact }
+centroids: ".kg/community_centroids.npy\nfor community_search" { class: artifact }
+cards: "cards/\nfrontmatter carries\ncommunity_id + path" { class: artifact }
+html_out: "html/" { class: artifact }
+exports: "exports/" { class: artifact }
+mathretry: ".kg/math_retry.jsonl\n(deferred Chandra patch)" { class: artifact }
+
+# Inputs -> Stage 1 (apricot)
+# Optional triage pre-flight: sources -> triage -> (PASS/FLAG to
+# ingest, DEFER moved to defer/). Dashed because triage is
+# optional; sources can flow directly into ingest if the operator
+# trusts the corpus shape.
+sources.arxiv -> triage: "" { style.stroke: "#ee9b69"; style.stroke-width: 2; style.stroke-dash: 4 }
+sources.bioarxiv -> triage: "" { style.stroke: "#ee9b69"; style.stroke-width: 2; style.stroke-dash: 4 }
+sources.bench -> triage: "" { style.stroke: "#ee9b69"; style.stroke-width: 2; style.stroke-dash: 4 }
+sources.inbox -> triage: "" { style.stroke: "#ee9b69"; style.stroke-width: 2; style.stroke-dash: 4 }
+triage -> ingest: "PASS / FLAG" { style.stroke: "#79c39e"; style.stroke-width: 2 }
+triage -> defer: "DEFER" { style.stroke: "#c98a4a"; style.stroke-width: 2; style.stroke-dash: 4 }
+
+sources.arxiv -> ingest: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+sources.bioarxiv -> ingest: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+sources.bench -> ingest: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+sources.inbox -> ingest: "" { style.stroke: "#ee9b69"; style.stroke-width: 2 }
+
+# Stage 1 outgoing (rust for pipeline forward + artifacts; outcome-colored for processed/quarantine)
+ingest -> processed: "success" { style.stroke: "#79c39e"; style.stroke-width: 3 }
+ingest -> quarantine: "schema / qc fail" { style.stroke: "#c98a4a"; style.stroke-width: 3 }
+ingest -> mathretry: "math-heavy" { style.stroke: "#e77843"; style.stroke-width: 2 }
+ingest -> extracted: "markdown" { style.stroke: "#e77843"; style.stroke-width: 2 }
+
+# Quarantine transitions (dashed, colored by destination)
+quarantine -> processed: "fixed" { style.stroke: "#79c39e"; style.stroke-dash: 4; style.stroke-width: 2 }
+quarantine -> rejected: "declared unfixable" { style.stroke: "#9a3a25"; style.stroke-dash: 4; style.stroke-width: 2 }
+
+# Stage 1 -> Stage 2 (rust, continues stage-1 outgoing)
+extracted -> embed: "" { style.stroke: "#e77843"; style.stroke-width: 3 }
+
+# Stage 2 outgoing (sage)
+embed.chroma -> embeddings: "" { style.stroke: "#79c39e"; style.stroke-width: 2 }
+embeddings -> graph: "" { style.stroke: "#79c39e"; style.stroke-width: 3 }
+
+# Stage 3 outgoing (cream)
+graph -> graphdir: "" { style.stroke: "#ead1b5"; style.stroke-width: 2 }
+graphdir -> cluster: "" { style.stroke: "#ead1b5"; style.stroke-width: 3 }
+
+# Stage 4 outgoing (ochre): partition flows to communities/, the
+# persisted index, the centroids matrix, and forward to render.
+cluster.hub -> communities: "" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
+cluster.hub -> communities_index: "persist" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
+embeddings -> centroids: "centroids" { style.stroke: "#c98a4a"; style.stroke-width: 2; style.stroke-dash: 4 }
+cluster.hub -> centroids: "write" { style.stroke: "#c98a4a"; style.stroke-width: 2 }
+communities -> render: "" { style.stroke: "#c98a4a"; style.stroke-width: 3 }
+
+# Cross-stage shortcuts into render
+graphdir -> render: "" { style.stroke: "#ead1b5"; style.stroke-width: 2 }
+extracted -> render: "" { style.stroke: "#e77843"; style.stroke-width: 2 }
+
+# Stage 5 outgoing (dim sage)
+render -> cards: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+render -> html_out: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+render -> exports: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+
+# Post-render terminal commands (dim sage continues):
+#   viz d3   reads graph + communities; emits docs/graph.html
+#   publish  promotes cards + communities + .kg + chroma archive to a
+#            shareable destination KB directory
+#   serve    runs the MCP stdio server against canonical .kg/ contents
+cards -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+communities -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+communities_index -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+centroids -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+graphdir -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+embeddings -> publish: "" { style.stroke: "#5a957a"; style.stroke-width: 2 }
+
+graphdir -> viz: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+communities_index -> viz: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+
+# serve consumes canonical .kg/ contents (community index + centroids
+# + chroma + graph). Render is upstream because it stamps community
+# fields into card frontmatter, but serve does not read cards/.
+communities_index -> serve: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+centroids -> serve: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+embeddings -> serve: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }
+graphdir -> serve: "" { style.stroke: "#5a957a"; style.stroke-width: 2; style.stroke-dash: 4 }

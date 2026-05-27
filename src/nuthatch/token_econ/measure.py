@@ -17,8 +17,8 @@ Inputs at `measure_query`: the tool name, the served text (what the
 Outputs: a `TokenRecord`-compatible dict that the caller appends to
     the corpus's `TokenLog`.
 
-Pattern reused from kestrel's `benchmark.py` (the `_estimate_tokens`
-shape and the reduction-ratio framing). nuthatch replaces kestrel's
+Pattern adapted from a prior knowledge-graph implementation; original lived in `benchmark.py` (the `_estimate_tokens`
+shape and the reduction-ratio framing). nuthatch replaces a prior implementation's
 character-count approximation (`chars / 4`) with `tiktoken`'s
 `cl100k_base` encoding for ~10-30% better accuracy. Tiktoken is the
 universal approximation here; per-model precision is a later
@@ -41,7 +41,7 @@ from typing import Any
 # encoding name so a future per-model precision pass can reconcile.
 DEFAULT_ENCODING: str = "cl100k_base"
 
-# Fallback constant for the no-tiktoken path. Same value kestrel uses.
+# Fallback constant for the no-tiktoken path. Same value a prior implementation uses.
 _CHARS_PER_TOKEN_FALLBACK: int = 4
 
 

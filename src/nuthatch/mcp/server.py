@@ -223,6 +223,14 @@ class NuthatchMCPServer(MCPServer):
             return self._card_get(arguments)
         if tool_name == "community_get":
             return self._community_get(arguments)
+        if tool_name == "community_brief":
+            return self._community_brief(arguments)
+        if tool_name == "community_search":
+            return self._community_search(arguments)
+        if tool_name == "community_core_nodes":
+            return self._community_core_nodes(arguments)
+        if tool_name == "community_hierarchy":
+            return self._community_hierarchy(arguments)
         if tool_name == "token_econ_report":
             return self._token_econ_report(arguments)
         return _error(f"unknown tool: {tool_name}")
@@ -301,6 +309,27 @@ class NuthatchMCPServer(MCPServer):
             return _error("query is required")
         k = int(args.get("k", 5))
         hits = self._retriever.search(query, k=k)
+
+        # Look up each hit's community_id from the persisted index so
+        # the agent can route directly into community_brief without an
+        # intermediate card.get. This is the key token-economy unlock:
+        # one search -> "you want community X" -> one community_brief.
+        from nuthatch.clustering.persist import load_community_index
+
+        idx = load_community_index(self._layout)
+
+        def _community_fields(doc_id: str) -> dict[str, Any]:
+            if idx is None:
+                return {}
+            cid = idx.community_for(doc_id)
+            if cid is None:
+                return {}
+            return {
+                "community_id": cid,
+                "community_path": idx.hierarchy_for(doc_id),
+                "community_label": idx.labels.get(cid),
+            }
+
         return _text(
             json.dumps(
                 [
@@ -314,6 +343,7 @@ class NuthatchMCPServer(MCPServer):
                             for k_, v in h.metadata.items()
                             if k_ in ("title", "doc_id", "ordinal")
                         },
+                        **_community_fields(h.doc_id),
                     }
                     for h in hits
                 ],
@@ -374,6 +404,168 @@ class NuthatchMCPServer(MCPServer):
         if text is None:
             return _error(f"community not found: {community_id}")
         return _text(text)
+
+    def _community_brief(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Short preamble for a community: title, member count, top-N representatives.
+
+        Built for the token-economy unlock: an agent that knows a
+        community is relevant (from corpus_search metadata or from
+        community_search) can call this to get a cheap, structured
+        summary BEFORE paying for any card.get. Returns JSON so the
+        agent can parse and decide whether to drill in.
+        """
+        from nuthatch.clustering.persist import load_community_index
+
+        idx = load_community_index(self._layout)
+        if idx is None:
+            return _error("community index not built; run `nuthatch cluster` first")
+        try:
+            cid = int(args.get("community_id"))
+        except (TypeError, ValueError):
+            return _error("community_id (int) is required")
+        members = idx.members_of(cid)
+        if not members:
+            return _error(f"community not found: {cid}")
+        n_top = int(args.get("top_n", 5))
+        # Representatives = core nodes when available, fallback to
+        # first-N members. Core-node order is by descending degree
+        # so the first N are the most central.
+        reps = idx.core_nodes_of(cid)[:n_top] or members[:n_top]
+        brief = {
+            "community_id": cid,
+            "label": idx.labels.get(cid, ""),
+            "n_members": len(members),
+            "representatives": reps,
+            "rigor": idx.rigor,
+            "backend": idx.backend,
+        }
+        return _text(json.dumps(brief, indent=2, default=str))
+
+    def _community_search(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Semantic search at the community level.
+
+        Embeds the query (via the same BGE-M3 embedder the retriever
+        uses) and ranks communities by cosine similarity to their
+        per-community centroids. Returns top-N communities with their
+        labels and member counts so the agent can decide which to
+        drill into via community_brief / community_get.
+
+        This is the headline differentiator vs flat-clustering tools
+        (Leiden / Louvain don't expose semantic community search; only
+        per-node search). Powered by the centroids written at cluster
+        time (`.kg/community_centroids.npy`).
+        """
+        if self._retriever is None:
+            return _error("retriever not configured (needed for query embedding)")
+        query = str(args.get("query", "")).strip()
+        if not query:
+            return _error("query is required")
+        from nuthatch.clustering.persist import (
+            load_community_centroids,
+            load_community_index,
+        )
+
+        idx = load_community_index(self._layout)
+        loaded = load_community_centroids(self._layout)
+        if idx is None or loaded is None:
+            return _error(
+                "community centroids not built; re-run `nuthatch cluster` "
+                "after the embed stage to enable semantic community search"
+            )
+        matrix, cids = loaded
+        # Reuse the retriever's embedder to get a query vector with
+        # the same model the corpus was embedded under.
+        try:
+            embedder = self._retriever.embedder  # type: ignore[attr-defined]
+        except AttributeError:
+            return _error("retriever does not expose an embedder for query encoding")
+        try:
+            q_vec = embedder.encode([query])[0]
+        except Exception as exc:
+            return _error(f"failed to encode query: {exc}")
+        import numpy as np
+
+        q = np.array(q_vec, dtype=np.float32)
+        # Normalise both sides so the dot product equals cosine sim.
+        def _norm(x: np.ndarray) -> np.ndarray:
+            n = np.linalg.norm(x, axis=-1, keepdims=True)
+            return x / np.where(n > 0, n, 1.0)
+
+        q_n = _norm(q)
+        c_n = _norm(matrix)
+        sims = (c_n @ q_n).tolist()
+        k = int(args.get("k", 5))
+        ranked = sorted(zip(cids, sims, strict=True), key=lambda t: -t[1])[:k]
+        out = [
+            {
+                "community_id": cid,
+                "score": float(s),
+                "label": idx.labels.get(cid, ""),
+                "n_members": len(idx.members_of(cid)),
+            }
+            for cid, s in ranked
+        ]
+        return _text(json.dumps(out, indent=2, default=str))
+
+    def _community_core_nodes(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Per-community high-degree members.
+
+        Graphify exposes `god_nodes` globally across the whole graph;
+        nuthatch surfaces the same concept scoped to a community so
+        an agent can ask "what are the central members of this
+        community" without having to walk the global graph.
+        """
+        from nuthatch.clustering.persist import load_community_index
+
+        idx = load_community_index(self._layout)
+        if idx is None:
+            return _error("community index not built; run `nuthatch cluster` first")
+        try:
+            cid = int(args.get("community_id"))
+        except (TypeError, ValueError):
+            return _error("community_id (int) is required")
+        nodes = idx.core_nodes_of(cid)
+        if not nodes:
+            members = idx.members_of(cid)
+            if not members:
+                return _error(f"community not found: {cid}")
+            return _text(json.dumps({
+                "community_id": cid,
+                "core_nodes": [],
+                "note": "community too small for core-node ranking; full members below",
+                "members": members,
+            }, indent=2, default=str))
+        return _text(json.dumps({
+            "community_id": cid,
+            "label": idx.labels.get(cid, ""),
+            "core_nodes": nodes,
+        }, indent=2, default=str))
+
+    def _community_hierarchy(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Walk the nested SBM hierarchy from a doc_id or community_id.
+
+        Returns the full path from leaf community up through super-
+        communities (only meaningful for nested SBM; flat backends
+        return a single-level path). Lets agents zoom from a focused
+        sub-community out to a broader context cheaply, or vice-versa.
+        """
+        from nuthatch.clustering.persist import load_community_index
+
+        idx = load_community_index(self._layout)
+        if idx is None:
+            return _error("community index not built; run `nuthatch cluster` first")
+        doc_id = args.get("doc_id")
+        if doc_id:
+            path = idx.hierarchy_for(str(doc_id))
+            if not path:
+                return _error(f"doc_id not in any community: {doc_id}")
+            return _text(json.dumps({
+                "doc_id": doc_id,
+                "leaf_community_id": path[0],
+                "path": path,
+                "n_levels": len(path),
+            }, indent=2, default=str))
+        return _error("doc_id is required (path-by-community_id not yet supported)")
 
     def _token_econ_report(self, args: dict[str, Any]) -> dict[str, Any]:
         if self._token_econ_reporter is None:
@@ -491,13 +683,76 @@ def _tool_registry() -> dict[str, dict[str, Any]]:
             },
         },
         "community_get": {
-            "description": "Fetch the per-community page markdown for `community_id`.",
+            "description": "Fetch the full per-community page markdown for `community_id`.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "community_id": {"type": "string", "description": "Community ID (string or int)"},
                 },
                 "required": ["community_id"],
+            },
+        },
+        "community_brief": {
+            "description": (
+                "Short structured preamble for a community: label, "
+                "n_members, top-N representative doc_ids. Cheap "
+                "lead-in BEFORE fetching the full community page or "
+                "individual cards."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "community_id": {"type": "integer", "description": "Community ID"},
+                    "top_n": {"type": "integer", "default": 5, "description": "Representatives to return"},
+                },
+                "required": ["community_id"],
+            },
+        },
+        "community_search": {
+            "description": (
+                "Semantic search at the community level. Embeds the "
+                "query and ranks communities by cosine similarity to "
+                "their per-community centroids. Returns top-k "
+                "communities with labels and member counts. Use "
+                "this to jump straight to relevant context without "
+                "the chunk-level corpus_search round-trip."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Natural-language query"},
+                    "k": {"type": "integer", "default": 5, "description": "Number of communities"},
+                },
+                "required": ["query"],
+            },
+        },
+        "community_core_nodes": {
+            "description": (
+                "High-degree members WITHIN a community's induced "
+                "subgraph. The 'key papers' of the community."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "community_id": {"type": "integer", "description": "Community ID"},
+                },
+                "required": ["community_id"],
+            },
+        },
+        "community_hierarchy": {
+            "description": (
+                "Walk the nested SBM hierarchy for a doc_id. Returns "
+                "the full path from leaf community up through super-"
+                "communities. Use for progressive zoom (focus -> "
+                "broaden context). Flat backends return a single-"
+                "level path."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "doc_id": {"type": "string", "description": "Paper doc_id"},
+                },
+                "required": ["doc_id"],
             },
         },
         "token_econ_report": {

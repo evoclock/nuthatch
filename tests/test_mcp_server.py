@@ -74,7 +74,7 @@ class TestInitialize:
 
 
 class TestListTools:
-    def test_returns_five_tools(self, tmp_path: Path) -> None:
+    def test_returns_full_tool_set(self, tmp_path: Path) -> None:
         server = _make_server(tmp_path)
         result = server.list_tools()
         names = {t["name"] for t in result["tools"]}
@@ -83,6 +83,10 @@ class TestListTools:
             "subgraph_extract",
             "card_get",
             "community_get",
+            "community_brief",
+            "community_search",
+            "community_core_nodes",
+            "community_hierarchy",
             "token_econ_report",
         }
 

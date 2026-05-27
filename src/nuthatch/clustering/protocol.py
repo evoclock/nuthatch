@@ -91,6 +91,9 @@ class ClusteringResponse:
     __slots__ = (
         "backend_used",
         "block_state",
+        "gt_metrics",
+        "hierarchy",
+        "mdl_nats",
         "notes",
         "partition",
         "rigor_used",
@@ -106,6 +109,9 @@ class ClusteringResponse:
         backend_used: str,
         block_state: bytes | None = None,
         notes: str = "",
+        hierarchy: list[dict[str, int]] | None = None,
+        mdl_nats: float | None = None,
+        gt_metrics: dict | None = None,
     ) -> None:
         self.partition = partition
         self.rigor_used = rigor_used
@@ -117,6 +123,23 @@ class ClusteringResponse:
         # Caveats / warnings to surface to the user (e.g. "downgraded
         # to heuristic because graph-tool not installed").
         self.notes = notes
+        # Nested partition chain. `hierarchy[i]` maps node_id to its
+        # block id at level i. Level 0 is the leaf (finest) partition
+        # and equals `partition` for nested SBM backends; deeper levels
+        # group level-(i-1) blocks into super-blocks. `None` for flat
+        # backends (Leiden / Louvain) which do not compute a hierarchy.
+        # Surfacing this chain to LLM consumers is what lets agents
+        # progressively zoom from a coarse super-community to a fine
+        # sub-community without paying card-by-card retrieval cost.
+        self.hierarchy = hierarchy
+        # SBM-only: description length of the fitted block model in
+        # nats (from graph-tool `state.entropy()`). Lower = better fit.
+        # None for heuristic / embeddings-only backends.
+        self.mdl_nats = mdl_nats
+        # SBM-only: full dict of graph-tool inference + structural metrics
+        # captured at clustering time. None for heuristic / embeddings-only
+        # backends. See `backends/sbm.py:_extract_gt_metrics` for schema.
+        self.gt_metrics = gt_metrics
 
 
 @runtime_checkable

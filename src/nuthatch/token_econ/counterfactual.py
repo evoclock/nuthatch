@@ -8,12 +8,12 @@ needed without nuthatch?" It is per-tool and per-query because the
 answer depends on what the tool returns and what a non-nuthatch
 fallback would look like.
 
-Why this matters: kestrel's reference benchmark uses the entire
+Why this matters: a prior knowledge-graph implementation's reference benchmark uses the entire
 corpus as the counterfactual (`nodes * 50 * 1.33` tokens vs the
 returned subgraph BFS text), then markets the ratio as "Nx fewer
 tokens per query vs reading the raw files directly." Nobody reads
 the raw files directly per query; that baseline is a strawman.
-Reported as ~71.5x at 52 files in kestrel's `docs/how-it-works.md`.
+Reported as ~71.5x at 52 files in a prior knowledge-graph implementation's `docs/how-it-works.md`.
 nuthatch refuses that framing.
 
 Per-tool baselines used here:
@@ -36,7 +36,7 @@ Per-tool baselines used here:
 Counterfactuals are bounded by the cost of the baseline itself, not
 the cost of reading the entire corpus. Reductions reported under
 this scheme typically land between 2x and ~8x depending on corpus
-size and query specificity. Smaller than kestrel's numbers; honest.
+size and query specificity. Smaller than a prior knowledge-graph implementation's numbers; honest.
 """
 
 from __future__ import annotations
@@ -259,7 +259,7 @@ def build_default_estimator(
 def _simple_tokenize(text: str) -> list[str]:
     """Whitespace + lowercase tokenization, alnum tokens only.
 
-    BM25 is robust to weak tokenization; matching what kestrel's
+    BM25 is robust to weak tokenization; matching what a prior implementation's
     `substring in label` baseline does would overcount, while a
     full Lucene-style analyzer would over-engineer the baseline.
     """

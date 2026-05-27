@@ -31,10 +31,10 @@ contract):
 - `title`, `id`, `date` (required by kb-reports)
 - `type: paper` (distinguishes from `work_report` / `concept`)
 - `doc_id`, `authors`, `year`, `doi`, `arxiv_id` (paper-specific)
-- `topics`, `committee_member`, `aim_ref` (kb-reports tags)
-- `status` (kb-reports vocabulary: exploratory / validated / ...)
+- `topics`, `tags` (corpus-derived vocabulary)
+- `status` (exploratory / validated / superseded / pinned)
 - `relevance` (default 1.0, recomputed by future decay pass)
-- `half_life_days` (default 365 for papers; per kb-reports schema)
+- `half_life_days` (default 365 for papers)
 - `ingested`, `last_touched` (operational timestamps)
 - `n_chunks` (set by the ingest pipeline)
 """
@@ -92,12 +92,23 @@ def build_frontmatter(
     status: str = "exploratory",
     relevance: float = 1.0,
     half_life_days: int | None = _PAPER_HALF_LIFE_DAYS,
-    aim_ref: str | None = None,
+    community_id: int | None = None,
+    community_path: list[int] | None = None,
+    community_label: str | None = None,
 ) -> dict[str, Any]:
-    """Build the kb-reports-aligned frontmatter dict for a per-paper card.
+    """Build the per-paper card's YAML frontmatter dict.
 
-    Field order matches the kb-reports.md contract so a human scanning
-    the YAML sees the same shape across all knowledge-base artifacts.
+    Field order is fixed so a human scanning multiple cards sees the
+    same shape across the vault.
+
+    `community_id` is the leaf community; `community_path` is the full
+    nested chain (level 0 = leaf, deeper levels = super-blocks);
+    `community_label` is a short label generated from member titles.
+    All three are present only after `nuthatch cluster` has run; cards
+    rendered before clustering omit them entirely. An agent that reads
+    a card frontmatter can route directly into `community_brief` or
+    `community_search` MCP tools without paying a card.get round-trip
+    to learn which community the card belongs to.
     """
     title = str(metadata.get("title") or doc_id)
     front: dict[str, Any] = {
@@ -107,21 +118,22 @@ def build_frontmatter(
         "date": _today_iso(),
         "status": status,
         "tags": list(tags) if tags is not None else _as_list(metadata.get("topics")),
-        "committee_member": _as_list(metadata.get("committee_member")),
-        "aim_ref": aim_ref,
         "doc_id": doc_id,
         "authors": _as_list(metadata.get("authors")),
         "year": int(metadata["year"]) if metadata.get("year") else None,
         "doi": metadata.get("doi", ""),
         "arxiv_id": metadata.get("arxiv_id", ""),
         "topics": _as_list(metadata.get("topics")),
+        "community_id": community_id,
+        "community_path": community_path,
+        "community_label": community_label,
         "relevance": float(relevance),
         "half_life_days": half_life_days,
         "ingested": _now_iso(),
         "last_touched": _now_iso(),
         "n_chunks": n_chunks,
     }
-    # Drop None-valued optional fields so the YAML stays clean.
+    # Drop None-valued / empty optional fields so the YAML stays clean.
     return {k: v for k, v in front.items() if v is not None and v != ""}
 
 
@@ -135,14 +147,21 @@ def render_card(
     status: str = "exploratory",
     relevance: float = 1.0,
     half_life_days: int | None = _PAPER_HALF_LIFE_DAYS,
-    aim_ref: str | None = None,
+    community_id: int | None = None,
+    community_path: list[int] | None = None,
+    community_label: str | None = None,
 ) -> str:
     """Render the full per-paper card markdown.
 
-    The body section pattern is reused from PhD KB's
-    `02_assemble_wiki_page.py`: Authors / Year / DOI header line,
-    then Abstract, Key Claims, Methods, Topics (with Obsidian
-    `[[Concept]]` links), and Relevance.
+    Body sections: Authors / Year / DOI header line, then Abstract,
+    Key Claims, Methods, Topics (with Obsidian `[[Concept]]` links),
+    and Relevance.
+
+    Community fields are optional and only populated when the
+    cluster stage has run (see `clustering/persist.py`). Cards
+    rendered before clustering omit them; cards rendered after
+    carry the leaf community_id, the nested community_path, and
+    a human-readable community_label for navigation.
     """
     front = build_frontmatter(
         doc_id=doc_id,
@@ -152,7 +171,9 @@ def render_card(
         status=status,
         relevance=relevance,
         half_life_days=half_life_days,
-        aim_ref=aim_ref,
+        community_id=community_id,
+        community_path=community_path,
+        community_label=community_label,
     )
     yaml_text = yaml.dump(front, default_flow_style=False, sort_keys=False).rstrip()
 

@@ -225,21 +225,59 @@ class TestEnrichFromSource:
             is None
         )
 
-    def test_blocked_url_returns_none(self, tmp_path: Path) -> None:
-        # If validate_url disallows the fetch, we get None gracefully.
+    def test_arxiv_api_miss_returns_filename_fallback(self, tmp_path: Path) -> None:
+        # Publisher API returned nothing (e.g. rate-limit, transient).
+        # We should still emit a stub carrying the arxiv_id from the
+        # filename so the schema gate's identifier requirement passes.
+        with patch(
+            "nuthatch.ingest.source_metadata._fetch_url", return_value=None
+        ):
+            meta = enrich_from_source(
+                "2605.15308v1.pdf",
+                cache_dir=tmp_path,
+                url_validator=_PERMISSIVE,
+            )
+        assert meta is not None
+        assert meta.arxiv_id == "2605.15308"
+        assert meta.source == "arxiv_filename_fallback"
+        # No title / authors / abstract from a fallback; body extraction
+        # must fill those.
+        assert meta.title is None
+        assert meta.authors == ()
+
+    def test_biorxiv_api_miss_returns_filename_fallback(self, tmp_path: Path) -> None:
+        with patch(
+            "nuthatch.ingest.source_metadata._fetch_url", return_value=None
+        ):
+            meta = enrich_from_source(
+                "2026.05.20.726505v1.full.pdf",
+                cache_dir=tmp_path,
+                url_validator=_PERMISSIVE,
+            )
+        assert meta is not None
+        assert meta.doi == "10.1101/2026.05.20.726505"
+        assert meta.year == 2026
+        assert meta.source == "biorxiv_filename_fallback"
+
+    def test_blocked_url_falls_back_without_network(self, tmp_path: Path) -> None:
+        # If validate_url disallows the fetch we must NOT touch the
+        # network. The filename-fallback path is allowed because it
+        # derives its data from the local filename only.
         blocker = lambda _u: SecurityResult(allowed=False, reason="test-block")  # noqa: E731
         with patch(
             "nuthatch.ingest.source_metadata.urllib.request.urlopen",
             side_effect=AssertionError("should not be reached"),
         ):
-            assert (
-                enrich_from_source(
-                    "2605.15308v1.pdf",
-                    cache_dir=tmp_path,
-                    url_validator=blocker,
-                )
-                is None
+            meta = enrich_from_source(
+                "2605.15308v1.pdf",
+                cache_dir=tmp_path,
+                url_validator=blocker,
             )
+        # We get a fallback stub, NOT publisher metadata.
+        assert meta is not None
+        assert meta.source == "arxiv_filename_fallback"
+        assert meta.arxiv_id == "2605.15308"
+        assert meta.title is None and meta.authors == ()
 
 
 # -- end-to-end: extract_and_validate prefers source metadata over body ---

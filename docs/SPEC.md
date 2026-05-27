@@ -42,6 +42,10 @@ model: build out-of-band, query via MCP".
 inputs/                                   (user-organised source files)
    |
    v
+triage    -> PASS / FLAG / DEFER          (cheap pdftotext-only pre-
+   |         classification; --defer auto-moves DEFER to defer/
+   |         which is reserved + scan-skipped)
+   v
 ingest    -> .kg/manifest.jsonl           (hash-based dedup)
              .kg/extracted/<doc_id>.md    (extracted body markdown)
              .kg/extracted/<doc_id>.meta.json  (publisher-API metadata
@@ -69,13 +73,43 @@ graph     -> .kg/graph/graph.json         (NetworkX MultiDiGraph;
 cluster   -> partition written back onto graph nodes
              (SBM via graph-tool when available; Leiden fallback;
               embeddings k-means as floor)
+             .kg/communities.json            (canonical index +
+                                              hierarchy + members
+                                              + per-cid labels)
+             .kg/community_centroids.npy     (one centroid per cid;
+                                              powers community_search)
+             optional: --relabel-llm replaces heuristic labels
+             with topical 2-4 word LLM names (default
+             granite3-dense:8b via Ollama); writes back to canonical
+             + every communities_<suffix>.json sibling
+             optional: --output-suffix <name> additionally copies
+             both canonical files under communities_<name>.json /
+             community_centroids_<name>.npy (canonical preserved)
    |
    v
 render    -> cards/<doc_id>.md            (Obsidian-compatible
-                                          kb-reports-aligned frontmatter)
-             communities/<id>.md          (one page per cluster, wikilinks
-                                          to member cards)
+                                          kb-reports-aligned frontmatter,
+                                          carries community_id + path
+                                          + label + cluster/<cid> tag)
+             communities/<slug>.md        (one page per cluster, wikilinks
+                                          to member cards; slug derived
+                                          from the label)
              dashboard.md, index.md, log.md
+   |
+   v
+publish   -> <dest>/                      (shareable KB directory:
+                                          cards + communities + .kg
+                                          + AGENTS + CAPABILITIES +
+                                          mcp_config.example + LICENSE
+                                          + publish_manifest.jsonl;
+                                          chroma archived as
+                                          embeddings.tar.gz at root;
+                                          source canonical promoted
+                                          to dest if absent)
+   |
+   v
+serve     -> MCP server over stdio JSON-RPC; nine read-only tools
+             against the published or working corpus
 ```
 
 Each stage is independently re-runnable. Ingest is hash-deduped at
@@ -86,6 +120,15 @@ SBM / Leiden methods). Render is byte-stable per card.
 
 A sixth stage, `decay`, runs independently on demand to compute
 the relevance / supersession pass over the graph and cards.
+
+### Convention: `benchmark_test/` for reference PDFs
+
+`benchmark_test/` is a reserved directory name: PDFs placed there
+are kept on disk for OCR / extraction benchmarks but are NOT
+auto-scanned into the corpus. Use it for canonical ground-truth
+scans (Mendel 1866, McDonald-Kreitman 1991, etc.) that you want
+the OCR benchmark scripts (`scripts/bench/`) to read but the
+ingest pipeline to leave alone.
 
 ## Per-corpus directory layout
 
@@ -126,19 +169,30 @@ nuthatch-managed subdirs above (`.kg/`, `papers/`, `quarantine/`,
 
 ## MCP query surface
 
-The server exposes five tools over stdio JSON-RPC 2.0. None mutate
+The server exposes nine tools over stdio JSON-RPC 2.0. None mutate
 corpus state.
 
 | Tool | Returns |
 | --- | --- |
-| `corpus_search(query, k)` | Top-`k` chunk hits with doc_id, score, text preview, metadata |
+| `corpus_search(query, k)` | Top-`k` chunk hits with doc_id, score, text preview, metadata + `community_id` / `community_path` / `community_label` so agents can route directly into community tools |
 | `subgraph_extract(seed_nodes, depth)` | BFS subgraph (nodes + edges) around the seeds |
-| `card_get(doc_id)` | Full rendered per-doc card markdown |
+| `card_get(doc_id)` | Full rendered per-doc card markdown (frontmatter carries community fields) |
 | `community_get(community_id)` | Rendered per-cluster page markdown |
+| `community_brief(community_id, top_n)` | Short structured preamble: label, n_members, top-N representative doc_ids. Cheap lead-in before drilling into a full card / community page |
+| `community_search(query, k)` | Semantic search at the community level. Ranks communities by query-to-centroid cosine. Lets agents jump straight to the relevant cluster without a chunk-level intermediate |
+| `community_core_nodes(community_id)` | High-degree members within a community's induced subgraph — the "key papers" of the cluster |
+| `community_hierarchy(doc_id)` | Full nested-SBM path from leaf community up through super-communities. Single-level for flat backends; multi-level for the principled SBM tier |
 | `token_econ_report(group_by, since, until, ...)` | Aggregate token-economy stats with per-tool BM25 / card-sum counterfactual baselines |
 
-Per-agent registration recipes live in the `skill-*.md` files at
-the repo root (one per supported host: `skill-claude-code.md`,
+The community tools together make Nuthatch's headline feature
+work: chunk-level retrieval surfaces routing keys, and the agent
+can choose chunk-level / community-level / hierarchy-level zoom
+without ever having to walk the global graph. See
+`docs/Design_Decisions.md` § *Community-aware retrieval* for the
+full rationale.
+
+Per-agent registration recipes live in the `agent_skills/skill-*.md`
+files (one per supported host: `skill-claude-code.md`,
 `skill-codex.md`, `skill-aider.md`, `skill-opencode.md`,
 `skill-pi.md`, `skill-hermes.md`).
 
@@ -182,7 +236,9 @@ src/nuthatch/
 |-- decay/                  decay + supersession pass over cards + graph
 |-- render/                 Obsidian cards, communities, dashboard, HTML companions
 |-- retrieve/vector.py      query-side embedding + Chroma retrieval
-|-- mcp/server.py           stdio JSON-RPC server + 5 tools
+|-- mcp/server.py           stdio JSON-RPC server + 9 tools
+|-- publish.py              promote agent-facing surface into a shareable KB
+|-- viz/d3_renderer.py      D3 + canvas topology viz (force-atlas2, Catppuccin)
 `-- token_econ/             per-tool counterfactual + JSONL log + markdown report
 ```
 

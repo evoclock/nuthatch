@@ -29,6 +29,8 @@ Assumptions: the caller has already produced the per-paper
 
 from __future__ import annotations
 
+import json
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -37,6 +39,130 @@ from typing import Any
 
 from nuthatch.corpus.layout import CorpusLayout
 from nuthatch.render.card import render_card
+
+
+# Catppuccin Mocha named accents, ordered so adjacent community ids
+# land on contrasting hues. Same ordering the D3 viz uses, so cards
+# and the HTML graph share a colour identity per community.
+# Catppuccin Mocha named accents — must stay byte-identical to the
+# `CATPPUCCIN` array in `viz/d3_renderer.py` so the same community id
+# renders the same colour in the Obsidian graph view and in the D3
+# topology HTML. If you change one, change the other.
+_CATPPUCCIN_HEX: tuple[str, ...] = (
+    "#89B4FA",  # blue
+    "#FAB387",  # peach
+    "#A6E3A1",  # green
+    "#F38BA8",  # pink
+    "#94E2D5",  # teal
+    "#F9E2AF",  # yellow
+    "#CBA6F7",  # mauve
+    "#EBA0AC",  # maroon
+    "#74C7EC",  # sapphire
+    "#F5C2E7",  # flamingo
+    "#179299",  # Catppuccin Latte teal (replaces lavender — deeper
+                # teal that reads better against the dark bg and
+                # avoids confusion with the mauve at slot 6)
+    "#89DCEB",  # sky
+    "#F5E0DC",  # rosewater
+    "#A6ADC8",  # subtext1
+)
+
+
+def _slugify(text: str, max_len: int = 64) -> str:
+    """Lowercase, dashed, ASCII-safe slug for filenames + tags.
+
+    Drops anything that isn't alpha-numeric, collapses runs of
+    separators, trims edges. Caps at `max_len` so Obsidian doesn't
+    refuse the filename on long topical labels.
+    """
+    if not text:
+        return "untitled"
+    s = text.lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    s = s.strip("-")
+    if not s:
+        return "untitled"
+    return s[:max_len].rstrip("-")
+
+
+def _hex_to_obsidian_rgb(hex_color: str) -> int:
+    """Obsidian's graph.json stores colors as a single packed int.
+
+    Format: (R << 16) | (G << 8) | B. Same encoding Obsidian's UI
+    writes when the user picks a color via the colour picker.
+    """
+    h = hex_color.lstrip("#")
+    return (int(h[0:2], 16) << 16) | (int(h[2:4], 16) << 8) | int(h[4:6], 16)
+
+
+def _community_color(cid: int) -> str:
+    """Return the Catppuccin hex for a community id, with wrap."""
+    return _CATPPUCCIN_HEX[cid % len(_CATPPUCCIN_HEX)]
+
+
+def _build_obsidian_graph_config(
+    community_slugs: Mapping[int, str],
+) -> dict[str, Any]:
+    """Build the .obsidian/graph.json payload with one colour group
+    per community. Queries against `tag:#cluster/<cid>`, the neutral
+    membership marker injected on each card (the topical label lives
+    on the community page itself, not on member tags)."""
+    groups = []
+    for cid in sorted(community_slugs):
+        groups.append({
+            "query": f"tag:#cluster/{cid}",
+            "color": {
+                "a": 1,
+                "rgb": _hex_to_obsidian_rgb(_community_color(cid)),
+            },
+        })
+    # Field values tuned from active use on a comparable nuthatch-
+    # adjacent KB (PhD knowledge-base). Panels expand by default so
+    # the user sees groups + display options on first open; arrows
+    # are on so directed edges read correctly; physics tweaked for
+    # graphs in the 1k–4k node range.
+    #
+    # `showTags: True` keeps Obsidian's tag pseudo-nodes visible in
+    # the graph view. The default theme paints them lime-green; the
+    # ship `.obsidian/snippets/nuthatch-graph-colors.css` snippet
+    # (auto-enabled via appearance.json) overrides that to the Power
+    # Station accent orange so they read as a deliberate "tag" colour
+    # alongside the per-community cluster fills.
+    return {
+        "collapse-filter": False,
+        "search": "",
+        "showTags": True,
+        "showAttachments": False,
+        "hideUnresolved": False,
+        "showOrphans": True,
+        "collapse-color-groups": False,
+        "colorGroups": groups,
+        "collapse-display": False,
+        "showArrow": True,
+        "textFadeMultiplier": 0,
+        "nodeSizeMultiplier": 1.26,
+        "lineSizeMultiplier": 0.81,
+        "collapse-forces": False,
+        "centerStrength": 0.42,
+        "repelStrength": 12.3,
+        "linkStrength": 1,
+        "linkDistance": 99,
+        "scale": 0.21,
+        "close": True,
+    }
+
+
+def _write_obsidian_graph(root: Path, community_slugs: Mapping[int, str]) -> None:
+    """Drop .obsidian/graph.json at the vault root. Non-destructive:
+    only writes the graph view config, leaves other .obsidian files
+    (workspace.json, app.json, ...) untouched."""
+    obsidian_dir = root / ".obsidian"
+    obsidian_dir.mkdir(parents=True, exist_ok=True)
+    path = obsidian_dir / "graph.json"
+    path.write_text(
+        json.dumps(_build_obsidian_graph_config(community_slugs), indent=2),
+        encoding="utf-8",
+    )
 
 
 @dataclass(frozen=True)
@@ -66,11 +192,95 @@ def export_vault(
     cards_dir.mkdir(parents=True, exist_ok=True)
     communities_dir.mkdir(parents=True, exist_ok=True)
 
+    # Load the persisted community index if cluster stage has run.
+    # When present, every card gets community_id + community_path +
+    # community_label injected into its frontmatter so agents can
+    # navigate community-aware retrieval directly from the card.
+    # Fall back through known backend filenames when the generic
+    # communities.json alias has not been written.
+    from nuthatch.clustering.persist import load_community_index
+
+    community_index = load_community_index(layout)
+    if community_index is None:
+        for _fname in (
+            "communities_sbm.json",
+            "communities_leiden.json",
+            "communities_embeddings.json",
+        ):
+            community_index = load_community_index(layout, index_filename=_fname)
+            if community_index is not None:
+                break
+
+    # Precompute community_id -> slug mapping once. Slugs drive:
+    #   - community page filenames (e.g. communities/genomic-interactions.md
+    #     instead of communities/23.md, so the Obsidian graph view shows
+    #     readable node names instead of bare numbers)
+    #   - the `community/<slug>` tag injected on each card, which
+    #     `.obsidian/graph.json` colour groups query against
+    community_slugs: dict[int, str] = {}
+    if community_index:
+        for cid_int, raw in community_index.labels.items():
+            if isinstance(raw, str) and raw.startswith("doc::"):
+                rep_doc = raw[len("doc::"):]
+                label = str(
+                    paper_metadata.get(rep_doc, {}).get("title") or raw
+                )
+            else:
+                label = str(raw) if raw else f"community-{cid_int}"
+            community_slugs[int(cid_int)] = _slugify(label)
+
     n_cards = 0
     for doc_id, meta in paper_metadata.items():
-        card_md = render_card(doc_id=doc_id, metadata=dict(meta))
+        cid = community_index.community_for(doc_id) if community_index else None
+        cpath = community_index.hierarchy_for(doc_id) if community_index else None
+        clabel_raw = (
+            community_index.labels.get(cid)
+            if community_index and cid is not None
+            else None
+        )
+        # labels stored as doc_ids — resolve to paper title when possible
+        if clabel_raw and clabel_raw.startswith("doc::"):
+            rep_doc = clabel_raw[len("doc::"):]
+            clabel = str(paper_metadata.get(rep_doc, {}).get("title") or clabel_raw)
+        else:
+            clabel = clabel_raw
+
+        # Build merged tag list: topic tags from the extractor PLUS a
+        # neutral `cluster/<cid>` membership marker (numeric id, no
+        # topical claim). The topical label lives on the community page
+        # only; applying it as a tag here would mis-label cluster members
+        # whose paper isn't actually about the cluster's headline theme
+        # (heterogeneous clusters happen and are normal). Obsidian
+        # graph.json colour groups query `tag:#cluster/<cid>`.
+        #
+        # Slugify each tag — Obsidian rejects tag values containing
+        # whitespace (e.g. "electricity price forecasting"), so the
+        # extractor's free-text topics need to become dashed slugs
+        # before they go in the `tags:` array. The human-readable form
+        # survives in the separate `topics:` array on each card.
+        raw_topics = list(meta.get("topics") or meta.get("tags") or [])
+        base_tags = [_slugify(str(t)) for t in raw_topics if t]
+        if cid is not None:
+            base_tags.append(f"cluster/{cid}")
+
+        card_md = render_card(
+            doc_id=doc_id,
+            metadata=dict(meta),
+            tags=base_tags,
+            community_id=cid,
+            community_path=cpath if cpath else None,
+            community_label=clabel,
+        )
         (cards_dir / f"{doc_id}.md").write_text(card_md, encoding="utf-8")
         n_cards += 1
+
+    # Wipe stale community pages from any prior render (e.g. numeric
+    # `23.md` files from the era before slug-based filenames). Done
+    # before the write loop so re-runs converge to the current label
+    # set instead of accumulating files for dropped community ids.
+    if community_membership:
+        for stale in communities_dir.glob("*.md"):
+            stale.unlink()
 
     n_communities = 0
     if community_membership:
@@ -80,16 +290,53 @@ def export_vault(
                 if community_descriptions
                 else ""
             )
+            cid_int = int(community_id) if community_index else None
+            clabel_page_raw = (
+                community_index.labels.get(cid_int)
+                if community_index and cid_int is not None
+                else None
+            )
+            if clabel_page_raw and clabel_page_raw.startswith("doc::"):
+                rep_doc = clabel_page_raw[len("doc::"):]
+                clabel_page = str(
+                    paper_metadata.get(rep_doc, {}).get("title") or clabel_page_raw
+                )
+            else:
+                clabel_page = clabel_page_raw
+            core_ids_raw = (
+                community_index.core_nodes_of(cid_int)
+                if community_index and cid_int is not None
+                else []
+            )
+            core_ids = [
+                n[len("doc::"):] if n.startswith("doc::") else n
+                for n in core_ids_raw
+            ]
             page = _render_community_page(
                 community_id=community_id,
                 member_doc_ids=members,
                 paper_metadata=paper_metadata,
                 description=description,
+                community_label=clabel_page,
+                core_doc_ids=core_ids or None,
+                backend=community_index.backend if community_index else None,
             )
-            (communities_dir / f"{community_id}.md").write_text(
+            # Filename uses the topical slug so Obsidian's graph view
+            # shows a readable node name instead of the bare community id.
+            try:
+                slug = community_slugs.get(int(community_id)) or community_id
+            except (TypeError, ValueError):
+                slug = community_id
+            (communities_dir / f"{slug}.md").write_text(
                 page, encoding="utf-8"
             )
             n_communities += 1
+
+    # Drop .obsidian/graph.json with one colour group per community so
+    # the native Obsidian graph view colourizes nodes by community on
+    # first vault open. Non-destructive to other Obsidian config.
+    if community_slugs:
+        _write_obsidian_graph(layout.root, community_slugs)
 
     dashboard_path = layout.root / "dashboard.md"
     dashboard_path.write_text(_render_dashboard(), encoding="utf-8")
@@ -122,23 +369,39 @@ def _render_community_page(
     member_doc_ids: list[str],
     paper_metadata: Mapping[str, Mapping[str, Any]],
     description: str,
+    community_label: str | None = None,
+    core_doc_ids: list[str] | None = None,
+    backend: str | None = None,
 ) -> str:
     """One markdown page per community. Links to member cards."""
+    display_title = community_label or f"Community {community_id}"
+    tags = ["community"]
+    if backend:
+        tags.append(backend.replace("_", "-"))
+    tags_yaml = "[" + ", ".join(tags) + "]"
     lines = [
         "---",
-        f"title: \"Community {community_id}\"",
+        f"title: \"{display_title}\"",
         f"id: community_{community_id}",
         "type: community",
         f"community_id: {community_id}",
         f"n_members: {len(member_doc_ids)}",
-        "tags: [community]",
-        "---",
-        "",
-        f"# Community {community_id}",
-        "",
+        f"tags: {tags_yaml}",
     ]
+    if backend:
+        lines.append(f"backend: {backend}")
+    lines += ["---", "", f"# {display_title}", ""]
     if description:
         lines.extend([description.strip(), ""])
+    if core_doc_ids:
+        lines.extend(["## Core papers", ""])
+        for doc_id in core_doc_ids:
+            meta = paper_metadata.get(doc_id, {})
+            title = str(meta.get("title") or doc_id)
+            year = meta.get("year")
+            suffix = f" ({year})" if year else ""
+            lines.append(f"- [[{doc_id}|{title}{suffix}]]")
+        lines.append("")
     lines.append("## Members")
     lines.append("")
     for doc_id in member_doc_ids:
@@ -168,7 +431,7 @@ tags: [dashboard]
 
 > Use Cmd+G to open the graph view, or run the Dataview queries below
 > for filtered lookups. Each query block is a starting point; edit
-> per your corpus tags and committee_members.
+> per your corpus's tag vocabulary.
 
 ## Recently ingested papers
 

@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
 # SPDX-License-Identifier: Apache-2.0
 
-"""Ingest orchestrator: walks files from `inbox/` to `papers/` via the spine.
+"""Ingest orchestrator: walks files from a user subdir to `processed/<subdir>/`.
 
 The Sprint 2 spine:
 
-    inbox file
+    source file (anywhere under <corpus>/, outside reserved dirs)
       -> hash dedup
       -> preflight (suffix + non-zero size)
       -> extract (real OCR via `ingest.extract` for PDFs;
@@ -17,11 +17,17 @@ The Sprint 2 spine:
 
 `route` moves the file to one of:
 
-- `papers/`           on success (`IngestStatus.INGESTED`)
-- (left in inbox)     on byte-exact dedup hit (`IngestStatus.DUPLICATE`)
+- `processed/<source_subdir>/`  on success (`IngestStatus.INGESTED`).
+  Source provenance is preserved: a file ingested from
+  `<corpus>/bioarxiv/foo.pdf` lands at
+  `<corpus>/processed/bioarxiv/foo.pdf`. Watcher/scan skips this
+  subtree so it's never re-fed.
+- (left in place)               on byte-exact dedup hit (`IngestStatus.DUPLICATE`)
 - `quarantine/<reason>/` on any pipeline-stage failure
   (`IngestStatus.QUARANTINED`); a `.reason.json` sidecar lands next
-  to the file (see `ingest.quarantine`)
+  to the file recording the original subdir so a fix-pass can route
+  the file back to `processed/<original_subdir>/` after the issue
+  is resolved (see `ingest.quarantine`).
 
 The extractor is dependency-injected so tests can substitute a
 fast no-op while the real path runs Docling / Chandra-OCR / EasyOCR
@@ -43,10 +49,11 @@ from nuthatch.corpus.layout import CorpusLayout
 from nuthatch.ingest.dedup import hash_file
 from nuthatch.ingest.manifest import IngestStatus, ManifestEntry, ManifestStore
 from nuthatch.ingest.metadata import extract_and_validate
+from nuthatch.ingest.profile_routing import select_profile_for_filename
 from nuthatch.ingest.qc import check_extract_yield
 from nuthatch.ingest.quarantine import quarantine_file
 from nuthatch.schema.profile import SchemaProfile
-from nuthatch.schema.profiles import ArxivPaperProfile
+from nuthatch.schema.profiles import ArxivPaperProfile, InternalDocProfile
 
 # Sentinel marking the Sprint 2 default extractor version. Bumped
 # when the routing logic or backend versions change so the manifest
@@ -120,11 +127,23 @@ class IngestOrchestrator:
     Dependency-injection:
     - `extractor`: callable `(Path) -> str` returning markdown.
       Defaults to the real PDF router + plain-text reader.
-    - `schema_profile`: subclass of `SchemaProfile` to validate
-      extracted metadata against. Defaults to `ArxivPaperProfile`.
+    - `schema_profile`: subclass of `SchemaProfile` used as a HARD
+      OVERRIDE. When set, every file in the corpus is validated
+      against this profile regardless of filename pattern. When
+      unset (the default), the orchestrator routes per-file via
+      `select_profile_for_filename`: arxiv preprints validate
+      against `ArxivPaperProfile`, bioRxiv preprints against
+      `BiorxivPaperProfile`, everything else falls back to
+      `InternalDocProfile`.
     """
 
-    __slots__ = ("_extractor", "_layout", "_manifest", "_profile", "_skip_chandra")
+    __slots__ = (
+        "_extractor",
+        "_layout",
+        "_manifest",
+        "_profile_override",
+        "_skip_chandra",
+    )
 
     def __init__(
         self,
@@ -142,7 +161,7 @@ class IngestOrchestrator:
             self._extractor = _make_skip_chandra_extractor()
         else:
             self._extractor = _default_extractor
-        self._profile = schema_profile or ArxivPaperProfile
+        self._profile_override = schema_profile
         self._skip_chandra = skip_chandra
 
     @property
@@ -155,7 +174,19 @@ class IngestOrchestrator:
 
     @property
     def schema_profile(self) -> type[SchemaProfile]:
-        return self._profile
+        """Return the configured override, or `ArxivPaperProfile` as a stable default
+        for back-compat with callers that introspect the profile at construction time.
+
+        Per-file routing happens inside `_iter_processed`; this accessor is
+        for tests and external introspection.
+        """
+        return self._profile_override or ArxivPaperProfile
+
+    def _resolve_profile(self, filename: str) -> type[SchemaProfile]:
+        """Pick the profile to validate `filename` against."""
+        if self._profile_override is not None:
+            return self._profile_override
+        return select_profile_for_filename(filename, fallback=InternalDocProfile)
 
     def ingest_corpus(
         self,
@@ -235,6 +266,7 @@ class IngestOrchestrator:
                     self._layout.quarantine,
                     reason=preflight_reason or "preflight_failed",
                     details={"stage": "preflight"},
+                    corpus_root=self._layout.root,
                 )
                 yield (
                     self._record_and_result(
@@ -272,6 +304,7 @@ class IngestOrchestrator:
                     self._layout.quarantine,
                     reason=qc.reason or "extract_yield_failed",
                     details={"stage": "qc", "qc": qc.details},
+                    corpus_root=self._layout.root,
                 )
                 yield (
                     self._record_and_result(
@@ -284,9 +317,10 @@ class IngestOrchestrator:
                 )
                 continue
 
+            profile = self._resolve_profile(source.name)
             extracted, validation = extract_and_validate(
                 markdown,
-                self._profile,
+                profile,
                 source_filename=source.name,
                 metadata_cache_dir=self._layout.kg / "metadata_cache",
             )
@@ -297,11 +331,12 @@ class IngestOrchestrator:
                     reason=validation.reason or "schema_invalid",
                     details={
                         "stage": "schema",
-                        "profile": self._profile.profile_name,
+                        "profile": profile.profile_name,
                         "extracted": extracted,
                         "missing_required": validation.missing_required,
                         "type_mismatches": validation.type_mismatches,
                     },
+                    corpus_root=self._layout.root,
                 )
                 yield (
                     self._record_and_result(
@@ -314,7 +349,7 @@ class IngestOrchestrator:
                 )
                 continue
 
-            dest = self._move(source, self._layout.papers / source.name)
+            dest = self._move(source, self._processed_destination(source))
             # Persist extracted markdown + meta so `nuthatch embed` can
             # consume without re-running OCR / Docling. doc_id is the
             # FINAL papers/ filename stem (handles name collisions
@@ -474,6 +509,24 @@ class IngestOrchestrator:
         final = _unique_destination(dest)
         shutil.move(str(source), str(final))
         return final
+
+    def _processed_destination(self, source: Path) -> Path:
+        """Mirror the source subdir under `processed/`.
+
+        A file ingested from `<corpus>/bioarxiv/foo.pdf` returns
+        `<corpus>/processed/bioarxiv/foo.pdf`. Files at corpus root
+        (no subdir) go straight to `<corpus>/processed/foo.pdf`.
+
+        Files outside the corpus root fall back to a flat
+        `processed/<filename>` placement; that shouldn't happen
+        through the normal scan but the fallback keeps the move safe
+        if a test passes an unrelated path.
+        """
+        try:
+            rel = source.resolve().relative_to(self._layout.root)
+        except ValueError:
+            return self._layout.processed / source.name
+        return self._layout.processed / rel
 
     def _record(
         self,

@@ -64,7 +64,9 @@ class TestIngestInboxBasics:
         results = _make_orchestrator(layout).ingest_inbox()
         assert results == []
 
-    def test_single_pdf_moves_to_papers(self, tmp_path: Path) -> None:
+    def test_single_pdf_moves_to_processed_mirroring_source_subdir(
+        self, tmp_path: Path
+    ) -> None:
         layout = init_corpus(tmp_path / "c")
         source = _seed_inbox(layout, "attention.pdf", b"fake-pdf-bytes")
 
@@ -74,7 +76,8 @@ class TestIngestInboxBasics:
         r = results[0]
         assert r.status is IngestStatus.INGESTED
         assert r.destination is not None
-        assert r.destination.parent == layout.papers
+        # Source provenance preserved: inbox/foo.pdf -> processed/inbox/foo.pdf.
+        assert r.destination == layout.processed / "inbox" / "attention.pdf"
         assert r.destination.exists()
         assert not source.exists()  # moved out of inbox
 
@@ -206,16 +209,20 @@ class TestManifestSideEffects:
         assert IngestStatus.QUARANTINED in statuses
 
 
-class TestNameCollisionUnderPapers:
+class TestNameCollisionUnderProcessed:
     def test_collision_appends_counter(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
-        (layout.papers / "p.pdf").write_bytes(b"existing-content")
+        # Pre-seed a processed file at the path the inbox file will
+        # map to (processed/inbox/p.pdf, mirroring the source subdir).
+        target = layout.processed / "inbox" / "p.pdf"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"existing-content")
         _seed_inbox(layout, "p.pdf", b"new-content")
         results = _make_orchestrator(layout).ingest_inbox()
         assert results[0].status is IngestStatus.INGESTED
         assert results[0].destination is not None
         assert results[0].destination.name == "p-1.pdf"
-        assert (layout.papers / "p.pdf").read_bytes() == b"existing-content"
+        assert target.read_bytes() == b"existing-content"
 
 
 class TestCorpusRootRecursion:
@@ -250,7 +257,7 @@ class TestCorpusRootRecursion:
     def test_reserved_dirs_are_skipped(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
         # Seed pre-existing files in every reserved dir.
-        (layout.papers / "already_in_papers.pdf").write_bytes(b"old")
+        (layout.processed / "already_in_papers.pdf").write_bytes(b"old")
         (layout.cards / "old_card.md").write_text("frontmatter")
         (layout.quarantine / "quar.pdf").write_bytes(b"q")
         (layout.graph / "g.json").write_text("{}")
@@ -263,7 +270,7 @@ class TestCorpusRootRecursion:
         assert len(results) == 1
         assert results[0].source_filename == "real.pdf"
         # Reserved-dir files still in place, untouched.
-        assert (layout.papers / "already_in_papers.pdf").exists()
+        assert (layout.processed / "already_in_papers.pdf").exists()
         assert (layout.cards / "old_card.md").exists()
         assert (layout.quarantine / "quar.pdf").exists()
 

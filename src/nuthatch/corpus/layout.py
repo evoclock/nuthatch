@@ -13,13 +13,25 @@ Layout (per `docs/SPEC.md`):
     my-corpus/
     ├── .kg/                  tool bookkeeping (manifest, config, audit)
     ├── inbox/                drop files here; watcher / `nuthatch ingest` picks up
-    ├── quarantine/           schema-failed; awaiting metadata fix
-    ├── papers/               original sources (PDFs, HTML, etc.)
+    ├── <user-subdirs>/       arxiv/, bioarxiv/, notes/, benchmark_test/, ...
+    ├── processed/            successfully ingested sources, mirroring the user's
+    │   ├── arxiv/            origin subdir (provenance preserved). The watcher
+    │   ├── bioarxiv/         is fed from inputs/ only, not from here.
+    │   └── ...
+    ├── quarantine/           transient state: recoverable failure (schema, qc).
+    │   └── <reason>/         A fix-pass either resolves to processed/<orig_subdir>/
+    │                         or escalates to rejected/<reason>/.
+    ├── rejected/             terminal state: declared unfixable post-investigation
     ├── cards/                MD card per paper (Sprint 3)
     ├── html/                 HTML companion per paper (Sprint 3)
-    ├── notes/                user-imported notes
     ├── graph/                graph state + SBM block state (Sprint 4)
     └── exports/              generated outputs (Sprint 6)
+
+Lifecycle: `inputs/<subdir>/foo.pdf` -> success -> `processed/<subdir>/foo.pdf`.
+On schema/QC failure -> `quarantine/<reason>/foo.pdf` with a sidecar
+recording `original_subdir`. Quarantine is transient; the only legal
+exits are processed/<original_subdir>/ (when fixed) or rejected/<reason>/
+(when declared unfixable). Files never leave the corpus.
 
 `init_corpus` creates the full tree on first run. `CorpusLayout`
 exposes the canonical paths.
@@ -39,8 +51,9 @@ CORPUS_MARKER: str = ".kg"
 # version-controlled with the contents gitignored.
 _STANDARD_SUBDIRS: tuple[str, ...] = (
     "inbox",
+    "processed",
     "quarantine",
-    "papers",
+    "rejected",
     "cards",
     "html",
     "notes",
@@ -59,14 +72,22 @@ _STANDARD_SUBDIRS: tuple[str, ...] = (
 # `papers/2026/`) are picked up by the recursive scan.
 CORPUS_RESERVED_DIRS: frozenset[str] = frozenset({
     CORPUS_MARKER,   # ".kg"
-    "papers",        # post-ingest originals — already processed
-    "quarantine",    # failed files — don't retry from scan
+    "processed",     # post-ingest originals (provenance preserved by subdir)
+    "quarantine",    # transient failures (awaiting fix or rejection)
+    "rejected",      # terminal failures (declared unfixable)
     "cards",         # rendered markdown
     "html",          # rendered HTML companion
     "communities",   # rendered community pages
     "graph",         # derived graph state
     "exports",       # rendered outputs
     "reports",       # generated reports (token-econ, decay)
+    "defer",         # papers deferred from ingest (e.g. post-Thursday
+                     # triage); reserved exactly like benchmark_test/
+    "benchmark_test",  # user-curated reference PDFs for OCR / extraction
+                       # benchmarks; not part of the queryable corpus and
+                       # not auto-scanned. Conventional name; users with a
+                       # different convention can opt out via the per-corpus
+                       # `scan_skip` config (see `corpus/config.py`).
 })
 
 
@@ -127,8 +148,26 @@ class CorpusLayout:
         return self.root / "quarantine"
 
     @property
-    def papers(self) -> Path:
-        return self.root / "papers"
+    def processed(self) -> Path:
+        """`<corpus>/processed/` — successfully-ingested sources.
+
+        Mirrors the source's relative path under `<corpus>/`. A file
+        ingested from `<corpus>/bioarxiv/foo.pdf` lands at
+        `<corpus>/processed/bioarxiv/foo.pdf`. The watcher / scan
+        skips this subtree so processed files are not re-fed.
+        """
+        return self.root / "processed"
+
+    @property
+    def rejected(self) -> Path:
+        """`<corpus>/rejected/` — files declared unfixable post-investigation.
+
+        Files only land here as an explicit decision by the operator
+        (or a fix-pass), never directly from the ingest pipeline. The
+        ingest pipeline's two failure outcomes are `quarantine/<reason>/`
+        (recoverable) and infrastructure-FAILED (transient, no move).
+        """
+        return self.root / "rejected"
 
     @property
     def cards(self) -> Path:

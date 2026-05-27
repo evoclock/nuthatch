@@ -40,10 +40,30 @@ class EmbeddingConfig:
 
 
 @dataclass(frozen=True)
+class SemanticExtractConfig:
+    """Per-corpus overrides for the semantic-extract + augment-into-graph
+    step. All fields optional; missing fields fall back to the defaults
+    documented at each consumer (e.g. `add_semantic_edges` in
+    `nuthatch.semantic_extract.augment`).
+
+    semantic_edge_threshold: cosine similarity floor for adding a
+        `shares_summary_with` edge between two documents whose summaries
+        are similar. Lower -> more edges (denser graph, looser
+        communities). Higher -> sparser graph, tighter communities.
+        Default 0.55 in the augment library.
+    """
+
+    semantic_edge_threshold: float | None = None
+
+
+@dataclass(frozen=True)
 class CorpusConfig:
     """Parsed `<corpus>/.kg/config.yaml`. Sections are typed."""
 
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
+    semantic_extract: SemanticExtractConfig = field(
+        default_factory=SemanticExtractConfig,
+    )
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -74,7 +94,21 @@ def load_corpus_config(path: Path) -> CorpusConfig:
         batch_size=_int_or_none(embed_raw.get("batch_size")),
         model=_str_or_none(embed_raw.get("model")),
     )
-    return CorpusConfig(embedding=embedding, raw=loaded)
+
+    semex_raw = loaded.get("semantic_extract") or {}
+    if not isinstance(semex_raw, dict):
+        semex_raw = {}
+    semantic_extract = SemanticExtractConfig(
+        semantic_edge_threshold=_float_or_none(
+            semex_raw.get("semantic_edge_threshold"),
+        ),
+    )
+
+    return CorpusConfig(
+        embedding=embedding,
+        semantic_extract=semantic_extract,
+        raw=loaded,
+    )
 
 
 def _int_or_none(value: Any) -> int | None:
@@ -82,6 +116,15 @@ def _int_or_none(value: Any) -> int | None:
         return None
     try:
         return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _float_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
     except (TypeError, ValueError):
         return None
 

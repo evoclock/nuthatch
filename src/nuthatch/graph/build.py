@@ -22,7 +22,7 @@ internal docs, notes — anything text-based with a SchemaProfile.
 Field names and node-type strings use generic terms (`document`,
 `doc_node_id`) rather than paper-specific ones.
 
-Pattern reused from kestrel's `build.py` (the three-layer node
+Pattern adapted from a prior knowledge-graph implementation; original lived in `build.py` (the three-layer node
 deduplication: within-source, between-source, and explicit semantic
 merge). nuthatch's implementation is a fresh write adapted for
 documents (not source-code ASTs): one document is the unit, and
@@ -127,6 +127,14 @@ def build_graph(
         # Co-mention edges between entity pairs within this document.
         # INFERRED confidence: co-mention is a heuristic signal, not
         # a direct lift from the source text.
+        # All entity types are included: co-mention between authors captures
+        # co-authorship signal; between citations it captures co-citation
+        # signal. These are orthogonal to the typed directed edges
+        # (authored_by, cites) which record provenance. Co-mention records
+        # co-occurrence. Note: co_mentioned_in does not participate in the
+        # doc-doc projection used by clustering (that traversal follows
+        # doc→entity typed edges only), so inclusion here does not affect
+        # community detection.
         keys = sorted({e.key for e in entities})
         for i, src in enumerate(keys):
             for tgt in keys[i + 1 :]:

@@ -16,9 +16,9 @@ Inputs at `core_nodes`: a `networkx` graph + percentile cutoff for
 Outputs at `core_nodes`: the list of node IDs whose degree is at or
     above the percentile cutoff.
 
-Pattern derived from kestrel's high-degree-node detection in
+Pattern derived from a prior knowledge-graph implementation's high-degree-node detection in
 `analyze.py`. nuthatch's implementation uses `core_nodes` as the
-neutral function and constant name (the kestrel name is avoided
+neutral function and constant name (the a prior implementation name is avoided
 per the project's naming policy); the algorithm is straightforward
 percentile-rank on node degree, which is the same conceptual move
 the source pattern makes.

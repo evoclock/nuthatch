@@ -15,7 +15,7 @@ Outputs: `ReportSummary` dataclass with totals + per-group rows.
 `render_markdown_report` formats a `ReportSummary` as the markdown
 that lands at `<corpus>/reports/token-economy-<date>.md` for
 Obsidian Dataview / human reading. The format-template pattern is
-reused from kestrel's `print_benchmark` (per-question table with a
+reused from a prior knowledge-graph implementation's `print_benchmark` (per-question table with a
 reduction ratio column); nuthatch's version groups by axis and
 totals at the bottom rather than running a fixed sample set.
 """
@@ -152,7 +152,7 @@ def render_markdown_report(
 ) -> str:
     """Render a `ReportSummary` as Obsidian-Dataview-friendly markdown.
 
-    Format-template pattern reused from kestrel's `print_benchmark`:
+    Format-template pattern reused from a prior knowledge-graph implementation's `print_benchmark`:
     a small header with totals, a per-group table, a saved-tokens
     bottom line. Obsidian Dataview parses the YAML frontmatter for
     cross-corpus queries.
