@@ -43,6 +43,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -410,7 +411,10 @@ class NuthatchMCPServer(MCPServer):
         if idx is None:
             return _error("community index not built; run `nuthatch cluster` first")
         try:
-            cid = int(args.get("community_id"))
+            _cid_raw = args.get("community_id")
+            if _cid_raw is None:
+                return _error("community_id (int) is required")
+            cid = int(_cid_raw)
         except (TypeError, ValueError):
             return _error("community_id (int) is required")
         members = idx.members_of(cid)
@@ -466,7 +470,7 @@ class NuthatchMCPServer(MCPServer):
         # Reuse the retriever's embedder to get a query vector with
         # the same model the corpus was embedded under.
         try:
-            embedder = self._retriever.embedder  # type: ignore[attr-defined]
+            embedder = self._retriever.embedder
         except AttributeError:
             return _error("retriever does not expose an embedder for query encoding")
         try:
@@ -512,7 +516,10 @@ class NuthatchMCPServer(MCPServer):
         if idx is None:
             return _error("community index not built; run `nuthatch cluster` first")
         try:
-            cid = int(args.get("community_id"))
+            _cid_raw = args.get("community_id")
+            if _cid_raw is None:
+                return _error("community_id (int) is required")
+            cid = int(_cid_raw)
         except (TypeError, ValueError):
             return _error("community_id (int) is required")
         nodes = idx.core_nodes_of(cid)
@@ -605,7 +612,9 @@ def _extract_text(result: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-def _default_token_econ_reporter(token_log: TokenLog):
+def _default_token_econ_reporter(
+    token_log: TokenLog,
+) -> Callable[[dict[str, Any]], dict[str, Any]]:
     """Build a reporter closure that aggregates the bound `token_log`."""
 
     def _report(args: dict[str, Any]) -> dict[str, Any]:
@@ -627,7 +636,7 @@ def _default_token_econ_reporter(token_log: TokenLog):
     return _report
 
 
-def _default_card_reader(layout: CorpusLayout):
+def _default_card_reader(layout: CorpusLayout) -> Callable[[str], str | None]:
     cards_dir = layout.root / "cards"
 
     def _read(doc_id: str) -> str | None:
@@ -639,7 +648,7 @@ def _default_card_reader(layout: CorpusLayout):
     return _read
 
 
-def _default_community_reader(layout: CorpusLayout):
+def _default_community_reader(layout: CorpusLayout) -> Callable[[str], str | None]:
     communities_dir = layout.root / "communities"
 
     def _read(community_id: str) -> str | None:

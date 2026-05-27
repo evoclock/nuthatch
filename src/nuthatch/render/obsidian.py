@@ -236,6 +236,7 @@ def export_vault(
             community_index.labels.get(cid) if community_index and cid is not None else None
         )
         # labels stored as doc_ids — resolve to paper title when possible
+        clabel: str | None
         if clabel_raw and clabel_raw.startswith("doc::"):
             rep_doc = clabel_raw[len("doc::") :]
             clabel = str(paper_metadata.get(rep_doc, {}).get("title") or clabel_raw)
@@ -285,20 +286,21 @@ def export_vault(
             description = (
                 community_descriptions.get(community_id, "") if community_descriptions else ""
             )
-            cid_int = int(community_id) if community_index else None
+            page_cid: int | None = int(community_id) if community_index else None
             clabel_page_raw = (
-                community_index.labels.get(cid_int)
-                if community_index and cid_int is not None
+                community_index.labels.get(page_cid)
+                if community_index and page_cid is not None
                 else None
             )
+            clabel_page: str | None
             if clabel_page_raw and clabel_page_raw.startswith("doc::"):
                 rep_doc = clabel_page_raw[len("doc::") :]
                 clabel_page = str(paper_metadata.get(rep_doc, {}).get("title") or clabel_page_raw)
             else:
                 clabel_page = clabel_page_raw
             core_ids_raw = (
-                community_index.core_nodes_of(cid_int)
-                if community_index and cid_int is not None
+                community_index.core_nodes_of(page_cid)
+                if community_index and page_cid is not None
                 else []
             )
             core_ids = [n[len("doc::") :] if n.startswith("doc::") else n for n in core_ids_raw]

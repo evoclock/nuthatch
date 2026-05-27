@@ -154,7 +154,7 @@ def _extract_gt_metrics(
     n_levels: int,
     n_mcmc_probe: int = 50,
     mcmc_niter: int = 10,
-) -> dict:
+) -> dict[str, Any]:
     """Capture graph-tool inference + structural metrics from the MAP state.
 
     All calls are wrapped individually so a failure in one metric does not
@@ -198,7 +198,7 @@ def _extract_gt_metrics(
     """
     import statistics
 
-    m: dict = {}
+    m: dict[str, Any] = {}
 
     # MDL decomposition
     try:

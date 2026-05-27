@@ -110,6 +110,44 @@ no_implicit_optional = true
 module = "tests.*"
 disallow_untyped_defs = false
 
+[[tool.mypy.overrides]]
+module = [
+    "networkx",
+    "networkx.*",
+    "yaml",
+    "langchain_ollama",
+    "langchain_ollama.*",
+    "langchain_openai",
+    "langchain_openai.*",
+    "langchain_anthropic",
+    "langchain_anthropic.*",
+    "igraph",
+    "igraph.*",
+    "leidenalg",
+    "leidenalg.*",
+    "sklearn",
+    "sklearn.*",
+    "graph_tool",
+    "graph_tool.*",
+    "anthropic",
+    "anthropic.*",
+    "datasets",
+    "datasets.*",
+    "scipy",
+    "scipy.*",
+    "rank_bm25",
+    "rank_bm25.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "docling",
+    "docling.*",
+]
+ignore_missing_imports = true
+follow_imports = "skip"
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]

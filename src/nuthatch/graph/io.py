@@ -61,5 +61,7 @@ def load_graph(path: Path) -> nx.MultiDiGraph:
     graph_type = payload.get("graph_type", "MultiDiGraph")
     if graph_type != "MultiDiGraph":
         raise ValueError(f"unsupported graph_type: {graph_type}")
-    g = nx.node_link_graph(payload["data"], directed=True, multigraph=True, edges="edges")
-    return g  # type: ignore[no-any-return]
+    g: nx.MultiDiGraph = nx.node_link_graph(
+        payload["data"], directed=True, multigraph=True, edges="edges"
+    )
+    return g

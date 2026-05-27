@@ -227,7 +227,7 @@ def main(argv: list[str]) -> int:
     return 0 if n_failed == 0 else 4
 
 
-def _clean_list(value) -> list[str]:
+def _clean_list(value: object) -> list[str]:
     """Normalise an LLM-returned list: strip, dedupe, drop empties."""
     if not isinstance(value, list):
         return []

@@ -90,7 +90,7 @@ def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
     db = sum(y * y for y in b) ** 0.5
     if da == 0.0 or db == 0.0:
         return 0.0
-    return num / (da * db)
+    return float(num) / float(da * db)
 
 
 def classify(

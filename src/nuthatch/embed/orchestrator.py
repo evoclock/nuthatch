@@ -171,7 +171,8 @@ def _load_meta_sidecar(meta_path: Path) -> dict[str, Any]:
     if not meta_path.is_file():
         return {}
     try:
-        return json.loads(meta_path.read_text(encoding="utf-8"))
+        result: dict[str, Any] = json.loads(meta_path.read_text(encoding="utf-8"))
+        return result
     except json.JSONDecodeError:
         return {}
 

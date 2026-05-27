@@ -30,7 +30,7 @@ land as separate modules once we have an ingested graph to cluster.
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 class Rigor(StrEnum):
@@ -111,7 +111,7 @@ class ClusteringResponse:
         notes: str = "",
         hierarchy: list[dict[str, int]] | None = None,
         mdl_nats: float | None = None,
-        gt_metrics: dict | None = None,
+        gt_metrics: dict[str, Any] | None = None,
     ) -> None:
         self.partition = partition
         self.rigor_used = rigor_used

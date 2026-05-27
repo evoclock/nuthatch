@@ -317,7 +317,10 @@ class PerToolEstimator:
         if self._community_reader is None:
             return None
         try:
-            cid = int(arguments.get("community_id"))
+            _cid_raw = arguments.get("community_id")
+            if _cid_raw is None:
+                return None
+            cid = int(_cid_raw)
         except (TypeError, ValueError):
             return None
         full_page = self._community_reader(str(cid))
@@ -332,7 +335,10 @@ class PerToolEstimator:
         if self._community_members_fn is None:
             return None
         try:
-            cid = int(arguments.get("community_id"))
+            _cid_raw = arguments.get("community_id")
+            if _cid_raw is None:
+                return None
+            cid = int(_cid_raw)
         except (TypeError, ValueError):
             return None
         members = self._community_members_fn(cid)

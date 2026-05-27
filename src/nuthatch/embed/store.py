@@ -84,8 +84,8 @@ class ChromaVectorStore:
     ) -> None:
         self._root = root
         self._collection_name = collection_name
-        self._client = None
-        self._collection = None
+        self._client: Any = None
+        self._collection: Any = None
 
     def _ensure_collection(self) -> Any:
         if self._collection is not None:
@@ -160,7 +160,7 @@ class ChromaVectorStore:
 
     def count(self) -> int:
         coll = self._ensure_collection()
-        return coll.count()
+        return int(coll.count())
 
     def iter_chunks(self) -> Iterator[tuple[str, str]]:
         """Yield `(chunk_id, text)` for every stored chunk.

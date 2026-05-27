@@ -53,10 +53,7 @@ def core_nodes(
         return []
     # Use total degree (in + out for directed). For multigraphs each
     # parallel edge counts; that matches the "loud" intuition.
-    degrees = {
-        node: int(g.degree(node))  # type: ignore[arg-type]
-        for node in g.nodes()
-    }
+    degrees = {node: int(g.degree(node)) for node in g.nodes()}
     sorted_degrees = sorted(degrees.values())
     # Percentile cutoff via linear interpolation rank.
     rank = round((percentile / 100.0) * (len(sorted_degrees) - 1))
@@ -103,7 +100,7 @@ def reattach_by_majority_neighbour(
         if node not in g:
             continue
         neighbours = (
-            list(g.successors(node)) + list(g.predecessors(node))  # type: ignore[union-attr]
+            list(g.successors(node)) + list(g.predecessors(node))
             if g.is_directed()
             else list(g.neighbors(node))
         )

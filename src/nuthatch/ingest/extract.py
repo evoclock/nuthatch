@@ -31,6 +31,7 @@ import time
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 # Threshold below which a PDF is treated as needing real OCR.
 #
@@ -133,7 +134,7 @@ def pick_strategy(
     return ExtractionStrategy.SCANNED_EASYOCR
 
 
-def _docling_accelerator():
+def _docling_accelerator() -> Any:
     """Return Docling `AcceleratorOptions` matching the host.
 
     Default: `AUTO`, which lets Docling pick the best device it
@@ -187,7 +188,7 @@ def _extract_docling(pdf_path: Path, *, do_ocr: bool) -> str:
     conv = DocumentConverter(
         format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipe)}
     )
-    return conv.convert(str(pdf_path)).document.export_to_markdown()
+    return str(conv.convert(str(pdf_path)).document.export_to_markdown())
 
 
 def _extract_granite(pdf_path: Path) -> str:
@@ -206,7 +207,7 @@ def _extract_granite(pdf_path: Path) -> str:
             InputFormat.PDF: PdfFormatOption(pipeline_cls=VlmPipeline, pipeline_options=vlm_opts)
         }
     )
-    return conv.convert(str(pdf_path)).document.export_to_markdown()
+    return str(conv.convert(str(pdf_path)).document.export_to_markdown())
 
 
 def _extract_chandra(pdf_path: Path) -> str:

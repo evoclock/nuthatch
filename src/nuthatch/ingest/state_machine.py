@@ -39,7 +39,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -225,7 +225,7 @@ class IngestOrchestrator:
             return []
         return self._iter_source_files()
 
-    def _iter_processed(self, all_sources: list[Path]):
+    def _iter_processed(self, all_sources: list[Path]) -> Iterator[IngestResult]:
         """Yield an `IngestResult` per source, in scan order."""
         known = self._manifest.known_hashes()
 

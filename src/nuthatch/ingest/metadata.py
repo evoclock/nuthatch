@@ -423,7 +423,7 @@ def _extract_leading_authors(markdown: str) -> list[str]:
     cutoff = _AUTHOR_SCAN_HEADING_RE.search(markdown)
     region = markdown[: cutoff.start()] if cutoff else markdown[:5000]
 
-    def _seen_list(names):
+    def _seen_list(names: list[str]) -> list[str]:
         seen: dict[str, None] = {}
         for n in names:
             cleaned = re.sub(r"\s+", " ", n).strip()

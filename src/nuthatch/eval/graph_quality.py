@@ -41,6 +41,7 @@ import sys
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from nuthatch.util import parse_llm_json, resolve_corpus, utc_tag
 from nuthatch.util.llm_backends import build_llm
@@ -103,7 +104,7 @@ def main(argv: list[str]) -> int:
         else:
             print(f"  {k:24s} {v}")
 
-    judge_results: list[dict] = []
+    judge_results: list[dict[str, Any]] = []
     if not args.skip_judge:
         print(f"[graph-eval] LLM judge: {args.judge_backend}::{args.judge_model}")
         judge_llm = build_llm(
@@ -148,7 +149,7 @@ def main(argv: list[str]) -> int:
     return 0
 
 
-def _compute_intrinsic(g) -> dict:
+def _compute_intrinsic(g: Any) -> dict[str, Any]:
     """Structural-quality metrics from the graph topology alone."""
     import networkx as nx
 
@@ -157,7 +158,7 @@ def _compute_intrinsic(g) -> dict:
 
     # Node-type breakdown via the `type` attribute that
     # nuthatch.graph.build sets on every node.
-    type_counter: Counter = Counter()
+    type_counter: Counter[str] = Counter()
     isolated = 0
     for node, data in g.nodes(data=True):
         type_counter[data.get("entity_type") or data.get("node_type", "unknown")] += 1
@@ -166,7 +167,7 @@ def _compute_intrinsic(g) -> dict:
             isolated += 1
 
     # Edge-relation breakdown via the `relation` attribute.
-    relation_counter: Counter = Counter()
+    relation_counter: Counter[str] = Counter()
     for _, _, data in g.edges(data=True):
         relation_counter[data.get("relation", "unknown")] += 1
 
@@ -239,13 +240,13 @@ Do not include code fences, prefix, or any text outside the JSON.
 
 
 def _judge_extraction_quality(
-    g,
-    layout,
-    judge_llm,
+    g: Any,
+    layout: Any,
+    judge_llm: Any,
     *,
     sample_size: int,
     seed: int,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Sample documents, ask the judge LLM to rate extracted entities.
 
     Returns a list of per-document scoring dicts with `precision`
@@ -268,7 +269,7 @@ def _judge_extraction_quality(
     rng.shuffle(doc_nodes)
     sample = doc_nodes[:sample_size]
 
-    results: list[dict] = []
+    results: list[dict[str, Any]] = []
     # extracted/ is always populated post-ingest; cards/ is only there
     # if `nuthatch render` has run. Reading from extracted/ avoids a
     # render dependency.
@@ -360,10 +361,10 @@ def _load_doc_excerpt(extracted_dir: Path, doc_id: str) -> str:
 def _write_report(
     *,
     report_path: Path,
-    layout,
+    layout: Any,
     args: argparse.Namespace,
-    intrinsic: dict,
-    judge_results: list[dict],
+    intrinsic: dict[str, Any],
+    judge_results: list[dict[str, Any]],
 ) -> None:
     lines: list[str] = []
     lines.append("---")

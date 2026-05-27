@@ -42,6 +42,7 @@ import argparse
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from nuthatch.util import parse_llm_json, resolve_corpus, utc_tag
 from nuthatch.util.llm_backends import build_llm
@@ -134,7 +135,7 @@ def main(argv: list[str]) -> int:
         else:
             print(f"  {k:24s} {v}")
 
-    judge_results: list[dict] = []
+    judge_results: list[dict[str, Any]] = []
     if not args.skip_judge:
         print(f"[cluster-eval] LLM judge: {args.judge_backend}::{args.judge_model}")
         judge_llm = build_llm(
@@ -180,7 +181,7 @@ def main(argv: list[str]) -> int:
     return 0
 
 
-def _compute_intrinsic(cidx, g) -> dict:
+def _compute_intrinsic(cidx: Any, g: Any) -> dict[str, Any]:
     """Structural-quality metrics from the partition + graph."""
     sizes = [len(members) for members in cidx.members.values()]
     if not sizes:
@@ -243,7 +244,7 @@ def _compute_intrinsic(cidx, g) -> dict:
     }
 
 
-def _surprise(cidx, g) -> float | None:
+def _surprise(cidx: Any, g: Any) -> float | None:
     """Compute Aldecoa-Marin Surprise on the doc-doc projection.
 
     Surprise S = -log10 P(X >= m_P) where X ~ Hypergeom(M, F, m):
@@ -317,7 +318,7 @@ def _surprise(cidx, g) -> float | None:
         return None
 
 
-def _modularity(cidx, g) -> float | None:
+def _modularity(cidx: Any, g: Any) -> float | None:
     """Compute weighted modularity Q against the persisted partition.
 
     Modularity must be measured on the SAME graph the clustering ran on.
@@ -392,14 +393,14 @@ Do not include code fences, prefix, or any text outside the JSON.
 
 
 def _judge_community_coherence(
-    cidx,
-    layout,
-    judge_llm,
+    cidx: Any,
+    layout: Any,
+    judge_llm: Any,
     *,
     sample_communities: int,
     docs_per_community: int,
     seed: int,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Sample communities, ask the judge LLM to score coherence."""
     import random
 
@@ -417,7 +418,7 @@ def _judge_community_coherence(
     # extracted/ is populated at ingest; cards/ requires `nuthatch render`.
     # Read from extracted/ so cluster eval doesn't depend on render.
     extracted_dir = layout.extracted_dir
-    results: list[dict] = []
+    results: list[dict[str, Any]] = []
     for i, cid in enumerate(sampled, start=1):
         members = cidx.members.get(cid, [])
         # Filter to document nodes only. Graph-based backends (SBM,
@@ -526,11 +527,11 @@ def _load_doc_title_and_summary(
 def _write_report(
     *,
     report_path: Path,
-    layout,
+    layout: Any,
     args: argparse.Namespace,
-    cidx,
-    intrinsic: dict,
-    judge_results: list[dict],
+    cidx: Any,
+    intrinsic: dict[str, Any],
+    judge_results: list[dict[str, Any]],
 ) -> None:
     lines: list[str] = []
     lines.append("---")

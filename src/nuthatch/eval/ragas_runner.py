@@ -50,6 +50,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 from nuthatch.eval.rag import (
     RAGResult,
@@ -177,14 +178,12 @@ def main(argv: list[str]) -> int:
         return 2
 
     got = coll.get(include=["documents", "metadatas"])
-    chunk_records = list(
-        zip(
-            got["ids"],
-            got["documents"],
-            got["metadatas"],
-            strict=True,
-        )
-    )
+    _docs = got["documents"] or []
+    _metas = got["metadatas"] or []
+    chunk_records: list[tuple[str, str, dict[str, Any]]] = [
+        (cid, doc, cast(dict[str, Any], meta))
+        for cid, doc, meta in zip(got["ids"], _docs, _metas, strict=True)
+    ]
 
     # Build LLMs. The generator is only needed when we are about to
     # generate a testset; with --reuse-testset we skip generator entirely.
@@ -349,7 +348,7 @@ def main(argv: list[str]) -> int:
 
 def _load_testset_jsonl(
     paths: list[Path],
-    chunk_records: list[tuple[str, str, dict]],
+    chunk_records: list[tuple[str, str, dict[str, Any]]],
 ) -> list[TestExample]:
     """Load one or more persisted testsets and deduplicate by question.
 
@@ -509,7 +508,7 @@ def _build_ragas_judge(
     backend: str,
     model: str,
     num_predict: int,
-) -> object:
+) -> Any:
     """Build a RAGAS-native judge LLM using the new factory API.
 
     Migrated off the deprecated `LangchainLLMWrapper`. Talks to Ollama
@@ -697,7 +696,7 @@ def _run_ragas(
 def _write_report(
     *,
     report_path: Path,
-    layout: object,
+    layout: Any,
     args: argparse.Namespace,
     examples: list[TestExample],
     rag_results: list[RAGResult],

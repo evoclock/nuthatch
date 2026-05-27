@@ -45,12 +45,15 @@ specific combination of choices none of them makes:
   (Leiden, Louvain) cannot do this. See
   [`docs/Design_Decisions.md`](docs/Design_Decisions.md) §
   *Community-aware retrieval*.
-- **Bayesian Stochastic Block Model** (Peixoto, via
-  [graph-tool](https://graph-tool.skewed.de/)) as the principled
-  clustering ceiling, with Leiden as a graceful fallback when
-  graph-tool is unavailable. The SBM tier emits a nested hierarchy
-  that flat methods cannot, and Nuthatch persists every level so
-  agents can zoom from leaf clusters up to coarser super-clusters.
+- **Bayesian Stochastic Block Model** as the principled clustering
+  ceiling, implemented via
+  [graph-tool](https://graph-tool.skewed.de/) from
+  [Tiago Peixoto's lab](https://skewed.de/) (Center for Critical
+  Computational Studies, Goethe University Frankfurt). Leiden is a
+  graceful fallback when graph-tool is unavailable. The SBM tier
+  emits a nested hierarchy that flat methods cannot, and Nuthatch
+  persists every level so agents can zoom from leaf clusters up to
+  coarser super-clusters.
 - **Honest per-tool token-economy accounting** (BM25 baseline for
   search, card-token-sum baseline for subgraph and community)
   instead of whole-corpus headline ratios.
@@ -306,3 +309,11 @@ tasks under that direction.
 Specs and decisions are pinned in `docs/SPEC.md` and
 `docs/Design_Decisions.md` so every implementation points back
 to a spec entry.
+
+The SBM clustering tier is built on
+[graph-tool](https://graph-tool.skewed.de/), developed by
+[Tiago Peixoto](https://skewed.de/) (Center for Critical
+Computational Studies, Goethe University Frankfurt). The nested
+SBM hierarchy and the principled model-selection criterion it
+provides are the reason Nuthatch can offer a clustering ceiling
+that goes beyond what flat modularity methods produce.

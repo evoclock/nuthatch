@@ -40,6 +40,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 from nuthatch.util import resolve_corpus, utc_tag
 from nuthatch.util.palette import RELATION_COLORS, TYPE_COLORS
@@ -115,8 +116,9 @@ def main(argv: list[str]) -> int:
     # the no-overlay case; an empty discovery list under --communities
     # all also degrades to a single no-overlay render so the command
     # always produces at least one HTML.
+    overlays: list[str | None]
     if args.communities == "all":
-        overlays = _discover_overlay_suffixes(layout_dirs)
+        overlays = cast(list[str | None], _discover_overlay_suffixes(layout_dirs))
         if not overlays:
             print(
                 "[d3-viz] --communities all: no communities_*.json found; "
@@ -202,7 +204,7 @@ def _load_icon_base64() -> str:
     return "data:image/png;base64," + base64.b64encode(data).decode("ascii")
 
 
-def _discover_overlay_suffixes(layout) -> list[str]:
+def _discover_overlay_suffixes(layout: Any) -> list[str]:
     """Return all `_<suffix>` parts found in `communities_*.json` files.
 
     Used by `--communities all` to render one HTML per backend output
@@ -219,7 +221,7 @@ def _discover_overlay_suffixes(layout) -> list[str]:
 
 
 def _load_communities(
-    layout,
+    layout: Any,
     suffix: str | None,
 ) -> tuple[dict[str, int], dict[str, list[int]], dict[int, str], str]:
     """Load community membership + labels for the chosen backend's output.
@@ -274,7 +276,7 @@ def _load_communities(
     return flat_by_node, hier_by_node, labels, (suffix or "default")
 
 
-def _compute_layout(g, algorithm: str, iterations: int) -> dict:
+def _compute_layout(g: Any, algorithm: str, iterations: int) -> dict[str, Any]:
     import networkx as nx
 
     if algorithm == "forceatlas2" and hasattr(nx, "forceatlas2_layout"):
@@ -295,13 +297,13 @@ def _compute_layout(g, algorithm: str, iterations: int) -> dict:
 
 
 def _build_payload(
-    g,
-    coords,
+    g: Any,
+    coords: Any,
     *,
     community_by_node: dict[str, int] | None = None,
     hierarchy_by_node: dict[str, list[int]] | None = None,
     community_labels_raw: dict[int, str] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Build the JSON payload the browser-side D3 code consumes.
 
     Per-node fields:
@@ -331,7 +333,7 @@ def _build_payload(
     xmin, xmax = min(xs), max(xs)
     ymin, ymax = min(ys), max(ys)
 
-    def _norm(v, lo, hi):
+    def _norm(v: float, lo: float, hi: float) -> float:
         return (v - lo) / (hi - lo) * 2 - 1 if hi > lo else 0.0
 
     nodes_out = []

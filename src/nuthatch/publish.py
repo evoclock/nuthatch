@@ -55,7 +55,7 @@ import tarfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # Sane defaults for license. CC-BY-4.0 is the right call for a corpus
 # derived from CC-BY-4.0 preprints (typical for bioRxiv / arXiv mixes).
@@ -1141,8 +1141,9 @@ def _merge_community_into_graph(
       - legacy: `{nodes, links}` at top level
     Handle both.
     """
-    graph = json.loads(graph_path.read_text(encoding="utf-8"))
-    data = graph.get("data") if isinstance(graph.get("data"), dict) else graph
+    graph: dict[str, Any] = cast(dict[str, Any], json.loads(graph_path.read_text(encoding="utf-8")))
+    _inner = graph.get("data")
+    data: dict[str, Any] = _inner if isinstance(_inner, dict) else graph
 
     # Build doc_id -> (community_id, community_label) from SBM if present.
     cid_by_doc: dict[str, int] = {}

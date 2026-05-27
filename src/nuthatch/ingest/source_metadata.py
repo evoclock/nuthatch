@@ -41,7 +41,7 @@ import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from xml.etree import ElementTree as ET
 
 from nuthatch.ingest.security import SecurityResult, validate_url
@@ -154,7 +154,8 @@ def _cache_read(cache_dir: Path, key: str) -> dict[str, Any] | None:
     if not path.is_file():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        result: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        return result
     except json.JSONDecodeError:
         return None
 
@@ -190,7 +191,7 @@ def _fetch_url(
             with urllib.request.urlopen(req, timeout=_FETCH_TIMEOUT_SECONDS) as resp:
                 if resp.status != 200:
                     return None
-                return resp.read().decode("utf-8", errors="replace")
+                return cast(str, resp.read().decode("utf-8", errors="replace"))
         except urllib.error.HTTPError as exc:
             if exc.code == 429 and attempt < _MAX_RETRY_ON_429:
                 delay = _RETRY_BASE_DELAY_SECONDS * (2**attempt)

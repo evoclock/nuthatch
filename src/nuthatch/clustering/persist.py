@@ -95,7 +95,7 @@ class CommunityIndex:
     # SBM-only: full dict of graph-tool inference + structural metrics.
     # Schema: see backends/sbm.py:_extract_gt_metrics.
     # None for heuristic / embeddings-only backends.
-    gt_metrics: dict | None
+    gt_metrics: dict[str, Any] | None
 
     def community_for(self, doc_id: str) -> int | None:
         # Persisted `flat` keys may be either bare doc_ids or graph node

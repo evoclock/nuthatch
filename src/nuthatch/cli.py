@@ -1510,7 +1510,7 @@ def _cmd_render(args: argparse.Namespace) -> int:
         return 2
 
     # Build paper_metadata from the .kg/extracted/*.meta.json sidecars.
-    paper_metadata: dict[str, dict] = {}
+    paper_metadata: dict[str, dict[str, Any]] = {}
     for meta_path in layout.extracted_dir.glob("*.meta.json"):
         try:
             data = _json.loads(meta_path.read_text(encoding="utf-8"))
@@ -1622,7 +1622,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     store = ChromaVectorStore(root=layout.embeddings_dir)
     retriever = VectorRetriever(store, embedder=Embedder())
 
-    def _graph_loader():
+    def _graph_loader() -> Any:
         return load_graph(graph_path)
 
     # Bind a TokenLog so `token_econ_report` works. The log is append-only;
@@ -1660,10 +1660,10 @@ def _cmd_publish(args: argparse.Namespace) -> int:
     # The tool repo root carries `docs/eval-*.md` reports. We detect it
     # by walking up from this file; fall back to None which disables the
     # eval-copy step gracefully.
+    tool_repo_root: Path | None
     try:
-        tool_repo_root = Path(__file__).resolve().parents[2]
-        if not (tool_repo_root / "docs").is_dir():
-            tool_repo_root = None
+        _candidate = Path(__file__).resolve().parents[2]
+        tool_repo_root = _candidate if (_candidate / "docs").is_dir() else None
     except Exception:
         tool_repo_root = None
 
