@@ -82,6 +82,9 @@ class TestServeTokenLogWiring:
             def __init__(self, *a: Any, **kw: Any) -> None:
                 pass
 
+            def iter_chunks(self) -> list:
+                return []
+
         class _NullEmbedder:
             def __init__(self, *a: Any, **kw: Any) -> None:
                 pass

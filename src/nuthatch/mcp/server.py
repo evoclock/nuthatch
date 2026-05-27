@@ -358,11 +358,14 @@ class NuthatchMCPServer(MCPServer):
         seeds = args.get("seed_nodes") or []
         if not isinstance(seeds, list) or not seeds:
             return _error("seed_nodes (non-empty list) is required")
-        depth = int(args.get("depth", 2))
+        depth = int(args.get("depth", 1))
+        max_nodes = args.get("max_nodes")
+        cap: int | None = int(max_nodes) if max_nodes is not None else None
         g = self._graph_loader()
         visited: set[str] = set(seeds)
         frontier: set[str] = set(seeds)
         edges: list[tuple[str, str, str]] = []
+        truncated = False
         for _ in range(max(depth, 0)):
             next_frontier: set[str] = set()
             for n in frontier:
@@ -376,16 +379,16 @@ class NuthatchMCPServer(MCPServer):
                     )))
             visited.update(next_frontier)
             frontier = next_frontier
-        return _text(
-            json.dumps(
-                {
-                    "nodes": sorted(visited),
-                    "edges": edges,
-                },
-                indent=2,
-                default=str,
-            )
-        )
+            if cap is not None and len(visited) >= cap:
+                truncated = True
+                break
+        payload: dict[str, Any] = {
+            "nodes": sorted(visited),
+            "edges": edges,
+        }
+        if truncated:
+            payload["truncated"] = True
+        return _text(json.dumps(payload, indent=2, default=str))
 
     def _card_get(self, args: dict[str, Any]) -> dict[str, Any]:
         doc_id = str(args.get("doc_id", "")).strip()
@@ -636,12 +639,38 @@ def _default_community_reader(layout: CorpusLayout):
     communities_dir = layout.root / "communities"
 
     def _read(community_id: str) -> str | None:
+        # Try ID-based filename first (internal corpora).
         path = communities_dir / f"{community_id}.md"
         if path.is_file():
             return path.read_text(encoding="utf-8")
+        # Fall back to slugified label (published KBs rendered with
+        # slug-based filenames, e.g. "genomic-interactions-....md").
+        try:
+            from nuthatch.clustering.persist import load_community_index
+            idx = load_community_index(layout)
+            if idx is not None:
+                label = idx.labels.get(int(community_id), "")
+                if label:
+                    slug = _slugify(label)
+                    slug_path = communities_dir / f"{slug}.md"
+                    if slug_path.is_file():
+                        return slug_path.read_text(encoding="utf-8")
+        except (ValueError, TypeError):
+            pass
         return None
 
     return _read
+
+
+def _slugify(text: str, max_len: int = 64) -> str:
+    """Lowercase dashed slug — mirrors `render.obsidian._slugify`."""
+    import re
+    if not text:
+        return "untitled"
+    s = text.lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    s = s.strip("-")
+    return s[:max_len]
 
 
 def _tool_registry() -> dict[str, dict[str, Any]]:
@@ -667,7 +696,8 @@ def _tool_registry() -> dict[str, dict[str, Any]]:
                         "items": {"type": "string"},
                         "description": "Node IDs to seed the BFS from",
                     },
-                    "depth": {"type": "integer", "default": 2, "description": "BFS hops"},
+                    "depth": {"type": "integer", "default": 1, "description": "BFS hops (default 1; depth=2 squares fan-out)"},
+                    "max_nodes": {"type": "integer", "description": "Cap total visited nodes; returns truncated=true when hit"},
                 },
                 "required": ["seed_nodes"],
             },

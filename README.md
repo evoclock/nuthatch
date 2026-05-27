@@ -74,7 +74,7 @@ specific combination of choices none of them makes:
   chain), and `community_label` so an agent can route directly
   into the relevant cluster without paying for a card fetch first.
   Plus `community_search` ranks communities semantically by
-  query-to-centroid cosine — flat modularity-based clustering
+  query-to-centroid cosine; flat modularity-based clustering
   (Leiden, Louvain) cannot do this. See
   [`docs/Design_Decisions.md`](docs/Design_Decisions.md) §
   *Community-aware retrieval*.
@@ -100,7 +100,7 @@ specific combination of choices none of them makes:
 <p align="center">
   <img src="assets/Token_economy.png" alt="Nuthatch token-economy report: per-tool actual cost vs BM25 and card-sum baselines" width="720">
   <br/>
-  <em>Per-tool token-economy report from <code>token_econ_report</code>. Each tool is measured against two honest baselines: BM25 (what a flat keyword search over the whole corpus would cost) for search tools, and card-token-sum (the cost of fetching every card) for subgraph and community tools. The ratio shows how much of the corpus a query actually touches. Whole-corpus headline ratios — the strawman used by most graph-RAG tools — inflate the savings figure by comparing against a ceiling nobody would pay; Nuthatch compares against what a reasonable alternative would actually cost.</em>
+  <em>Per-tool token-economy report from <code>token_econ_report</code>. Each tool is measured against two honest baselines: BM25 (what a flat keyword search over the whole corpus would cost) for search tools, and card-token-sum (the cost of fetching every card) for subgraph and community tools. The ratio shows how much of the corpus a query actually touches. Whole-corpus headline ratios inflate the savings figure by comparing against a ceiling nobody would pay; Nuthatch compares against what a reasonable alternative would actually cost.</em>
 </p>
 
 The corpus type is a schema profile, not a category constraint.
@@ -133,8 +133,9 @@ end-to-end pipeline integration, suffix-rename invariants,
 publish-side canonical promotion, `--relabel-llm` round-trip with
 mock LLM).
 
-Not yet shipped: a pre-built reference corpus, a hosted demo.
-PyPI publication is in flight.
+A pre-built reference corpus
+([nuthatch-kb-demo](https://github.com/evoclock/nuthatch-kb-demo))
+and a short demo are shipped. PyPI publication is in progress.
 
 ## Roadmap
 
