@@ -15,25 +15,111 @@ documents, technical reports, notes, Repomix-preprocessed codebases,
 or any text-based source) into a navigable knowledge graph and
 serves it to an MCP-aware agent (Claude Code, Codex, OpenCode,
 Aider, Pi, Hermes, an Obsidian plugin, or your own client). The
-agent queries the graph through five read-only MCP tools; the
+agent queries the graph through nine read-only MCP tools; the
 operator drives the build pipeline through a five-stage CLI.
 
-The rendered corpus opens as an Obsidian-compatible vault: per-paper
-cards live under `cards/`, per-community pages under `communities/`,
-with `dashboard.md` / `index.md` / `log.md` at the top. Wikilinks
-between cards drive Obsidian's graph view; Dataview queries in the
-dashboard filter by tag / year / community.
+The rendered corpus also opens as an Obsidian-compatible vault:
+per-paper cards live under `cards/`, per-community pages under
+`communities/`, with `dashboard.md` / `index.md` / `log.md` at
+the top. Wikilinks between cards drive Obsidian's graph view;
+Dataview queries in the dashboard filter by tag / year / community.
 
-The architecture is documented in
-[`docs/Design_Decisions.md`](docs/Design_Decisions.md) and the
-operator workflow in [`docs/HOWTO.md`](docs/HOWTO.md). The diagram
-below is the data lifecycle; the corresponding module graph and the
-full architecture set are at
-[`docs/architecture/`](docs/architecture/).
+The corpus type is a schema profile, not a category constraint.
+Nuthatch is designed for any structured-corpus problem where
+graph-augmented retrieval helps.
+
+## Why it exists
+
+The graph-augmented retrieval space has working open-source
+implementations (Microsoft GraphRAG, graphify, LightRAG, HippoRAG,
+nano-graphrag) plus adjacent tools (Cognee, PaperQA2, Khoj, Verba).
+We surveyed them and built Nuthatch anyway because we wanted a
+specific combination of choices none of them makes:
+
+- **Community-aware retrieval, not just clustering.** Every chunk
+  hit carries `community_id`, `community_path` (the nested SBM
+  chain), and `community_label` so an agent can route directly
+  into the relevant cluster without paying for a card fetch first.
+  Plus `community_search` ranks communities semantically by
+  query-to-centroid cosine; flat modularity-based clustering
+  (Leiden, Louvain) cannot do this. See
+  [`docs/Design_Decisions.md`](docs/Design_Decisions.md) §
+  *Community-aware retrieval*.
+- **Bayesian Stochastic Block Model** (Peixoto, via
+  [graph-tool](https://graph-tool.skewed.de/)) as the principled
+  clustering ceiling, with Leiden as a graceful fallback when
+  graph-tool is unavailable. The SBM tier emits a nested hierarchy
+  that flat methods cannot, and Nuthatch persists every level so
+  agents can zoom from leaf clusters up to coarser super-clusters.
+- **Honest per-tool token-economy accounting** (BM25 baseline for
+  search, card-token-sum baseline for subgraph and community)
+  instead of whole-corpus headline ratios.
+- **Build pipeline triggered out-of-band** by the operator with
+  quality gates between stages, never end-to-end unattended.
+- **Strict schema quarantine on ingest** with reasoned per-file
+  failure sidecars.
+- **Authoritative metadata fetched from publisher APIs** (arxiv,
+  bioRxiv) rather than parsed from PDF body text.
+- **User-extensible schema profiles** supporting papers, patents,
+  internal documents, and arbitrary user-defined types.
+- **A read-only MCP query surface** that the agent cannot mutate.
+
+## Quick start
+
+See [`docs/HOWTO.md`](docs/HOWTO.md) for the full operator guide
+covering install, corpus initialisation, the five-stage build
+pipeline, MCP registration per agent host, and stop / resume
+semantics. The short version:
+
+```bash
+pipx install git+https://github.com/evoclock/nuthatch.git@main
+nuthatch init ~/my-corpus --register-as my-corpus --set-default
+
+# Drop sources anywhere under the corpus root (inbox/, arxiv/,
+# bioarxiv/, notes/, root-level: your choice). Then trigger each
+# pipeline stage in sequence and inspect between stages.
+
+scripts/ops/launch-stage.sh ingest  my-corpus
+scripts/ops/launch-stage.sh embed   my-corpus
+scripts/ops/launch-stage.sh graph   my-corpus
+scripts/ops/launch-stage.sh cluster my-corpus
+nuthatch render --corpus my-corpus
+
+# Then serve it to an MCP-aware agent:
+nuthatch serve --corpus my-corpus
+```
+
+A pre-built reference corpus
+([nuthatch-kb-demo](https://github.com/evoclock/nuthatch-kb-demo))
+is available to explore before building your own.
+
+## Documentation
+
+- [`docs/Design_Decisions.md`](docs/Design_Decisions.md): architectural
+  choices and the reasoning behind each, including the peer-landscape
+  survey and the token-economy methodology
+- [`docs/HOWTO.md`](docs/HOWTO.md): operator runbook for the
+  five-stage pipeline plus the MCP query surface
+- [`docs/SPEC.md`](docs/SPEC.md): the architecture spine
+- [`docs/extraction-benchmarks/ocr-comparison.md`](docs/extraction-benchmarks/ocr-comparison.md):
+  evidence for the OCR routing decisions (Chandra vs Docling vs
+  EasyOCR vs Granite vs SmolDocling across three representative
+  scanned papers)
+- Per-agent skill files under `agent_skills/` (`skill-claude-code.md`,
+  `skill-codex.md`, `skill-aider.md`, `skill-opencode.md`,
+  `skill-pi.md`, `skill-hermes.md`) for MCP registration details and
+  recommended multi-step query flows
+
+## Architecture
 
 <p align="center">
   <img src="docs/architecture/nuthatch_data_lifecycle.svg" alt="Nuthatch data lifecycle" width="720">
 </p>
+
+The full module graph and architecture diagrams are at
+[`docs/architecture/`](docs/architecture/).
+
+## The corpus graph
 
 <p align="center">
   <img src="assets/screenshots/sbm_full.png" alt="Nuthatch D3 topology viz: full SBM partition with some filters dropped" width="720">
@@ -61,41 +147,7 @@ full architecture set are at
   </a>
 </p>
 
-## Why it exists
-
-The graph-augmented retrieval space has working open-source
-implementations (Microsoft GraphRAG, graphify, LightRAG, HippoRAG,
-nano-graphrag) plus adjacent tools (Cognee, PaperQA2, Khoj, Verba).
-We surveyed them and built Nuthatch anyway because we wanted a
-specific combination of choices none of them makes:
-
-- **Community-aware retrieval, not just clustering.** Every chunk
-  hit carries `community_id`, `community_path` (the nested SBM
-  chain), and `community_label` so an agent can route directly
-  into the relevant cluster without paying for a card fetch first.
-  Plus `community_search` ranks communities semantically by
-  query-to-centroid cosine; flat modularity-based clustering
-  (Leiden, Louvain) cannot do this. See
-  [`docs/Design_Decisions.md`](docs/Design_Decisions.md) §
-  *Community-aware retrieval*.
-- Bayesian Stochastic Block Model (Peixoto, via
-  [graph-tool](https://graph-tool.skewed.de/)) as the principled
-  clustering ceiling, with Leiden as a graceful fallback when
-  graph-tool is unavailable. The SBM tier emits a nested hierarchy
-  that flat methods cannot, and Nuthatch persists every level so
-  agents can zoom from leaf clusters up to coarser super-clusters.
-- Honest per-tool token-economy accounting (BM25 baseline for
-  search, card-token-sum baseline for subgraph and community)
-  instead of whole-corpus headline ratios
-- Build pipeline triggered out-of-band by the operator with quality
-  gates between stages, never end-to-end unattended
-- Strict schema quarantine on ingest with reasoned per-file failure
-  sidecars
-- Authoritative metadata fetched from publisher APIs (arxiv,
-  bioRxiv) rather than parsed from PDF body text
-- User-extensible schema profiles supporting papers, patents,
-  internal documents, and arbitrary user-defined types
-- A read-only MCP query surface that the agent cannot mutate
+## Token economy
 
 <p align="center">
   <img src="assets/Token_economy.png" alt="Nuthatch token-economy report: per-tool actual cost vs BM25 and card-sum baselines" width="720">
@@ -117,15 +169,11 @@ The `community_hierarchy` (138×) and `community_core_nodes` (139×) figures are
 
 `community_get` (21×) and `community_brief` (8×) are likewise honest. The community page bundles information that would otherwise require fetching every member card individually; the brief is a strict subset of the full page and the ratio is exact by construction.
 
-`community_search` at 22,000× is a known upper bound and should be read as such. The counterfactual used is `n_total_chunks × avg_chunk_tokens` - the total token cost of scanning every chunk in the corpus to do brute-force cosine grouping by community. That ceiling is real but nobody would actually pay it: no agent working with a 123-paper corpus loads all 123 papers into its context window per query just to find relevant communities. A smarter fallback would be `corpus_search(query, k=large)`, which already returns `community_id` metadata, at a cost of a few thousand tokens. The honest ratio for `community_search` is therefore somewhere in the 50–150× range. The 22,000× figure is preserved in the report because it is the correct answer to the specific counterfactual question posed ("what if you had no centroid index at all and had to read every chunk?"), but it is not a number to put in a headline. Some tools in this space make such claims without compunction; this project does not, because the whole point is to keep the numbers honest.
+`community_search` at 22,000× is a known upper bound and should be read as such. The counterfactual used is `n_total_chunks × avg_chunk_tokens` - the total token cost of scanning every chunk in the corpus to do brute-force cosine grouping by community. That ceiling is real but nobody would actually pay it: no agent working with a 123-paper corpus loads all 123 papers into its context window per query just to find relevant communities. A smarter fallback would be `corpus_search(query, k=large)`, which already returns `community_id` metadata, at a cost of a few thousand tokens. The honest ratio for `community_search` is therefore somewhere in the 50-150× range. The 22,000× figure is preserved in the report because it is the correct answer to the specific counterfactual question posed ("what if you had no centroid index at all and had to read every chunk?"), but it is not a number to put in a headline. Some tools in this space make such claims without compunction; this project does not, because the whole point is to keep the numbers honest.
 
 `subgraph_extract` at 0.57× is correctly negative and stays in the report. Depth-2 BFS on this corpus returns more tokens than the card-sum baseline it is compared against - it fans out too aggressively. The default depth has been changed to 1 and a `max_nodes` cap added; at depth 1 the ratio becomes positive, and the negative result from the earlier session is kept as a reminder that graph tools can inflate context just as easily as they compress it.
 
-The corpus type is a schema profile, not a category constraint.
-Nuthatch is designed for any structured-corpus problem where
-graph-augmented retrieval helps.
-
-## Status
+## Status and roadmap
 
 The build pipeline is operational. The five build stages
 (`ingest`, `embed`, `graph`, `cluster`, `render`) chain into a
@@ -149,13 +197,7 @@ The test suite covers every contract (routing thresholds, model
 defaults, chunk coverage, reranker invocation, schema validation,
 end-to-end pipeline integration, suffix-rename invariants,
 publish-side canonical promotion, `--relabel-llm` round-trip with
-mock LLM).
-
-A pre-built reference corpus
-([nuthatch-kb-demo](https://github.com/evoclock/nuthatch-kb-demo))
-and a short demo are shipped. PyPI publication is in progress.
-
-## Roadmap
+mock LLM). PyPI publication is in progress.
 
 Planned work, not yet landed:
 
@@ -193,48 +235,6 @@ Planned work, not yet landed:
   identified during the PhD knowledge-base build as superior
   to Docling-derived embeddings for paper retrieval) becomes
   the documented default. Other profiles keep BGE-M3.
-
-## Quick start
-
-See [`docs/HOWTO.md`](docs/HOWTO.md) for the recipe-style operator
-guide covering install, corpus initialisation, the five-stage build
-pipeline, MCP registration per agent host, and stop / resume
-semantics. The short version:
-
-```bash
-pipx install git+https://github.com/evoclock/nuthatch.git@main
-nuthatch init ~/my-corpus --register-as my-corpus --set-default
-
-# Drop sources anywhere under the corpus root (inbox/, arxiv/,
-# bioarxiv/, notes/, root-level: your choice). Then trigger each
-# pipeline stage in sequence and inspect between stages.
-
-scripts/ops/launch-stage.sh ingest  my-corpus
-scripts/ops/launch-stage.sh embed   my-corpus
-scripts/ops/launch-stage.sh graph   my-corpus
-scripts/ops/launch-stage.sh cluster my-corpus
-nuthatch render --corpus my-corpus
-
-# Then serve it to an MCP-aware agent:
-nuthatch serve --corpus my-corpus
-```
-
-## Documentation
-
-- [`docs/Design_Decisions.md`](docs/Design_Decisions.md): the
-  architectural choices and the reasoning behind each, including
-  the peer-landscape survey and the token-economy methodology
-- [`docs/HOWTO.md`](docs/HOWTO.md): operator runbook for the
-  five-stage pipeline plus the MCP query surface
-- [`docs/SPEC.md`](docs/SPEC.md): the architecture spine
-- [`docs/extraction-benchmarks/ocr-comparison.md`](docs/extraction-benchmarks/ocr-comparison.md):
-  evidence for the OCR routing decisions (Chandra vs Docling vs
-  EasyOCR vs Granite vs SmolDocling across three representative
-  scanned papers)
-- Per-agent skill files under `agent_skills/` (`skill-claude-code.md`,
-  `skill-codex.md`, `skill-aider.md`, `skill-opencode.md`,
-  `skill-pi.md`, `skill-hermes.md`) for MCP registration details and
-  recommended multi-step query flows
 
 ## Licence
 
