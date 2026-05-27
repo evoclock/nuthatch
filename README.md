@@ -48,8 +48,8 @@ specific combination of choices none of them makes:
 - **Bayesian Stochastic Block Model** as the principled clustering
   ceiling, implemented via
   [graph-tool](https://graph-tool.skewed.de/) from
-  [Tiago Peixoto's lab](https://skewed.de/) (Center for Critical
-  Computational Studies, Goethe University Frankfurt). Leiden is a
+  [Tiago Peixoto's lab](https://skewed.de/) (Professor of Complex Systems and Network Science,
+  Goethe University Frankfurt). Leiden is a
   graceful fallback when graph-tool is unavailable. The SBM tier
   emits a nested hierarchy that flat methods cannot, and Nuthatch
   persists every level so agents can zoom from leaf clusters up to
