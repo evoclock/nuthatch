@@ -98,7 +98,7 @@ via its Bash tool. The agent's flow should be:
 > 5. Ask before triggering the next stage. Never chain
 >    `ingest && embed && graph && cluster && render` unattended.
 
-The skill files in this repo (`skill-claude-code.md`,
+The skill files under `agent_skills/` (`skill-claude-code.md`,
 `skill-codex.md`, etc.) embed this discipline so per-host
 agents have it as their default. Per Design_Decisions.md §
 "Execution model", server-side orchestration inside the MCP
@@ -398,6 +398,38 @@ NUTHATCH_BIN=$(conda run -n nuthatch-gt which nuthatch) \
 The CLI prints `rigor=principled` (SBM) or `rigor=heuristic`
 (Leiden) so you know which tier you got.
 
+### Optional: LLM-named community labels
+
+The default labels are heuristic word-frequency strings
+("circadian gene expression mouse"). Pass `--relabel-llm` to
+replace them with topical 2-4 word names produced by a local
+LLM ("Circadian Molecular Biology"):
+
+```bash
+nuthatch cluster --corpus my-corpus --backend sbm --relabel-llm \
+    --relabel-backend ollama --relabel-model granite3-dense:8b
+```
+
+The relabel pass writes back into the canonical
+`communities.json` and every `communities_<suffix>.json` sibling
+produced by this run, so the labels stay consistent across the
+on-disk views. Requires `ollama serve` and the model already
+pulled (`ollama pull granite3-dense:8b`). When `--relabel-llm`
+is omitted, the heuristic labels are kept and the rendered
+cards / community pages carry those instead.
+
+### `--output-suffix` is copy-not-rename
+
+`--output-suffix sbm` writes an additional
+`communities_sbm.json` (and `community_centroids_sbm.npy`)
+under `.kg/`; the canonical `communities.json` /
+`community_centroids.npy` are preserved. Use this when you want
+to compare backends side-by-side: run each backend with its own
+suffix, and the canonical is whichever ran last without one. The
+MCP server (`nuthatch serve`) reads canonical exclusively;
+suffixed copies are there for ad-hoc inspection and the D3 viz's
+`--communities <suffix>` overlay.
+
 ### Inspect partition
 
 ```bash
@@ -415,6 +447,43 @@ One giant community containing nearly everything is a sign of a
 bad partition: re-run, switch rigor tier, or look at why the
 graph has so little structural signal (often: weak entity
 extraction in stage 3).
+
+## Optional: visualise the graph
+
+`nuthatch viz d3` renders an interactive D3 + HTML5-canvas view of the
+corpus graph. The expensive step (force-directed layout) runs once
+server-side and is reused across every overlay, so emitting one HTML
+per clustering backend is cheap.
+
+```bash
+# Baseline: no community overlay, just the topology
+nuthatch viz d3 --corpus my-corpus
+
+# Color nodes by SBM community membership
+nuthatch viz d3 --corpus my-corpus --communities sbm
+
+# Emit one HTML per available communities_<backend>.json
+# (sbm, leiden, embeddings - whichever you have on disk)
+nuthatch viz d3 --corpus my-corpus --communities all
+```
+
+Outputs land in `pipeline_output/graph_topology_d3_<label>_<UTC>.html`.
+Open any of them in a browser; drag to pan, scroll to zoom, hover for
+node details, toggle entity types + relations from the in-page filter
+panel.
+
+Useful flags:
+
+- `--filter-types document,topic,method` — keep only specific entity
+  types (defaults to all)
+- `--max-nodes 3000` — degree-prune to the top-N nodes if the graph is
+  larger than your browser can comfortably handle
+- `--layout {forceatlas2,spring,kamada_kawai}` — layout algorithm;
+  forceatlas2 is the default and the best balance of speed and quality
+- `--layout-iterations 200` — more iterations = better layout, slower
+
+Not on the critical pipeline path; renders in tens of seconds for typical
+corpora. No tmux / `launch-stage.sh` wrapper needed.
 
 ## Stage 5: render
 
@@ -441,7 +510,117 @@ Open `~/my-corpus/` as a vault in [Obsidian](https://obsidian.md)
 to navigate the result visually. The cards use Dataview-friendly
 YAML frontmatter so you can query the corpus from inside Obsidian
 ("all papers tagged X", "low-relevance archive candidates",
-"papers needing schema fix", etc.).
+"papers needing schema fix", etc.). The dedicated setup guide is
+the next section.
+
+## Opening the corpus in Obsidian
+
+### One-time setup
+
+1. Install [Obsidian](https://obsidian.md) if you have not already.
+2. Open Obsidian and choose **Open folder as vault**.
+3. Navigate to your corpus root (e.g. `~/my-corpus/`) and click
+   **Open**. Obsidian will index the tree.
+4. Go to **Settings → Community plugins**, disable safe mode, and
+   install the **Dataview** plugin. Enable it. That is the only
+   required plugin; everything else is optional.
+
+The vault is immediately navigable once Dataview is enabled. The
+`dashboard.md` and `index.md` files at the vault root render live
+Dataview queries against the `cards/` and `communities/` folders.
+
+### Vault layout
+
+```text
+<corpus-root>/          ← open this as the Obsidian vault
+├── cards/              ← one note per document
+│   └── <doc_id>.md    ←   YAML frontmatter + abstract + topics
+├── communities/        ← one note per community cluster
+│   └── <id>.md        ←   member list, core papers, description
+├── dashboard.md        ← quick-access Dataview queries
+├── index.md            ← content catalog by type
+└── log.md              ← append-only ingest/export history
+```
+
+`cards/` and `communities/` are populated by `nuthatch render`. The
+other three files are regenerated on every render run.
+
+### Navigating the vault
+
+**Start at `dashboard.md`.** It has four ready-to-run Dataview
+tables:
+
+- Recently ingested papers (sorted by ingest date)
+- Highest-relevance papers (sorted by relevance score)
+- Papers by community (the main thematic grouping)
+- All communities with member counts
+
+**Click any wikilink** (`[[doc_id|title]]`) from a community page
+to jump to that paper's card. Every card's frontmatter carries
+`community_id`, `community_path`, and `community_label` so you can
+follow the graph from any paper back to its cluster.
+
+**Use `index.md`** for a flat sorted list of all documents and
+communities. Useful when you want alphabetical or by-year access
+rather than thematic grouping.
+
+**Graph view** (`Ctrl+G` / `Cmd+G`) visualises the wikilink network
+between cards and community pages. Community pages link to every
+member card, so the graph view naturally shows community structure.
+Enable **Filters → Show attachments: off** and
+**Groups → color by tag** to highlight community membership.
+
+### Dataview query examples
+
+All queries run in a `dataview` fenced code block inside any note.
+
+Papers in community 23:
+
+```dataview
+TABLE title, year, authors
+FROM "cards"
+WHERE community_id = 23
+SORT year ASC
+```
+
+Papers tagged with a specific topic:
+
+```dataview
+TABLE title, year, community_label
+FROM "cards"
+WHERE contains(tags, "reinforcement-learning")
+SORT year ASC
+```
+
+All communities sorted by size:
+
+```dataview
+TABLE n_members, backend
+FROM "communities"
+SORT n_members DESC
+```
+
+Papers not yet assigned to a community (extraction or clustering
+incomplete):
+
+```dataview
+TABLE title, year
+FROM "cards"
+WHERE community_id = null
+```
+
+### Re-rendering after pipeline changes
+
+Run `nuthatch render --corpus my-corpus` any time you:
+
+- Re-cluster with a different backend (SBM, Leiden, embeddings)
+- Update community descriptions
+- Add new papers (after ingest + embed + graph + cluster)
+
+The render stage is fast and idempotent; cards whose content did not
+change are rewritten identically. After re-render, close and reopen
+Obsidian (or run **Reload app without saving** from the command
+palette) to pick up changes to the Dataview cache.
 
 ## Serve: the MCP query surface
 
@@ -486,7 +665,7 @@ LLM-facing recipe:
 That flow replaces what an Obsidian-only setup or a flat-vector-
 search tool would force into N round-trips, one per hit.
 
-Each skill file in the repo (`skill-claude-code.md`,
+Each skill file under `agent_skills/` (`skill-claude-code.md`,
 `skill-codex.md`, `skill-aider.md`, `skill-opencode.md`,
 `skill-pi.md`, `skill-hermes.md`) shows the host-specific
 registration steps.
@@ -506,6 +685,64 @@ For Claude Code specifically:
 
 added to `~/.claude.json`'s `mcpServers` block, then restart
 Claude Code.
+
+## Publish: a shareable KB directory
+
+Once `render` has produced cards, communities, and dashboards
+inside the corpus root, `nuthatch publish` promotes the
+consumable surface (cards, communities, dashboard, graph JSON,
+community indexes, optional chroma archive, AGENTS / CAPABILITIES
+manifests) into a destination of your choice. The destination is
+the artifact you ship: a folder an agent host can
+`nuthatch serve` against, a human can open as an Obsidian vault,
+or you can commit to its own git repo for distribution.
+
+```bash
+nuthatch publish --corpus my-corpus \
+    --to ~/my-kb-name \
+    --name my-kb-name \
+    --license CC-BY-4.0
+```
+
+What lands by default:
+
+- Human-navigable: `README.md`, `AGENTS.md`, `OVERVIEW.md`,
+  `LICENSE`, `cards/`, `communities/`, `dashboard.md`,
+  `index.md`, `log.md`, `.obsidian/{graph,app,appearance,community-plugins}.json`,
+  `docs/graph.html` (latest D3 viz)
+- Agent-readable: `.kg/graph/graph.json`, `.kg/communities*.json`,
+  `.kg/community_centroids.npy`, `embeddings.tar.gz` (chroma
+  archive at KB root for visibility),
+  `CAPABILITIES.json`, `mcp_config.example.json`
+- Provenance: `docs/eval-*.md` if present in the tool repo,
+  `publish_manifest.jsonl` (per-file sha256 + role)
+
+What is never copied: source PDFs (copyright), `.kg/extracted/`
+body text (opt in via `--include-bodies`), `.kg/audit/`
+(operator-private), `.kg/manifest.jsonl` (corpus-internal paths).
+
+Useful flags:
+
+- `--no-chroma`: skip the chroma archive. The KB is still
+  queryable by the on-disk Obsidian surface; MCP retrieval
+  tools (`corpus_search`, `community_search`) won't work
+  without it.
+- `--include-bodies`: ship the full body markdown under
+  `.kg/extracted/`. Required only if downstream consumers
+  need raw text beyond the cards.
+- `--license <SPDX>`: defaults to `CC-BY-4.0` (right for
+  bioRxiv / arXiv-derived corpora). Pass `Apache-2.0`, `MIT`,
+  `CC-BY-SA-4.0`, `CC0-1.0`, or `PROPRIETARY` as appropriate.
+- `--no-d3-html`: skip the D3 viz copy if your destination
+  doesn't need it.
+
+The destination is overwritten on each re-publish, and
+`publish_manifest.jsonl` records per-file provenance so
+re-publishes are diffable.
+
+After publishing, the destination can be served by
+`nuthatch serve --corpus ~/my-kb-name` (after the chroma
+archive is unpacked: `mkdir -p .kg && tar xzf embeddings.tar.gz -C .kg/`).
 
 ## Watch mode (continuous ingest)
 
@@ -573,5 +810,5 @@ tmux kill-session -t nuthatch-<stage>
 - `extraction-benchmarks/ocr-comparison.md`. The OCR-backend
   evidence (Chandra vs Docling vs EasyOCR vs Granite vs SmolDocling
   on three representative scanned papers)
-- The per-agent skill files (`skill-*.md` in the repo root) for
+- The per-agent skill files under `agent_skills/skill-*.md` for
   MCP registration details per host

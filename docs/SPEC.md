@@ -161,8 +161,8 @@ without ever having to walk the global graph. See
 `docs/Design_Decisions.md` § *Community-aware retrieval* for the
 full rationale.
 
-Per-agent registration recipes live in the `skill-*.md` files at
-the repo root (one per supported host: `skill-claude-code.md`,
+Per-agent registration recipes live in the `agent_skills/skill-*.md`
+files (one per supported host: `skill-claude-code.md`,
 `skill-codex.md`, `skill-aider.md`, `skill-opencode.md`,
 `skill-pi.md`, `skill-hermes.md`).
 
@@ -206,7 +206,9 @@ src/nuthatch/
 |-- decay/                  decay + supersession pass over cards + graph
 |-- render/                 Obsidian cards, communities, dashboard, HTML companions
 |-- retrieve/vector.py      query-side embedding + Chroma retrieval
-|-- mcp/server.py           stdio JSON-RPC server + 5 tools
+|-- mcp/server.py           stdio JSON-RPC server + 9 tools
+|-- publish.py              promote agent-facing surface into a shareable KB
+|-- viz/d3_renderer.py      D3 + canvas topology viz (force-atlas2, Catppuccin)
 `-- token_econ/             per-tool counterfactual + JSONL log + markdown report
 ```
 

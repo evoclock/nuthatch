@@ -2,11 +2,10 @@
 SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
 SPDX-License-Identifier: Apache-2.0
 
-This is the XML-tagged AGENTS doc, primary surface for Claude /
-Anthropic and other modern LLM agents that parse XML reliably.
-A plain-markdown sibling lives at AGENTS-MARKDOWN.md for agents
-that prefer markdown sections (older / smaller / local models).
-Both documents carry the same content; keep them in sync.
+Primary tool-spec surface for any agent host that reads
+repo-root AGENTS files (Claude Code, Codex, OpenCode, Aider,
+Pi, Hermes). Per-host registration recipes live alongside in
+agent_skills/skill-*.md.
 -->
 
 ---
@@ -61,7 +60,7 @@ Node-id conventions for `subgraph_extract`:
 </corpus_shape>
 
 <tools>
-The server exposes 5 tools. Names and contracts match the
+The server exposes 9 tools. Names and contracts match the
 JSON-Schema in `tools/list` exactly; use that for argument
 validation. Brief operational guidance for each below.
 
@@ -72,7 +71,9 @@ X"). Returns top-`k` chunks with similarity score and a 500-char
 preview. Default `k=5`; bump to 10-20 for survey questions, drop
 to 3 for tight follow-ups. Always inspect the `doc_id` and
 `metadata.title` fields to decide whether to follow up with
-`card_get` or `subgraph_extract`.
+`card_get` or `subgraph_extract`. Hits also carry `community_id`,
+`community_path`, and `community_label` so an agent can route
+straight into the relevant cluster without a follow-up card fetch.
 </tool>
 
 <tool name="subgraph_extract">
@@ -98,11 +99,42 @@ IDs are stable across refits (greedy overlap remap); a
 `community_id` from a saved query still resolves today.
 </tool>
 
+<tool name="community_brief">
+Cheap structured preamble for one community: label, member
+count, top-N representative `doc_id`s. Use BEFORE
+`community_get` to decide whether the cluster is worth fully
+loading. Default `top_n=5`.
+</tool>
+
+<tool name="community_search">
+Semantic search at the cluster level. Ranks communities by
+query-to-centroid cosine and returns the top-`k` with their
+labels and member counts. Best for "what topical area covers
+X" or "jump me to the relevant cluster" before any chunk
+search. Powered by the per-community centroids written at
+cluster time (`.kg/community_centroids.npy`); errors when the
+corpus was not embedded before clustering.
+</tool>
+
+<tool name="community_core_nodes">
+High-degree members within one community's induced subgraph.
+The "key papers" of the community by internal connectivity.
+Use for "what are the most important papers in cluster N".
+</tool>
+
+<tool name="community_hierarchy">
+Walk the nested SBM community hierarchy for a document: leaf
+community at the bottom, super-communities up to the root.
+Use when the user asks "what bigger theme contains this".
+Returns a single-element list for flat backends (Leiden,
+embeddings); deeper for SBM.
+</tool>
+
 <tool name="token_econ_report">
-Aggregate token-economy stats over a time range. Sprint 7
-deliverable; may return "not configured" if the token-economy
-instrumentation is not yet wired in this build. Safe to skip
-when unavailable.
+Aggregate token-economy stats over a time range. Returns
+per-tool counts, tokens served vs counterfactual, percent
+saved, and group-by buckets (`tool`, `day`, `surface`). Safe
+to call without filters for a global summary.
 </tool>
 </tools>
 
@@ -118,7 +150,10 @@ Common agent flows:
 
 <pattern name="lineage_trace">
 1. `corpus_search(query=<topic or paper title>, k=3)`
-2. Take the top hit's `doc_id`; build seed `paper::<doc_id>`.
+2. Take the top hit's `doc_id` and build seed `doc::<doc_id>`
+   (the graph-node prefix is `doc::`, not `paper::`; cards
+   omit the prefix in their filenames so strip when crossing
+   surfaces).
 3. `subgraph_extract(seed_nodes=[seed], depth=2)`
 4. Walk the returned nodes for cites / authors / co-mentions.
 </pattern>

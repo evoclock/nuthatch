@@ -35,6 +35,24 @@ full architecture set are at
   <img src="docs/architecture/nuthatch_data_lifecycle.svg" alt="Nuthatch data lifecycle" width="720">
 </p>
 
+<p align="center">
+  <img src="assets/screenshots/sbm_full.png" alt="Nuthatch D3 topology viz: full SBM partition with some filters dropped" width="720">
+  <br/>
+  <em>SBM partition with a baseline subset of filters active. Communities coloured via Catppuccin Mocha; floating boxes (Communities, Filters) are draggable and persist position to <code>localStorage</code>. Interactive version lives at <code>docs/graph.html</code> in every nuthatch-published KB; open it in any browser, no backend.</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/sbm_no_citations.png" alt="Same partition, most filters off, citations off" width="720">
+  <br/>
+  <em>Most relations toggled off and the <code>cites</code> relation off: the visible structure is the SBM community as the clustering inferred it from non-citation edges (authorship, topic / method co-mentions, embedding-driven adjacency).</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/sbm_citations.png" alt="Same partition, most filters off, citations on" width="720">
+  <br/>
+  <em>Same filter set as above, but with <code>cites</code> toggled on. The new edges show how one paper citing another can extend a community beyond what semantic / co-mention signals alone would produce. The contrast between the previous frame and this one is the citation-extension effect made visible.</em>
+</p>
+
 ## Why it exists
 
 The graph-augmented retrieval space has working open-source
@@ -77,21 +95,71 @@ graph-augmented retrieval helps.
 
 ## Status
 
-The build pipeline is operational. Five CLI subcommands
+The build pipeline is operational. The five build stages
 (`ingest`, `embed`, `graph`, `cluster`, `render`) chain into a
-queryable corpus that the MCP server exposes via nine tools:
-`corpus_search`, `subgraph_extract`, `card_get`, `community_get`,
-`community_brief`, `community_search`, `community_core_nodes`,
-`community_hierarchy`, and `token_econ_report`. The community
-tools — and the routing keys (`community_id`, `community_path`,
-`community_label`) carried inside every search hit and every
-card's frontmatter — are what make graph-RAG actually work
-without per-card lookups. The test suite covers every contract
-(routing thresholds, model defaults, chunk coverage, reranker
-invocation, schema validation, end-to-end pipeline integration).
+queryable corpus, plus three post-pipeline commands serve and
+ship it: `serve` (the MCP server), `publish` (export a shareable
+KB directory), and `viz d3` (interactive force-atlas2 + Catppuccin
+topology viz). Clustering supports an optional `--relabel-llm`
+pass that replaces the heuristic word-frequency labels with
+topical 2-4 word names produced by an LLM (default
+`granite3-dense:8b` via Ollama).
+
+The MCP server exposes nine read-only tools: `corpus_search`,
+`subgraph_extract`, `card_get`, `community_get`, `community_brief`,
+`community_search`, `community_core_nodes`, `community_hierarchy`,
+and `token_econ_report`. The community tools, plus the routing
+keys (`community_id`, `community_path`, `community_label`)
+carried inside every search hit and every card's frontmatter,
+are what make graph-RAG actually work without per-card lookups.
+
+The test suite covers every contract (routing thresholds, model
+defaults, chunk coverage, reranker invocation, schema validation,
+end-to-end pipeline integration, suffix-rename invariants,
+publish-side canonical promotion, `--relabel-llm` round-trip with
+mock LLM).
 
 Not yet shipped: a pre-built reference corpus, a hosted demo.
 PyPI publication is in flight.
+
+## Roadmap
+
+Planned work, not yet landed:
+
+- **Air-gapped / corporate environments.** A Dockerfile + container
+  entrypoint so the published KB can be lifted into internal
+  runtimes (Microsoft Copilot Studio knowledge tool, team-internal
+  container hosts such as Testudo) and queried via MCP without any
+  outbound traffic. The published KB is already a self-contained
+  bundle (markdown cards + JSON indexes + chroma archive); this
+  task wraps it in a runtime so a corporate browser can reach a
+  full MCP server inside the firewall.
+- **Routing hardening for heterogeneous inputs.** The current
+  ingest pipeline routes by filename profile (arXiv preprint,
+  bioRxiv, internal doc, patent); next is per-content-type
+  detection and per-profile thresholding so mixed corpora
+  (scanned PDFs + born-digital papers + plain-text notes) route
+  cleanly without manual triage.
+- **Chandra for math-heavy text.** The Chandra OCR + math-aware
+  extraction path is in `--skip-chandra`-style optional form; the
+  next sprint promotes it from optional to first-class for any
+  paper the triage step flags as math-heavy, with `sympy`-based
+  per-equation validation against a known-equation checklist
+  (already exists for the OCR benchmark; needs lifting into the
+  ingest path).
+- **Granite-Docling as the general extraction default.** Per the
+  OCR benchmark (`docs/extraction-benchmarks/ocr-comparison.md`),
+  Granite-Docling matched Chandra on key facts at much lower
+  output volume; it becomes the default for born-digital
+  scientific papers. Chandra stays the default for math-heavy
+  papers; SmolDocling and EasyOCR stay as documented fallbacks.
+- **SPECTER2 as the scientific-paper embedding default.** The
+  current default embedding model is `BAAI/bge-m3` (general
+  purpose). For the `scientific_paper` profile, SPECTER2
+  (AllenAI; trained on the scientific-citation graph and
+  identified during the PhD knowledge-base build as superior
+  to Docling-derived embeddings for paper retrieval) becomes
+  the documented default. Other profiles keep BGE-M3.
 
 ## Quick start
 
@@ -130,10 +198,10 @@ nuthatch serve --corpus my-corpus
   evidence for the OCR routing decisions (Chandra vs Docling vs
   EasyOCR vs Granite vs SmolDocling across three representative
   scanned papers)
-- Per-agent skill files (`skill-claude-code.md`, `skill-codex.md`,
-  `skill-aider.md`, `skill-opencode.md`, `skill-pi.md`,
-  `skill-hermes.md`) for MCP registration details and recommended
-  multi-step query flows
+- Per-agent skill files under `agent_skills/` (`skill-claude-code.md`,
+  `skill-codex.md`, `skill-aider.md`, `skill-opencode.md`,
+  `skill-pi.md`, `skill-hermes.md`) for MCP registration details and
+  recommended multi-step query flows
 
 ## Licence
 
