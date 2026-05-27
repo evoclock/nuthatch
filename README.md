@@ -215,26 +215,27 @@ Planned work, not yet landed:
   detection and per-profile thresholding so mixed corpora
   (scanned PDFs + born-digital papers + plain-text notes) route
   cleanly without manual triage.
-- **Chandra for math-heavy text.** The Chandra OCR + math-aware
-  extraction path is in `--skip-chandra`-style optional form; the
-  next sprint promotes it from optional to first-class for any
-  paper the triage step flags as math-heavy, with `sympy`-based
-  per-equation validation against a known-equation checklist
-  (already exists for the OCR benchmark; needs lifting into the
-  ingest path).
-- **Granite-Docling as the general extraction default.** Per the
-  OCR benchmark (`docs/extraction-benchmarks/ocr-comparison.md`),
-  Granite-Docling matched Chandra on key facts at much lower
-  output volume; it becomes the default for born-digital
-  scientific papers. Chandra stays the default for math-heavy
-  papers; SmolDocling and EasyOCR stay as documented fallbacks.
+- **Docling as the general-purpose extraction default.** Docling
+  becomes the default extractor for born-digital text, with
+  SmolDocling and EasyOCR as the documented fallbacks per the
+  OCR benchmark (`docs/extraction-benchmarks/ocr-comparison.md`).
+- **Chandra OCR 2 for math-heavy papers.** Any paper the triage
+  step flags as math-heavy, or that is quarantined due to
+  irretrievable mathematical content, is routed to Chandra OCR 2.
+  Each such document gets a per-document lineage trace recording
+  the failed extraction attempt; the trace and whatever partial
+  content was recovered are knitted into a single provenance page
+  that lives in the quarantine record. Once Chandra resolves the
+  math, the full document can be promoted to the processed corpus
+  with the lineage chain intact, and the quarantine record is
+  closed against it.
 - **SPECTER2 as the scientific-paper embedding default.** The
   current default embedding model is `BAAI/bge-m3` (general
-  purpose). For the `scientific_paper` profile, SPECTER2
-  (AllenAI; trained on the scientific-citation graph and
-  identified during the PhD knowledge-base build as superior
-  to Docling-derived embeddings for paper retrieval) becomes
-  the documented default. Other profiles keep BGE-M3.
+  purpose, all profiles). For the `scientific_paper` profile,
+  SPECTER2 (AllenAI; trained on the scientific-citation graph and
+  identified during the PhD knowledge-base build as superior to
+  general-purpose embeddings for paper retrieval) becomes the
+  documented default. All other profiles keep BGE-M3.
 
 ## Licence
 
