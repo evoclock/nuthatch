@@ -73,13 +73,43 @@ graph     -> .kg/graph/graph.json         (NetworkX MultiDiGraph;
 cluster   -> partition written back onto graph nodes
              (SBM via graph-tool when available; Leiden fallback;
               embeddings k-means as floor)
+             .kg/communities.json            (canonical index +
+                                              hierarchy + members
+                                              + per-cid labels)
+             .kg/community_centroids.npy     (one centroid per cid;
+                                              powers community_search)
+             optional: --relabel-llm replaces heuristic labels
+             with topical 2-4 word LLM names (default
+             granite3-dense:8b via Ollama); writes back to canonical
+             + every communities_<suffix>.json sibling
+             optional: --output-suffix <name> additionally copies
+             both canonical files under communities_<name>.json /
+             community_centroids_<name>.npy (canonical preserved)
    |
    v
 render    -> cards/<doc_id>.md            (Obsidian-compatible
-                                          kb-reports-aligned frontmatter)
-             communities/<id>.md          (one page per cluster, wikilinks
-                                          to member cards)
+                                          kb-reports-aligned frontmatter,
+                                          carries community_id + path
+                                          + label + cluster/<cid> tag)
+             communities/<slug>.md        (one page per cluster, wikilinks
+                                          to member cards; slug derived
+                                          from the label)
              dashboard.md, index.md, log.md
+   |
+   v
+publish   -> <dest>/                      (shareable KB directory:
+                                          cards + communities + .kg
+                                          + AGENTS + CAPABILITIES +
+                                          mcp_config.example + LICENSE
+                                          + publish_manifest.jsonl;
+                                          chroma archived as
+                                          embeddings.tar.gz at root;
+                                          source canonical promoted
+                                          to dest if absent)
+   |
+   v
+serve     -> MCP server over stdio JSON-RPC; nine read-only tools
+             against the published or working corpus
 ```
 
 Each stage is independently re-runnable. Ingest is hash-deduped at

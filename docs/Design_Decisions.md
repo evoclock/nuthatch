@@ -38,12 +38,14 @@ Nuthatch enforces this rule at four boundaries:
 3. **Cards in `cards/` are rendered from extracted markdown +
    cluster output**, not synthesised by an LLM at query time.
    Card content is verifiable by reading the corresponding source.
-4. **The MCP query surface is read-only by design.** The five tools
+4. **The MCP query surface is read-only by design.** The nine tools
    (`corpus_search`, `subgraph_extract`, `card_get`,
-   `community_get`, `token_econ_report`) inspect state and return
-   data; none mutate it. Ingest, embed, graph, cluster, and
-   render are operator-triggered CLI commands; the agent cannot
-   invoke them and cannot rewrite their outputs.
+   `community_get`, `community_brief`, `community_search`,
+   `community_core_nodes`, `community_hierarchy`,
+   `token_econ_report`) inspect state and return data; none
+   mutate it. Ingest, embed, graph, cluster, and render are
+   operator-triggered CLI commands; the agent cannot invoke them
+   and cannot rewrite their outputs.
 
 The rule survives every architectural choice in this document.
 When the rule conflicts with a convenience (for example,
@@ -495,7 +497,7 @@ Nuthatch separates **building the corpus** from **querying it**.
   completion; persists artifacts under `<corpus>/.kg/` and
   `<corpus>/{cards,communities}/`.
 - **Query** happens at agent runtime via the MCP server. The
-  agent calls the 5 tools against already-built state. No graph
+  agent calls the 9 tools against already-built state. No graph
   mutation; no extraction; no embedding; no clustering at query
   time.
 

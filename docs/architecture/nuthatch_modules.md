@@ -14,11 +14,11 @@ Source: `nuthatch_module_graph.d2`. Edges colored by source module (CLI=apricot,
 
 | Package | Files | Purpose |
 | --- | ---: | --- |
-| `_top-level` | 3 | Top-level entry points: CLI (`cli.py`) and the package `__init__`. |
+| `_top-level` | 4 | Top-level entry points: CLI (`cli.py`) and the package `__init__`. |
 | `ingest` | 16 | Stage 1: extract markdown from sources, validate schema, route to `processed/<subdir>/` or `quarantine/<reason>/`. Handles arxiv / bioRxiv metadata enrichment, math-retry flagging, dedup, orchestrator state machine, and the `triage` pre-flight (pdftotext-only PASS/FLAG/DEFER classification, exposed as `nuthatch triage` CLI subcommand). |
 | `embed` | 5 | Stage 2: chunk extracted markdown and persist embeddings into Chroma (`.kg/embeddings/`). Hybrid chunker with full-doc coverage invariant; orchestrator handles incremental + `--force` re-embed. |
 | `graph` | 7 | Stage 3: build the document graph from embeddings + co-citation + semantic similarity edges. Outputs to `graph/`. |
-| `clustering` | 10 | Stage 4: community detection. SBM via graph-tool when available (nested hierarchy), Leiden fallback (flat). Hub exclusion + reattachment by majority neighbour. Stable cluster IDs across re-runs. `persist.py` writes `.kg/communities.json` + `.kg/community_centroids.npy` so the MCP server's community tools can run without re-clustering. |
+| `clustering` | 12 | Stage 4: community detection. SBM via graph-tool when available (nested hierarchy), Leiden fallback (flat). Hub exclusion + reattachment by majority neighbour. Stable cluster IDs across re-runs. `persist.py` writes `.kg/communities.json` + `.kg/community_centroids.npy` so the MCP server's community tools can run without re-clustering. |
 | `render` | 4 | Stage 5: render the corpus as an Obsidian-compatible vault. Per-paper cards under `cards/`, community pages under `communities/`, plus top-level `dashboard.md`, `index.md`, `log.md`. Wikilinks between cards form the navigable graph Obsidian's graph view picks up automatically; Dataview queries in the dashboard filter by tag / year / community. |
 | `schema` | 7 | Per-corpus metadata contracts. Profiles for arxiv, bioRxiv, internal docs, patents. Profile-router picks per-file by filename pattern. |
 | `corpus` | 4 | Corpus discovery, layout, init, and registry. Defines the `processed/<subdir>/` and `quarantine/<reason>/` lifecycle. |
@@ -28,7 +28,7 @@ Source: `nuthatch_module_graph.d2`. Edges colored by source module (CLI=apricot,
 | `decay` | 4 | Sprint-8 relevance decay + supersession. `relevance(t) = max(backlinks, 1) * exp(-ln2 * Δt / half_life_days)`. |
 | `token_econ` | 5 | Token-economy instrumentation. Per-tool cost / yield log + report generator. |
 | `scripts/bench` | 3 | Extraction-benchmark scripts (key-facts scoring, math recall, ground-truth scaffolding). |
-| `scripts/ops` | 4 | Operator scripts: stage launcher (`launch-stage.sh`), this summary generator. |
+| `scripts/ops` | 5 | Operator scripts: stage launcher (`launch-stage.sh`), this summary generator. |
 
 ## Top-level
 
@@ -39,6 +39,7 @@ Top-level entry points: CLI (`cli.py`) and the package `__init__`.
 | `src/nuthatch/__init__.py` | nuthatch: knowledge-graph tool for paper corpora with principled clustering. | _module-level only_ |
 | `src/nuthatch/__main__.py` | Allow ``python -m nuthatch`` to run the CLI. | _module-level only_ |
 | `src/nuthatch/cli.py` | nuthatch command-line interface (Sprint 1 surface). | `build_parser`, `main` |
+| `src/nuthatch/publish.py` | Promote a corpus's agent-facing surface into a shareable KB directory. | `PublishResult` |
 
 ## `ingest`
 
@@ -102,7 +103,9 @@ Stage 4: community detection. SBM via graph-tool when available (nested hierarch
 | `src/nuthatch/clustering/backends/sbm.py` | Stochastic Block Model clustering via Tiago Peixoto's `graph-tool`. | `SBMBackend` |
 | `src/nuthatch/clustering/hub_exclusion.py` | paper knowledge graphs contain a small number of enormously-cited "core" papers (the Darwins, the BLAST papers, the Word2Vec papers) that touch every community. Including them in the partition pulls ... | `core_nodes`, `exclude_core_nodes`, `reattach_by_majority_neighbour` |
 | `src/nuthatch/clustering/persist.py` | emit `<corpus>/.kg/communities.json` so downstream consumers (the render layer's card frontmatter, the MCP server's community-aware retrieval tools) can look up a doc's community membership, the nest... | `CommunityIndex` |
+| `src/nuthatch/clustering/projection.py` | Bipartite projection of the augmented corpus graph onto its document nodes. | `project_to_doc_doc` |
 | `src/nuthatch/clustering/protocol.py` | Clustering backend protocol; the first concrete spec artifact. | `Rigor`, `BackendLocation`, `ClusteringRequest` |
+| `src/nuthatch/clustering/relabel.py` | replace the heuristic word-frequency labels in `.kg/communities.json` (canonical) and any `.kg/communities_<suffix>.json` siblings with topical 2-4 word names produced by an LLM, given each community... | _module-level only_ |
 | `src/nuthatch/clustering/router.py` | nuthatch ships three backends (SBM, Leiden, embeddings) behind the `ClusteringBackend` protocol. At runtime not all are necessarily available (graph-tool is conda-only, leidenalg may not be installed... | `ClusteringRouter`, `default_backends` |
 | `src/nuthatch/clustering/stable_ids.py` | when a corpus is re-clustered (new papers added, refit triggered), the partitioner returns community IDs that don't necessarily match the previous run. For UX continuity (saved queries, citation patt... | `remap_to_previous` |
 
@@ -115,7 +118,7 @@ Stage 5: render the corpus as an Obsidian-compatible vault. Per-paper cards unde
 | `src/nuthatch/render/__init__.py` | Per-paper artifact rendering (markdown card + HTML companion). | _module-level only_ |
 | `src/nuthatch/render/card.py` | render the per-paper card that lands at `<corpus>/cards/<doc_id>.md` after ingest. The card carries Dataview-queryable YAML frontmatter and a body of structured sections (Authors, DOI, Abstract, Key ... | `slugify` |
 | `src/nuthatch/render/html.py` | produce a standalone HTML file alongside the markdown card, suitable for serving figures, equations (MathJax), and rich content the markdown form cannot express well. Lands under `<corpus>/html/<doc_... | `render_html` |
-| `src/nuthatch/render/obsidian.py` | write a `<corpus>/cards/`, `<corpus>/communities/`, `<corpus>/dashboard.md`, `<corpus>/index.md`, and `<corpus>/log.md` set so the corpus opens as a navigable Obsidian vault. Dataview queries in `das... | `ExportResult`, `export_vault` |
+| `src/nuthatch/render/obsidian.py` | write a `<corpus>/cards/`, `<corpus>/communities/`, `<corpus>/dashboard.md`, `<corpus>/index.md`, and `<corpus>/log.md` set so the corpus opens as a navigable Obsidian vault. Dataview queries in `das... | `ExportResult` |
 
 ## `schema`
 
@@ -138,7 +141,7 @@ Corpus discovery, layout, init, and registry. Defines the `processed/<subdir>/` 
 | Path | Purpose | Key symbols |
 | --- | --- | --- |
 | `src/nuthatch/corpus/__init__.py` | Corpus layout + registry: where a nuthatch corpus lives and how to find it. | _module-level only_ |
-| `src/nuthatch/corpus/config.py` | let users override pipeline defaults (chunking, embedding, dedup thresholds, ...) on a per-corpus basis without editing source. The config file is optional; when absent, code defaults apply. | `EmbeddingConfig`, `CorpusConfig`, `load_corpus_config` |
+| `src/nuthatch/corpus/config.py` | let users override pipeline defaults (chunking, embedding, dedup thresholds, ...) on a per-corpus basis without editing source. The config file is optional; when absent, code defaults apply. | `EmbeddingConfig`, `SemanticExtractConfig`, `CorpusConfig`, `load_corpus_config` |
 | `src/nuthatch/corpus/layout.py` | Per-corpus directory layout. | `CorpusLayout`, `init_corpus`, `discover_corpus_root` |
 | `src/nuthatch/corpus/registry.py` | Registry of known nuthatch corpora. | `_CorpusEntry`, `Registry`, `default_registry_path` |
 
@@ -208,7 +211,8 @@ Operator scripts: stage launcher (`launch-stage.sh`), this summary generator.
 
 | Path | Purpose | Key symbols |
 | --- | --- | --- |
-| `scripts/ops/audit_external_repo.py` | Generate a per-script audit markdown for a non-nuthatch repo (kestrel-latest, kestrel-v8, etc.) without requiring an inventory pre-generated in that repo. Walks `.py` files under a given root, parses... | _module-level only_ |
+| `scripts/ops/audit_external_repo.py` | Generate a per-script audit markdown for a non-nuthatch repo (external knowledge-graph repos for prior-art comparison) without requiring an inventory pre-generated in that repo. Walks `.py` files und... | _module-level only_ |
 | `scripts/ops/generate_module_summary.py` | Produce a per-package per-script summary markdown from the repo-local `pipeline_output/codebase_inventory.jsonl`. Output is a Dataview-friendly section per package plus a top-level table. | _module-level only_ |
-| `scripts/ops/launch-stage.sh` | _no docstring_ | _module-level only_ |
+| `scripts/ops/launch-stage.sh` | _no docstring_ | `escape_arg` |
+| `scripts/ops/relabel_communities_llm.py` | Standalone LLM relabel of an existing corpus's community indices. | `main` |
 | `scripts/ops/render_d2_diagrams.sh` | _no docstring_ | `render_one` |
