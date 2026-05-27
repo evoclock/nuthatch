@@ -168,6 +168,35 @@ edits?"), Nuthatch chooses the rule.
   re-scoring of the borderline cosine band only (not every pair).
   Adds latency only where the cosine signal was uncertain;
   accuracy gain on dedup is worth the cost. Optional, defaults on.
+- **Code sources via Repomix, not tree-sitter.** Nuthatch supports
+  codebases as a corpus source type alongside papers, patents, and
+  internal documents. The preprocessing choice for code matters
+  acutely: building a knowledge graph by feeding raw directory
+  contents or a symbol-table dump into an LLM extractor is building
+  knowledge on rubbish. Rubbish in, rubbish out. The quality of
+  every downstream artefact — chunks, embeddings, graph edges,
+  community labels — is bounded above by the quality of what enters
+  the ingest pipeline.
+
+  Tree-sitter extracts structural facts (imports, declarations,
+  function signatures) through deterministic AST parsing with
+  language-specific grammars. That is precise at the symbol level
+  but misses the semantic content that makes code knowledge useful
+  at retrieval time. It also requires a separate extraction path
+  that does not compose with the chunk-and-embed model the rest of
+  the pipeline uses, adding grammar-maintenance surface for every
+  language in the corpus.
+
+  Repomix serialises a codebase into a single clean text file: each
+  file's path is preserved as a heading, code content is the literal
+  source, and the output passes directly through the standard ingest
+  pipeline without a bespoke extraction layer. The source code is
+  the primitive. The LLM extractor and the chunker operate on that
+  primitive — not on a noisy directory walk, not on a symbol-table
+  reconstruction. Composability with the standard pipeline is total:
+  dedup, semantic dedup, schema validation, chunking, embedding, and
+  graph construction all apply unchanged.
+
 - **Edge confidence labels.** Every edge in the corpus graph is
   tagged `EXTRACTED | INFERRED | AMBIGUOUS`. This is a long-
   established convention in knowledge-graph literature (NELL,
