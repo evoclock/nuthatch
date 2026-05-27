@@ -146,8 +146,11 @@ flowchart TB
     ING["Stage 1: ingest<br/>Docling / Chandra / EasyOCR"]:::stage
     EMB["Stage 2: embed<br/>chunker · BGE-M3 · dedup · Chroma"]:::stage
     GRP["Stage 3: graph<br/>NetworkX build, persisted"]:::stage
-    CLU["Stage 4: cluster<br/>SBM · Leiden fallback · hub-excl · stable IDs"]:::stage
+    CLU["Stage 4: cluster<br/>SBM · Leiden fallback · hub-excl · stable IDs<br/>optional --relabel-llm (granite3-dense:8b)"]:::stage
     RND["Stage 5: render<br/>cards · HTML · exports"]:::stage
+    VIZ["viz d3<br/>D3 + canvas topology (post-render)"]:::stage
+    PUB["publish<br/>promote to shareable KB dir"]:::stage
+    SRV["serve<br/>MCP stdio · 9 read-only tools"]:::stage
 
     PRC["processed/&lt;subdir&gt;/"]:::processed
     QUA["quarantine/&lt;reason&gt;/"]:::quarantine
@@ -195,6 +198,20 @@ flowchart TB
     RND --> HTM
     RND --> XPT
 
+    %% Post-render terminal commands
+    CRD --> PUB
+    COM --> PUB
+    CIDX --> PUB
+    CCEN --> PUB
+    GRA --> PUB
+    KEMB --> PUB
+    GRA -.-> VIZ
+    CIDX -.-> VIZ
+    CIDX -.-> SRV
+    CCEN -.-> SRV
+    KEMB -.-> SRV
+    GRA -.-> SRV
+
     %% sources -> triage (4 edges, apricot dashed)
     linkStyle 0,1,2,3 stroke:#ee9b69,stroke-width:2px
     %% triage -> ingest (PASS/FLAG, sage)
@@ -224,6 +241,12 @@ flowchart TB
     linkStyle 22 stroke:#e77843,stroke-width:2px
     %% render -> cards/html/exports (dim sage)
     linkStyle 23,24,25 stroke:#5a957a,stroke-width:2px
+    %% post-render: CRD/COM/CIDX/CCEN/GRA/KEMB -> publish (dim sage, solid)
+    linkStyle 26,27,28,29,30,31 stroke:#5a957a,stroke-width:2px
+    %% GRA/CIDX -> viz d3 (dim sage, dashed)
+    linkStyle 32,33 stroke:#5a957a,stroke-width:2px,stroke-dasharray:5 5
+    %% CIDX/CCEN/KEMB/GRA -> serve (dim sage, dashed)
+    linkStyle 34,35,36,37 stroke:#5a957a,stroke-width:2px,stroke-dasharray:5 5
 </div>
 
 <h2>2. Module graph</h2>
