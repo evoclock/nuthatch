@@ -91,6 +91,36 @@ class CardTokenIndex:
         return sum(self.tokens_for(d) for d in doc_ids)
 
 
+class ExtractedDocIndex:
+    """Cache `doc_id -> tokens(raw extracted markdown)` from `.kg/extracted/`.
+
+    Counterfactual source for `card_get`: the pre-card extracted text is
+    what the agent would have had to load without nuthatch's card rendering.
+    Returns `None` when the extracted file is absent (e.g. published demo
+    KBs where `.kg/extracted/` is gitignored) so the server skips logging
+    rather than recording a spurious 1.0 ratio.
+    """
+
+    __slots__ = ("_cache", "_extracted_dir")
+
+    def __init__(self, extracted_dir: Path) -> None:
+        self._extracted_dir = extracted_dir
+        self._cache: dict[str, int | None] = {}
+
+    def tokens_for(self, doc_id: str) -> int | None:
+        if doc_id in self._cache:
+            return self._cache[doc_id]
+        bare = doc_id[len("doc::"):] if doc_id.startswith("doc::") else doc_id
+        path = self._extracted_dir / f"{bare}.md"
+        if not path.is_file():
+            self._cache[doc_id] = None
+            return None
+        text = path.read_text(encoding="utf-8")
+        n, _ = count_tokens(text)
+        self._cache[doc_id] = n
+        return n
+
+
 class BM25Counterfactual:
     """Lexical (BM25) baseline for `corpus_search`.
 
@@ -99,7 +129,7 @@ class BM25Counterfactual:
     default wiring this is `ChromaVectorStore.iter_chunks()`.
     """
 
-    __slots__ = ("_bm25", "_built", "_chunks_provider", "_texts")
+    __slots__ = ("_bm25", "_built", "_chunks_provider", "_texts", "_total_chunk_tokens")
 
     def __init__(
         self,
@@ -109,6 +139,7 @@ class BM25Counterfactual:
         self._bm25: Any = None
         self._texts: list[str] = []
         self._built = False
+        self._total_chunk_tokens: int | None = None
 
     def _ensure_built(self) -> None:
         if self._built:
@@ -135,11 +166,34 @@ class BM25Counterfactual:
         n, _ = count_tokens(joined)
         return n
 
+    def total_chunk_cost(self) -> int:
+        """Total tokens across all chunks: n_total_chunks × avg_chunk_tokens.
+
+        Counterfactual for `community_search`: the cost of brute-force
+        cosine search over every chunk individually, approximated as the
+        aggregate token count the agent would need to read/embed.
+        Cached after first call.
+        """
+        self._ensure_built()
+        if self._total_chunk_tokens is not None:
+            return self._total_chunk_tokens
+        total = sum(count_tokens(t)[0] for t in self._texts)
+        self._total_chunk_tokens = total
+        return total
+
 
 class PerToolEstimator:
     """Default `CounterfactualEstimator` wiring the per-tool baselines."""
 
-    __slots__ = ("_bm25", "_cards", "_default_k")
+    __slots__ = (
+        "_bm25",
+        "_cards",
+        "_default_k",
+        "_extracted",
+        "_community_reader",
+        "_community_members_fn",
+        "_communities_json_tokens",
+    )
 
     def __init__(
         self,
@@ -147,10 +201,18 @@ class PerToolEstimator:
         bm25: BM25Counterfactual | None,
         cards: CardTokenIndex,
         default_k: int = 5,
+        extracted: ExtractedDocIndex | None = None,
+        community_reader: Callable[[str], str | None] | None = None,
+        community_members_fn: Callable[[int], list[str]] | None = None,
+        communities_json_tokens: int = 0,
     ) -> None:
         self._bm25 = bm25
         self._cards = cards
         self._default_k = default_k
+        self._extracted = extracted
+        self._community_reader = community_reader
+        self._community_members_fn = community_members_fn
+        self._communities_json_tokens = communities_json_tokens
 
     def estimate(
         self,
@@ -174,7 +236,13 @@ class PerToolEstimator:
         if tool == "community_get":
             return self._estimate_community(arguments)
         if tool == "card_get":
-            return None  # delivery, not retrieval; no honest reduction
+            return self._estimate_card_get(arguments)
+        if tool == "community_search":
+            if self._bm25 is None:
+                return None
+            return self._bm25.total_chunk_cost()
+        if tool == "community_hierarchy":
+            return self._communities_json_tokens or None
         return None
 
     def _estimate_subgraph(self, arguments: dict[str, Any]) -> int | None:
@@ -203,6 +271,14 @@ class PerToolEstimator:
         # see `estimate_from_served`. Fall back to 0 without it.
         return 0
 
+    def _estimate_card_get(self, arguments: dict[str, Any]) -> int | None:
+        if self._extracted is None:
+            return None
+        doc_id = str(arguments.get("doc_id", "")).strip()
+        if not doc_id:
+            return None
+        return self._extracted.tokens_for(doc_id)
+
     def estimate_from_served(
         self,
         *,
@@ -223,6 +299,10 @@ class PerToolEstimator:
         if tool == "community_get":
             doc_ids = _doc_ids_from_community_markdown(served_text)
             return self._cards.total_for(doc_ids)
+        if tool == "community_brief":
+            return self._estimate_community_brief_from_served(arguments)
+        if tool == "community_core_nodes":
+            return self._estimate_community_core_nodes_from_served(arguments)
         # Other tools have no result-dependent counterfactual; delegate.
         return self.estimate(
             tool=tool,
@@ -230,6 +310,39 @@ class PerToolEstimator:
             served_text=served_text,
             result=result,
         )
+
+    def _estimate_community_brief_from_served(
+        self, arguments: dict[str, Any]
+    ) -> int | None:
+        # Counterfactual: reading the full community page that community_brief
+        # summarises. Cost = token count of the full community markdown.
+        if self._community_reader is None:
+            return None
+        try:
+            cid = int(arguments.get("community_id"))
+        except (TypeError, ValueError):
+            return None
+        full_page = self._community_reader(str(cid))
+        if not full_page:
+            return None
+        n, _ = count_tokens(full_page)
+        return n
+
+    def _estimate_community_core_nodes_from_served(
+        self, arguments: dict[str, Any]
+    ) -> int | None:
+        # Counterfactual: loading every member card to rank by degree manually.
+        # Cost = n_members × avg_card_tokens.
+        if self._community_members_fn is None:
+            return None
+        try:
+            cid = int(arguments.get("community_id"))
+        except (TypeError, ValueError):
+            return None
+        members = self._community_members_fn(cid)
+        if not members:
+            return None
+        return self._cards.total_for(_doc_ids_only(members))
 
 
 def build_default_estimator(
@@ -240,8 +353,8 @@ def build_default_estimator(
     """Wire a `PerToolEstimator` from a corpus layout.
 
     If `chunks_provider` is `None`, BM25 is unavailable and
-    `corpus_search` calls produce `None` counterfactuals (skipped).
-    Callers that want BM25 pass
+    `corpus_search` / `community_search` calls produce `None`
+    counterfactuals (skipped). Callers that want BM25 pass
     `chunks_provider=store.iter_chunks` where `store` is the same
     `ChromaVectorStore` the retriever queries.
     """
@@ -250,7 +363,44 @@ def build_default_estimator(
     bm25 = (
         BM25Counterfactual(chunks_provider) if chunks_provider is not None else None
     )
-    return PerToolEstimator(bm25=bm25, cards=cards)
+    extracted = ExtractedDocIndex(layout.extracted_dir)
+    communities_json_tokens = _load_communities_json_tokens(layout)
+    communities_dir = layout.root / "communities"
+
+    def _community_reader(community_id: str) -> str | None:
+        path = communities_dir / f"{community_id}.md"
+        if path.is_file():
+            return path.read_text(encoding="utf-8")
+        # Slug fallback for published KBs (mirrors server._default_community_reader).
+        try:
+            from nuthatch.clustering.persist import load_community_index
+            idx = load_community_index(layout)
+            if idx is not None:
+                label = idx.labels.get(int(community_id), "")
+                if label:
+                    slug = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")[:64]
+                    slug_path = communities_dir / f"{slug}.md"
+                    if slug_path.is_file():
+                        return slug_path.read_text(encoding="utf-8")
+        except (ValueError, TypeError):
+            pass
+        return None
+
+    def _community_members_fn(community_id: int) -> list[str]:
+        from nuthatch.clustering.persist import load_community_index
+        idx = load_community_index(layout)
+        if idx is None:
+            return []
+        return idx.members_of(community_id)
+
+    return PerToolEstimator(
+        bm25=bm25,
+        cards=cards,
+        extracted=extracted,
+        community_reader=_community_reader,
+        community_members_fn=_community_members_fn,
+        communities_json_tokens=communities_json_tokens,
+    )
 
 
 # -- helpers --------------------------------------------------------------
@@ -295,3 +445,19 @@ def _doc_ids_from_community_markdown(served_text: str) -> list[str]:
         if target and "/" not in target:
             out.append(target)
     return out
+
+
+def _load_communities_json_tokens(layout: CorpusLayout) -> int:
+    """Token count of `.kg/communities.json` — the full community index.
+
+    Counterfactual for `community_hierarchy`: without the tool the agent
+    would load and traverse this entire file to find a doc's community path.
+    Returns 0 if the file is absent so the estimator falls back to None
+    (logged as skipped rather than a false 0-token counterfactual).
+    """
+    communities_json = layout.kg / "communities.json"
+    if not communities_json.is_file():
+        return 0
+    text = communities_json.read_text(encoding="utf-8")
+    n, _ = count_tokens(text)
+    return n
