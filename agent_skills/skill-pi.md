@@ -11,11 +11,8 @@ trigger: nuthatch serve --corpus <name>
 
 # Nuthatch — Pi integration
 
-> **Tool spec**: load `AGENTS.md` (XML-tagged) **or**
-> `AGENTS-MARKDOWN.md` (plain markdown) for full tool semantics.
-> Pick whichever format your parser handles best. Both carry the
-> same content and stay in sync. This skill file covers Pi-specific
-> wiring only.
+> **Tool spec**: load `AGENTS.md` from the repo root for full tool
+> semantics. This skill file covers Pi-specific wiring only.
 
 ## One-time setup
 
@@ -39,7 +36,7 @@ trigger: nuthatch serve --corpus <name>
    ```
 
    Confirm the exact path / file name against the Pi version you
-   have installed; this convention follows kestrel's pattern that
+   have installed; this convention follows a prior knowledge-graph implementation's pattern that
    OpenClaw inherits.
 
 3. Restart the agent. The 5 Nuthatch tools are now available.
@@ -117,7 +114,7 @@ flows. Four worked examples:
 2. Read `reduction_ratio_overall` and `pct_saved`. Nuthatch's
    counterfactual is per-tool BM25 (for `corpus_search`) / card-sum
    (for subgraph + community), NOT "the whole corpus" (which would
-   be the kestrel-style strawman pinned in
+   be the prior-implementation strawman pinned in
    `docs/DECISIONS.md` § Token-economy methodology). Reported
    ratios are typically 2-8x, not 50-100x. Smaller numbers,
    defensible.
@@ -145,4 +142,3 @@ query, not build. Same rationale as above (`docs/DECISIONS.md` §
 ## See also
 
 - `AGENTS.md`. Full tool semantics and usage patterns (XML-tagged)
-- `AGENTS-MARKDOWN.md`. Same content, markdown sections

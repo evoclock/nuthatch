@@ -1,0 +1,218 @@
+{
+  "main": {
+    "id": "8622a268dacbbc09",
+    "type": "split",
+    "children": [
+      {
+        "id": "2650ced25cb4a92b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "5123818474adb057",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "New tab"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "cfc56f21ea0279e3",
+    "type": "split",
+    "children": [
+      {
+        "id": "f58232c52f267ecb",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "bc0b9414bad959ae",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "d5b61d28baf03d60",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "5aeafc132e202911",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "e94c0cd7431a6929",
+    "type": "split",
+    "children": [
+      {
+        "id": "eb1485434280ea62",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "c08f5abc2b937672",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "knowledge_base/index.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for index"
+            }
+          },
+          {
+            "id": "f58bf0b68970df1e",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "knowledge_base/index.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from index"
+            }
+          },
+          {
+            "id": "b43483f7db3bf4f4",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "ee26d746012093fc",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "39bb5dfa693467a5",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "knowledge_base/index.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of index"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "bc0b9414bad959ae",
+  "lastOpenFiles": [
+    "src/nuthatch/publish.py.tmp.2836752.7e584ac56094",
+    "inputs/cards/2021.12.06.471493v2.full.md",
+    "Untitled.base",
+    "2026-05-27.md",
+    "pipeline_output/graph_eval_report_judge_20260527T072817Z.md",
+    "pipeline_output/cluster_eval_report_sbm_judge_20260527T065236Z.md",
+    "pipeline_output/cluster_eval_report_leiden_judge_20260527T063627Z.md",
+    "pipeline_output/cluster_eval_report_embeddings_judge_20260527T063630Z.md",
+    "pipeline_output/graph_topology_d3_sbm_20260527T093157Z.html",
+    "src/nuthatch/render/obsidian.py.tmp.2836752.74c87e9b9d27",
+    "src/nuthatch/render/obsidian.py.tmp.2836752.c54e20e66cf5",
+    "inputs/cards/2605.22387v1.md",
+    "pipeline_output/graph_topology_d3_sbm_20260527T092846Z.html",
+    "src/nuthatch/viz/d3_renderer.py.tmp.2836752.0c2c923b7b77",
+    "HANDOVER.md",
+    "agent_skills/skill-codex.md.tmp.2836752.aa65631fbbe4",
+    "agent_skills/skill-pi.md.tmp.2836752.97d8252304bd",
+    "inputs/communities/43.md",
+    "agent_skills/skill-opencode.md.tmp.2836752.4aa8af331de7",
+    "agent_skills/skill-hermes.md.tmp.2836752.f1488d2bfc7b",
+    "skill-pi.md",
+    "skill-opencode.md",
+    "skill-hermes.md",
+    "skill-codex.md",
+    "skill-claude-code.md",
+    "skill-aider.md",
+    "README.md",
+    "log.md",
+    "index.md",
+    "AGENTS-MARKDOWN.md",
+    "dashboard.md",
+    "inputs/communities/23.md",
+    "inputs/cards/2025.09.05.674565v3.full.md"
+  ]
+}

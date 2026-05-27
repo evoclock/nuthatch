@@ -15,7 +15,7 @@ Outputs: a frozen `Edge` dataclass instance with the metadata the
     `graph/build.py` consumer attaches as edge attributes in the
     NetworkX graph.
 
-Pattern reused from kestrel's edge-schema convention (every edge
+Pattern adapted from a prior knowledge-graph implementation; original lived in edge-schema convention (every edge
 typed + confidence-labelled). nuthatch's confidence vocabulary is
 deliberately three-tier:
 

@@ -24,11 +24,12 @@ from __future__ import annotations
 
 import json
 import random
-import re
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
+
+from nuthatch.util import parse_llm_json
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,8 +56,19 @@ Avoid yes/no questions, definition-only questions, or questions \
 that can be answered from general knowledge. The question should \
 test whether a retrieval system can surface this specific passage.
 
-Respond with valid JSON exactly in the shape:
+Refusal is a first-class option. If the passage is unsuitable for \
+generating a meaningful evaluation question, respond with refusal \
+instead of inventing one. A passage is unsuitable when:
+- It is dominated by boilerplate (acknowledgements, funding, \
+disclaimers, page headers).
+- It is mostly tables or formulas with no expository prose.
+- It is a fragment of a reference list with no semantic content.
+- It does not contain any specific factual claim distinct enough \
+to test retrieval against.
+
+Respond with valid JSON in exactly ONE of these two shapes:
 {{"question": "...", "answer": "..."}}
+{{"refusal": "<short reason>"}}
 
 Do not include code fences, prefix, or any text outside the JSON.
 
@@ -87,7 +99,7 @@ def sample_chunks(
         by_doc[doc_id].append((cid, text, meta))
 
     pool: list[tuple[str, str, dict[str, Any]]] = []
-    for doc_id, items in by_doc.items():
+    for items in by_doc.values():
         rng.shuffle(items)
         pool.extend(items[:per_doc_cap])
 
@@ -123,8 +135,15 @@ def generate_test_set(
         except Exception as exc:
             print(f"  WARN: LLM invoke failed on {cid}: {exc!s}")
             continue
-        parsed = _try_parse_json(content)
+        parsed = parse_llm_json(content)
         if parsed is None:
+            continue
+        # Refusal is a first-class output. The LLM is explicitly
+        # permitted to decline on unsuitable chunks (boilerplate,
+        # tables, reference fragments). Honoured silently to keep
+        # log noise low; the dropped-count is implicit in the
+        # final examples-generated tally.
+        if "refusal" in parsed and "question" not in parsed:
             continue
         q = str(parsed.get("question", "")).strip()
         a = str(parsed.get("answer", "")).strip()
@@ -140,35 +159,6 @@ def generate_test_set(
             )
         )
     return examples
-
-
-_JSON_BLOCK_RE = re.compile(r"\{.*?\}", re.DOTALL)
-
-
-def _try_parse_json(text: str) -> dict[str, Any] | None:
-    """Recover JSON from a raw LLM response.
-
-    Some models wrap the JSON in code fences or add a preamble even
-    when asked not to. We strip fences and grab the first {...} block.
-    """
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        # remove leading fence with optional language tag, then trailing fence
-        stripped = re.sub(r"^```\w*\s*", "", stripped)
-        stripped = re.sub(r"\s*```\s*$", "", stripped)
-    # Try direct parse first.
-    try:
-        return json.loads(stripped)
-    except json.JSONDecodeError:
-        pass
-    # Fall back to the first {...} block.
-    match = _JSON_BLOCK_RE.search(stripped)
-    if match is None:
-        return None
-    try:
-        return json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return None
 
 
 def write_testset_jsonl(examples: Iterable[TestExample], path: Any) -> int:

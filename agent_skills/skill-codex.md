@@ -11,10 +11,9 @@ trigger: nuthatch serve --corpus <name>
 
 # Nuthatch — Codex CLI integration
 
-> **Tool spec**: load `AGENTS.md` (XML-tagged) **or**
-> `AGENTS-MARKDOWN.md` (plain markdown) for full tool semantics.
-> Codex consumes `AGENTS.md` natively from the repo root; this
-> skill file covers Codex-specific wiring only.
+> **Tool spec**: load `AGENTS.md` from the repo root for full tool
+> semantics. Codex consumes `AGENTS.md` natively; this skill file
+> covers Codex-specific wiring only.
 
 ## One-time setup
 
@@ -120,7 +119,7 @@ on a cron or batch script.
 
 1. `token_econ_report(group_by="tool")` after the work session.
 2. Nuthatch's counterfactual is per-tool BM25 / card-sum, NOT
-   "the whole corpus" (the kestrel-style strawman pinned in
+   "the whole corpus" (the prior-implementation strawman pinned in
    `docs/DECISIONS.md` § Token-economy methodology). Expect
    2-8x, not 50-100x. Honest numbers.
 
@@ -138,12 +137,11 @@ on a cron or batch script.
 Do NOT try to invoke the build CLI yourself. The agent queries;
 the user builds. (`docs/DECISIONS.md` § "Execution model" pins
 this. And explains why the user-supervised model is honest about
-ingestion failures, while kestrel's agent-driven pipeline hides
+ingestion failures, while a prior knowledge-graph implementation's agent-driven pipeline hides
 them.)
 
 ## See also
 
 - `AGENTS.md`. Full tool semantics and usage patterns (XML-tagged)
-- `AGENTS-MARKDOWN.md`. Same content, markdown sections
 - `docs/SPEC.md`. Architecture
 - `docs/DECISIONS.md`. Locked design decisions

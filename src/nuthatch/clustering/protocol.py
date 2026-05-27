@@ -91,7 +91,9 @@ class ClusteringResponse:
     __slots__ = (
         "backend_used",
         "block_state",
+        "gt_metrics",
         "hierarchy",
+        "mdl_nats",
         "notes",
         "partition",
         "rigor_used",
@@ -108,6 +110,8 @@ class ClusteringResponse:
         block_state: bytes | None = None,
         notes: str = "",
         hierarchy: list[dict[str, int]] | None = None,
+        mdl_nats: float | None = None,
+        gt_metrics: dict | None = None,
     ) -> None:
         self.partition = partition
         self.rigor_used = rigor_used
@@ -128,6 +132,14 @@ class ClusteringResponse:
         # progressively zoom from a coarse super-community to a fine
         # sub-community without paying card-by-card retrieval cost.
         self.hierarchy = hierarchy
+        # SBM-only: description length of the fitted block model in
+        # nats (from graph-tool `state.entropy()`). Lower = better fit.
+        # None for heuristic / embeddings-only backends.
+        self.mdl_nats = mdl_nats
+        # SBM-only: full dict of graph-tool inference + structural metrics
+        # captured at clustering time. None for heuristic / embeddings-only
+        # backends. See `backends/sbm.py:_extract_gt_metrics` for schema.
+        self.gt_metrics = gt_metrics
 
 
 @runtime_checkable

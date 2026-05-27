@@ -8,7 +8,7 @@ Script: audit_external_repo
 Path: scripts/ops/audit_external_repo.py
 
 Purpose: Generate a per-script audit markdown for a non-nuthatch repo
-    (kestrel-latest, kestrel-v8, etc.) without requiring an inventory
+    (external knowledge-graph repos for prior-art comparison) without requiring an inventory
     pre-generated in that repo. Walks `.py` files under a given root,
     parses each with `ast`, and emits a package-grouped markdown table
     with: path, module docstring (purpose paragraph), top-level
@@ -92,9 +92,11 @@ def _parse_one(path: Path) -> dict | None:
     for node in tree.body:
         if isinstance(node, ast.ClassDef):
             classes.append(node.name)
-        elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-            if not node.name.startswith("_"):
-                functions.append(node.name)
+        elif (
+            isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+            and not node.name.startswith("_")
+        ):
+            functions.append(node.name)
 
     return {
         "path": path,

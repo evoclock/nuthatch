@@ -15,7 +15,7 @@ Inputs: a `HookRegistry` populated with `HookSpec`s the user
 Outputs: the modified context (markdown or metadata) returned by
     the chain of hooks for a given stage.
 
-Pattern reused from `kestrel`'s `hooks.py` (the pre/post hook
+Pattern reused from `a prior implementation`'s `hooks.py` (the pre/post hook
 registry in the external pipeline library nuthatch borrows from).
 nuthatch's implementation is a fresh write: typed `HookStage` enum
 matching the orchestrator's pipeline stages, an explicit registry

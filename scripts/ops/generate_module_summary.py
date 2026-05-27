@@ -64,15 +64,18 @@ def _bucket(entry: dict) -> str | None:
     """Return the package name an entry belongs to, or None to skip."""
     p = Path(entry["path"])
     parts = p.parts
-    if parts[0] == "src" and len(parts) >= 2 and parts[1] == "nuthatch":
+    if not parts:
+        return None
+    first = parts[0]
+    if first == "src" and len(parts) >= 2 and parts[1] == "nuthatch":
         if len(parts) >= 4:
             return parts[2]
         return "_top"  # src/nuthatch/{cli.py, __init__.py}
-    if parts[0] == "scripts":
+    if first == "scripts":
         return f"scripts/{parts[1]}" if len(parts) >= 3 else "scripts"
-    if parts[0] == "tests":
+    if first == "tests":
         return None  # tests omitted from the summary
-    return parts[0]
+    return first
 
 
 _PACKAGE_BLURBS = {

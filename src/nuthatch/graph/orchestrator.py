@@ -47,12 +47,21 @@ _LOG = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class GraphBuildResult:
-    """Aggregate outcome of `build_graph_for_corpus`."""
+    """Aggregate outcome of `build_graph_for_corpus`.
+
+    The semantic-extract counts are zero when the corpus has no
+    `<doc_id>.concepts.json` sidecars (i.e., `nuthatch semantic-extract`
+    has not been run). Otherwise they report what got folded in.
+    """
 
     n_docs: int
     n_nodes: int
     n_edges: int
     graph_path: Path
+    n_concept_sidecars: int = 0
+    n_concept_nodes: int = 0
+    n_mention_edges: int = 0
+    n_semantic_edges: int = 0
 
 
 def build_graph_for_corpus(
@@ -62,10 +71,28 @@ def build_graph_for_corpus(
 ) -> GraphBuildResult:
     """Build the corpus graph from `<corpus>/.kg/extracted/*.md`.
 
+    Stages (all in-memory, single artifact written at the end):
+
+    1. Bibliographic build. Loads metadata sidecars + bodies and runs
+       `build_graph()` to assemble document + author + citation nodes
+       plus their edges.
+
+    2. Semantic augmentation (intrinsic, no-op when no concept sidecars
+       exist). Loads `<doc_id>.concepts.json` sidecars produced by
+       `nuthatch semantic-extract`; adds topic / method / named_entity
+       nodes + `mentions` edges; adds `shares_summary_with` edges
+       between documents whose summaries are similar above the
+       per-corpus threshold (config: `semantic_extract.semantic_edge_threshold`).
+
+    3. Persist to `<corpus>/.kg/graph/graph.json`.
+
+    Re-runnable: same inputs (extracted/ contents + config) produce the
+    same graph.json. Adding more concept sidecars later just produces
+    a richer graph on the next run.
+
     `extractor` is dependency-injected so tests can substitute a
-    deterministic fake; production uses the default
-    `EntityExtractor` which runs regex-based author / topic /
-    citation extraction.
+    deterministic fake; production uses the default `EntityExtractor`
+    which runs regex-based author / topic / citation extraction.
     """
     extracted_dir = layout.extracted_dir
     extractor = extractor or EntityExtractor()
@@ -73,6 +100,10 @@ def build_graph_for_corpus(
     contributions: list[DocumentContribution] = []
     if extracted_dir.is_dir():
         for md_path in sorted(extracted_dir.glob("*.md")):
+            # Skip the .concepts.json sidecars produced by
+            # `nuthatch semantic-extract`; they are not document bodies.
+            if md_path.name.endswith(".concepts.json"):
+                continue
             doc_id = md_path.stem
             meta_path = extracted_dir / f"{doc_id}.meta.json"
             meta = _load_meta_sidecar(meta_path)
@@ -91,6 +122,34 @@ def build_graph_for_corpus(
 
     g = build_graph(contributions, extractor=extractor)
 
+    # Semantic augmentation. No-op when no concept sidecars exist, so
+    # corpora that have not run `nuthatch semantic-extract` still get a
+    # valid bibliographic-only graph.
+    from nuthatch.corpus.config import load_corpus_config
+    from nuthatch.semantic_extract.augment import (
+        add_semantic_edges,
+        augment_with_concepts,
+        load_concept_sidecars,
+    )
+
+    cfg = load_corpus_config(layout.kg / "config.yaml")
+    concepts = load_concept_sidecars(extracted_dir)
+
+    n_concept_nodes = 0
+    n_mention_edges = 0
+    n_semantic_edges = 0
+    if concepts:
+        n_concept_nodes, n_mention_edges = augment_with_concepts(g, concepts)
+        threshold = cfg.semantic_extract.semantic_edge_threshold
+        if threshold is not None:
+            n_semantic_edges = add_semantic_edges(
+                g, concepts, threshold=threshold,
+            )
+        else:
+            # Fall through to the default threshold baked into the
+            # library (single source of truth for the default value).
+            n_semantic_edges = add_semantic_edges(g, concepts)
+
     graph_path = layout.kg / "graph" / "graph.json"
     graph_path.parent.mkdir(parents=True, exist_ok=True)
     save_graph(g, graph_path)
@@ -100,6 +159,10 @@ def build_graph_for_corpus(
         n_nodes=g.number_of_nodes(),
         n_edges=g.number_of_edges(),
         graph_path=graph_path,
+        n_concept_sidecars=len(concepts),
+        n_concept_nodes=n_concept_nodes,
+        n_mention_edges=n_mention_edges,
+        n_semantic_edges=n_semantic_edges,
     )
 
 

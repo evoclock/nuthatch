@@ -23,7 +23,7 @@ Algorithm: greedy set-overlap. For each new community (largest
     previous ID. Communities with no overlap get fresh IDs that
     don't collide with any old ID.
 
-No equivalent function exists in the currently-installed kestrel
+No equivalent function exists in the currently-installed a prior implementation
 version (the SPRINT_PLAN.md reuse map referenced one but it has
 since been removed upstream); this is a fresh implementation
 shaped by the standard greedy-overlap pattern used in the

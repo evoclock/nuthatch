@@ -11,11 +11,8 @@ trigger: nuthatch serve --corpus <name>
 
 # Nuthatch — OpenCode integration
 
-> **Tool spec**: load `AGENTS.md` (XML-tagged) **or**
-> `AGENTS-MARKDOWN.md` (plain markdown) for full tool semantics.
-> Pick whichever format your parser handles best. Both carry the
-> same content and stay in sync. This skill file covers
-> OpenCode-specific wiring only.
+> **Tool spec**: load `AGENTS.md` from the repo root for full tool
+> semantics. This skill file covers OpenCode-specific wiring only.
 
 OpenCode supports MCP servers natively via its config file.
 
@@ -112,7 +109,7 @@ worked examples:
 1. `token_econ_report(group_by="tool")` after the work session.
 2. Nuthatch's counterfactual is per-tool BM25 (for `corpus_search`)
    / card-sum (for subgraph + community), NOT "the whole corpus"
-   (which would be the kestrel-style strawman pinned in
+   (which would be the prior-implementation strawman pinned in
    `docs/DECISIONS.md` § Token-economy methodology). Reported
    ratios typically 2-8x, not 50-100x. Smaller, defensible.
 
@@ -133,4 +130,3 @@ builds. (`docs/DECISIONS.md` § "Execution model" pins this.)
 ## See also
 
 - `AGENTS.md`. Full tool semantics and usage patterns (XML-tagged)
-- `AGENTS-MARKDOWN.md`. Same content, markdown sections

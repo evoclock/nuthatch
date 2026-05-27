@@ -40,11 +40,26 @@ class RAGResult:
 
 _ANSWER_PROMPT = """\
 You answer questions from a research-paper corpus using ONLY the \
-context passages below. If the passages do not contain the answer, \
-say "I cannot answer from the provided context."
+context passages below.
 
-Be concise (1-4 sentences). Do not speculate. Do not cite anything \
-not present in the context.
+Abstention is a first-class option. You MUST abstain (not answer) when:
+1. The passages do not contain the information needed to answer.
+2. The passages contradict each other on the relevant point.
+3. The passages are ambiguous and could support multiple answers.
+4. The question itself is unclear and cannot be answered as posed.
+
+When abstaining, reply exactly with:
+  "I cannot answer from the provided context: <one-line reason>."
+
+Partial answers are also allowed and preferred over hallucinated \
+completeness. If the passages support PART of the answer but not all \
+of it, say what you can support, then explicitly mark the gap, e.g.:
+  "The passages state X, but do not provide Y."
+
+If you can answer fully and faithfully, do so concisely (1-4 sentences). \
+Do not speculate. Do not introduce facts not present in the context. \
+Do not pad an uncertain answer with hedges; abstain or answer partially \
+instead.
 
 CONTEXT PASSAGES:
 {contexts}
@@ -66,9 +81,10 @@ def run_rag_turn(
     answerer_llm: Any,
     *,
     k: int = 5,
+    rerank: bool = False,
 ) -> RAGResult:
     """Retrieve k contexts + synthesise an answer."""
-    hits = retriever.search(question, k=k)
+    hits = retriever.search(question, k=k, rerank=rerank)
     contexts = [h.text for h in hits]
     chunk_ids = [h.chunk_id for h in hits]
     doc_ids = [h.doc_id for h in hits]
@@ -92,6 +108,23 @@ def run_rag_turn(
         retrieved_scores=scores,
         answer=answer,
     )
+
+
+def retrieve_only(
+    question: str,
+    retriever: Any,
+    *,
+    k: int = 5,
+    rerank: bool = False,
+) -> list[str]:
+    """Retrieve chunk_ids only, no answer synthesis.
+
+    Used by the rerank-delta metric: we want to know what retrieval
+    returned with and without rerank for the same question; we do
+    NOT need an LLM-synthesised answer for either pass.
+    """
+    hits = retriever.search(question, k=k, rerank=rerank)
+    return [h.chunk_id for h in hits]
 
 
 def build_retriever(layout: CorpusLayout) -> Any:

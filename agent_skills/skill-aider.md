@@ -11,11 +11,8 @@ trigger: nuthatch serve --corpus <name>
 
 # Nuthatch — Aider integration
 
-> **Tool spec**: load `AGENTS.md` (XML-tagged) **or**
-> `AGENTS-MARKDOWN.md` (plain markdown) for full tool semantics.
-> Pick whichever format your parser handles best. Both carry the
-> same content and stay in sync. This skill file covers
-> Aider-specific wiring only.
+> **Tool spec**: load `AGENTS.md` from the repo root for full tool
+> semantics. This skill file covers Aider-specific wiring only.
 
 ## One-time setup
 
@@ -128,5 +125,4 @@ Do NOT invoke the build CLI yourself.
 ## See also
 
 - `AGENTS.md`. Full tool semantics and usage patterns (XML-tagged)
-- `AGENTS-MARKDOWN.md`. Same content, markdown sections
 - `docs/SPEC.md`. Architecture

@@ -11,11 +11,8 @@ trigger: nuthatch serve --corpus <name>
 
 # Nuthatch — Hermes integration
 
-> **Tool spec**: load `AGENTS.md` (XML-tagged) **or**
-> `AGENTS-MARKDOWN.md` (plain markdown) for full tool semantics.
-> Pick whichever format your parser handles best. Both carry the
-> same content and stay in sync. This skill file covers
-> Hermes-specific wiring only.
+> **Tool spec**: load `AGENTS.md` from the repo root for full tool
+> semantics. This skill file covers Hermes-specific wiring only.
 
 Hermes (Nous Research) supports MCP servers as multi-provider
 endpoints. This skill walks through registration in either the
@@ -114,7 +111,7 @@ override in `<corpus>/.kg/config.yaml` under `embedding.model`).
 Track per-worker savings by calling `token_econ_report(group_by="tool",
 surface_id="hermes-worker-<id>")` after a batch of tasks. The
 counterfactual is per-tool BM25 / card-sum, NOT "the whole corpus"
-(the kestrel-style strawman pinned in `docs/DECISIONS.md` §
+(the prior-implementation strawman pinned in `docs/DECISIONS.md` §
 Token-economy methodology). Expect 2-8x reduction ratios per
 worker, summed across all five MCP tools.
 
@@ -141,5 +138,4 @@ them. Not silently absorbed into the agent loop.
 ## See also
 
 - `AGENTS.md`. Full tool semantics and usage patterns (XML-tagged)
-- `AGENTS-MARKDOWN.md`. Same content, markdown sections
 - `~/project-planning-agent/strands/hermes-interim.md`. VM lane build plan

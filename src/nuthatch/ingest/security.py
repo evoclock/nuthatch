@@ -16,7 +16,7 @@ Inputs: a candidate URL string. Optional allowlist of additional
 
 Outputs: `SecurityResult(allowed, reason, resolved_ip)`.
 
-Pattern reused from `kestrel`'s `security.py` (the URL / SSRF guard
+Pattern reused from `a prior implementation`'s `security.py` (the URL / SSRF guard
 in the external pipeline library nuthatch borrows from). nuthatch's
 implementation is a fresh write shaped by that pattern: scheme
 allowlist, host resolution, address-block rejection, plus an

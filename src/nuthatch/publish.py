@@ -482,6 +482,7 @@ def _capabilities_json(n_cards: int, n_communities: int,
                 "present": bool(backends_present),
                 "backends": backends_present,
                 "path_template": ".kg/communities_<backend>.json",
+                "canonical_path": ".kg/communities.json",
             },
             "community_centroids": {
                 "present": has_centroids,

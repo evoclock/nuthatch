@@ -8,15 +8,13 @@ Runs against any corpus that has completed `ingest` + `embed`. Builds
 a synthetic test set, runs the live retrieve + answer pipeline on
 each question, scores with RAGAS, writes a markdown report.
 
-Usage (defaults: minimax-m2.5:cloud generates + answers; gpt-oss judges):
-    python scripts/eval/ragas_eval.py \\
-        --corpus inputs \\
-        --n-questions 100 \\
-        --k 5
+Usage (canonical defaults: gemini-3-flash-preview:cloud generates +
+answers; granite3-dense:8b local judges):
+    nuthatch eval ragas --corpus inputs --n-questions 100 --k 5
 
-Override roles (any langchain-compatible backend + model):
-    --gen-backend  ollama  --gen-model  minimax-m2.5:cloud   # generator + answerer
-    --judge-backend ollama --judge-model gpt-oss:120b-cloud  # RAGAS judge
+Override roles (any backend + model the factory supports):
+    --gen-backend  ollama  --gen-model  gemini-3-flash-preview:cloud  # generator + answerer
+    --judge-backend ollama --judge-model granite3-dense:8b             # RAGAS judge
 
 The generator + judge are kept on DIFFERENT models on purpose: the
 judge grading the same model that wrote the answer is self-preference
@@ -53,18 +51,19 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-# Make this script runnable both as a module and standalone.
-_THIS_DIR = Path(__file__).resolve().parent
-if str(_THIS_DIR) not in sys.path:
-    sys.path.insert(0, str(_THIS_DIR))
-
-from llm_backends import build_llm  # noqa: E402
-from rag_pipeline import RAGResult, build_retriever, run_rag_turn  # noqa: E402
-from testset_generator import TestExample, generate_test_set, write_testset_jsonl  # noqa: E402
-
-
-def _now_tag() -> str:
-    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+from nuthatch.eval.rag import (
+    RAGResult,
+    build_retriever,
+    retrieve_only,
+    run_rag_turn,
+)
+from nuthatch.eval.testset import (
+    TestExample,
+    generate_test_set,
+    write_testset_jsonl,
+)
+from nuthatch.util import resolve_corpus, utc_tag
+from nuthatch.util.llm_backends import build_llm
 
 
 def main(argv: list[str]) -> int:
@@ -76,18 +75,23 @@ def main(argv: list[str]) -> int:
     p.add_argument("--k", type=int, default=5, help="top-k retrieved per query")
     p.add_argument("--seed", type=int, default=0)
 
-    # Generator + answerer role (default: Minimax M2.5 cloud)
+    # Generator + answerer role (default: Gemini Flash cloud — fast +
+    # JSON-compliant for testset generation).
     p.add_argument("--gen-backend", default="ollama",
                    help="generator+answerer backend: ollama | openai | anthropic")
-    p.add_argument("--gen-model", default="minimax-m2.5:cloud",
+    p.add_argument("--gen-model", default="gemini-3-flash-preview:cloud",
                    help="generator+answerer model id")
     p.add_argument("--gen-num-predict", type=int, default=2048,
                    help="answer token budget for generator+answerer")
 
-    # Judge role (default: gpt-oss 120b cloud, a different family from Minimax)
+    # Judge role (default: local granite3-dense:8b — IBM enterprise
+    # instruct-tuned, reliable structured JSON output, non-reasoning so
+    # it does not burn the token budget on a chain-of-thought trace
+    # before emitting content. Different family from Gemini generator to
+    # reduce self-preference bias on RAGAS metrics).
     p.add_argument("--judge-backend", default="ollama",
                    help="judge backend: ollama | openai | anthropic")
-    p.add_argument("--judge-model", default="gpt-oss:120b-cloud",
+    p.add_argument("--judge-model", default="granite3-dense:8b",
                    help="judge model id; should differ from --gen-model")
     p.add_argument("--judge-num-predict", type=int, default=1024,
                    help="token budget for judge calls")
@@ -97,6 +101,21 @@ def main(argv: list[str]) -> int:
     p.add_argument("--skip-ragas", action="store_true",
                    help="run only the intrinsic metrics; skip LLM-as-judge "
                         "RAGAS metrics. Useful for fast smoke tests.")
+    p.add_argument("--measure-rerank", action="store_true",
+                   help="add a second retrieval pass per question with the "
+                        "cross-encoder reranker enabled, and report mean / "
+                        "median rerank-rank-delta of the seeding chunk. "
+                        "Tells you whether the reranker earns its inference "
+                        "cost on this corpus. Costs ~one extra retrieval "
+                        "per question (cheap, GPU-bound on the reranker).")
+    p.add_argument("--reuse-testset", nargs="+", default=None,
+                   help="one or more paths to previously persisted "
+                        "ragas_dataset_*.jsonl files to reuse instead of "
+                        "regenerating. Multiple paths are concatenated and "
+                        "deduplicated by question text, expanding the test "
+                        "set for free. Skips the testset generation phase. "
+                        "Required for apples-to-apples comparison across "
+                        "runs that vary only the judge or retrieval config.")
 
     # Back-compat: keep old --llm-backend / --llm-model as aliases for the
     # generator. Any session that still passes them works without surprise.
@@ -120,7 +139,7 @@ def main(argv: list[str]) -> int:
     # Resolve corpus
     from nuthatch.corpus.layout import CorpusLayout
 
-    corpus_root = _resolve_corpus(args.corpus)
+    corpus_root = resolve_corpus(args.corpus)
     layout = CorpusLayout(root=corpus_root)
     print(f"[eval] corpus: {layout.root}")
 
@@ -140,15 +159,30 @@ def main(argv: list[str]) -> int:
         got["ids"], got["documents"], got["metadatas"], strict=True,
     ))
 
-    # Build LLMs (generator + judge, different by default)
-    print(f"[eval] generator: {args.gen_backend}::{args.gen_model}")
-    gen_llm = build_llm(
+    # Build LLMs. The generator is only needed when we are about to
+    # generate a testset; with --reuse-testset we skip generator entirely.
+    gen_llm = None
+    if args.reuse_testset is None:
+        print(f"[eval] generator: {args.gen_backend}::{args.gen_model}")
+        gen_llm = build_llm(
+            backend=args.gen_backend,
+            model=args.gen_model,
+            num_predict=args.gen_num_predict,
+            temperature=0.0,
+        )
+    else:
+        print("[eval] generator: SKIPPED (reusing testset)")
+
+    # Answerer always needs an LLM; default to the same backend/model
+    # the user gave for --gen-* so a reused testset still gets answered.
+    print(f"[eval] answerer:  {args.gen_backend}::{args.gen_model}")
+    answerer_llm = gen_llm if gen_llm is not None else build_llm(
         backend=args.gen_backend,
         model=args.gen_model,
         num_predict=args.gen_num_predict,
         temperature=0.0,
     )
-    judge_llm = None
+
     if not args.skip_ragas:
         if (
             args.judge_backend == args.gen_backend
@@ -160,41 +194,58 @@ def main(argv: list[str]) -> int:
                 "calibrated RAGAS scores.",
             )
         print(f"[eval] judge:     {args.judge_backend}::{args.judge_model}")
-        judge_llm = build_llm(
-            backend=args.judge_backend,
-            model=args.judge_model,
-            num_predict=args.judge_num_predict,
-            temperature=0.0,
-        )
+        # Judge is built inside _run_ragas via the modern factory so we
+        # can also pre-warm it; nothing to construct up here.
 
-    # Generate test set
-    print(f"[eval] generating {args.n_questions} synthetic QA pairs "
-          f"(cap {args.per_doc_cap}/doc, seed {args.seed})...")
-    t0 = time.perf_counter()
-
-    def _testset_progress(i: int, total: int, cid: str) -> None:
-        print(f"  [{i:>3d}/{total}] {cid}", flush=True)
-
-    examples = generate_test_set(
-        chunk_records,
-        gen_llm,
-        n=args.n_questions,
-        per_doc_cap=args.per_doc_cap,
-        seed=args.seed,
-        on_progress=_testset_progress,
-    )
-    print(f"[eval] generated {len(examples)} usable examples "
-          f"({time.perf_counter() - t0:.1f}s)")
-    if not examples:
-        print("[eval] no test examples generated; aborting.")
-        return 3
-
-    tag = _now_tag()
+    # Test set: generate fresh or reuse persisted
+    tag = utc_tag()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    dataset_path = out_dir / f"ragas_dataset_{tag}.jsonl"
-    write_testset_jsonl(examples, dataset_path)
-    print(f"[eval] testset persisted: {dataset_path}")
+
+    if args.reuse_testset is not None:
+        reuse_paths = [Path(p) for p in args.reuse_testset]
+        for rp in reuse_paths:
+            if not rp.is_file():
+                raise SystemExit(f"--reuse-testset path not found: {rp}")
+        print(f"[eval] reusing {len(reuse_paths)} testset file(s):")
+        for rp in reuse_paths:
+            print(f"        {rp}")
+        examples = _load_testset_jsonl(reuse_paths, chunk_records)
+        print(f"[eval] loaded {len(examples)} examples "
+              f"(deduplicated by question text)")
+        # Report references either the single reuse path or a combined
+        # pointer-file we write next so a future session can reproduce.
+        if len(reuse_paths) == 1:
+            dataset_path = reuse_paths[0]
+        else:
+            dataset_path = out_dir / f"ragas_dataset_combined_{tag}.jsonl"
+            write_testset_jsonl(examples, dataset_path)
+            print(f"[eval] combined testset persisted: {dataset_path}")
+    else:
+        print(f"[eval] generating {args.n_questions} synthetic QA pairs "
+              f"(cap {args.per_doc_cap}/doc, seed {args.seed})...")
+        t0 = time.perf_counter()
+
+        def _testset_progress(i: int, total: int, cid: str) -> None:
+            print(f"  [{i:>3d}/{total}] {cid}", flush=True)
+
+        examples = generate_test_set(
+            chunk_records,
+            gen_llm,
+            n=args.n_questions,
+            per_doc_cap=args.per_doc_cap,
+            seed=args.seed,
+            on_progress=_testset_progress,
+        )
+        print(f"[eval] generated {len(examples)} usable examples "
+              f"({time.perf_counter() - t0:.1f}s)")
+        if not examples:
+            print("[eval] no test examples generated; aborting.")
+            return 3
+
+        dataset_path = out_dir / f"ragas_dataset_{tag}.jsonl"
+        write_testset_jsonl(examples, dataset_path)
+        print(f"[eval] testset persisted: {dataset_path}")
 
     # Run RAG pipeline
     print(f"[eval] running RAG pipeline (k={args.k})...")
@@ -204,7 +255,8 @@ def main(argv: list[str]) -> int:
     for i, ex in enumerate(examples, start=1):
         print(f"  [{i:>3d}/{len(examples)}] {ex.question[:60]}...", flush=True)
         rag_results.append(run_rag_turn(
-            ex.question, retriever=retriever, answerer_llm=gen_llm, k=args.k,
+            ex.question, retriever=retriever, answerer_llm=answerer_llm,
+            k=args.k,
         ))
     print(f"[eval] RAG pipeline done ({time.perf_counter() - t0:.1f}s)")
 
@@ -214,17 +266,36 @@ def main(argv: list[str]) -> int:
     for k, v in intrinsic.items():
         print(f"  {k:24s} {v:.3f}")
 
+    # Optional rerank-delta: per-question second retrieval with
+    # cross-encoder rerank, compare ranks to the no-rerank pass.
+    rerank_metrics: dict[str, float] = {}
+    if args.measure_rerank:
+        print("[eval] measuring rerank delta...")
+        rerank_metrics = _compute_rerank_delta(
+            examples, rag_results, retriever, k=args.k,
+        )
+        for k, v in rerank_metrics.items():
+            print(f"  {k:24s} {v:.3f}")
+
     # RAGAS metrics (LLM-as-judge, optional)
     ragas_scores: dict[str, float] = {}
     if not args.skip_ragas:
         print("[eval] running RAGAS evaluators "
               "(judge LLM per row per metric)...")
-        ragas_scores = _run_ragas(examples, rag_results, judge_llm)
+        ragas_scores = _run_ragas(
+            examples, rag_results,
+            judge_backend=args.judge_backend,
+            judge_model=args.judge_model,
+            judge_num_predict=args.judge_num_predict,
+        )
         for k, v in ragas_scores.items():
             print(f"  {k:24s} {v:.3f}")
 
-    # Write report
-    report_path = out_dir / f"ragas_report_{tag}.md"
+    # Write report. Filename is self-describing: judge state inline
+    # (skipragas = intrinsic-only smoke; judge = full RAGAS judge ran)
+    # so smoke runs cannot masquerade as real ones on disk.
+    judge_marker = "skipragas" if args.skip_ragas else "judge"
+    report_path = out_dir / f"ragas_report_{judge_marker}_{tag}.md"
     _write_report(
         report_path=report_path,
         layout=layout,
@@ -232,6 +303,7 @@ def main(argv: list[str]) -> int:
         examples=examples,
         rag_results=rag_results,
         intrinsic=intrinsic,
+        rerank_metrics=rerank_metrics,
         ragas_scores=ragas_scores,
         dataset_path=dataset_path,
         n_chunks=n_chunks,
@@ -240,21 +312,46 @@ def main(argv: list[str]) -> int:
     return 0
 
 
-def _resolve_corpus(name_or_path: str) -> Path:
-    """Mirror the CLI resolver: try registry first, then path."""
-    from nuthatch.corpus import Registry
+def _load_testset_jsonl(
+    paths: list[Path],
+    chunk_records: list[tuple[str, str, dict]],
+) -> list[TestExample]:
+    """Load one or more persisted testsets and deduplicate by question.
 
-    try:
-        registry = Registry.load()
-        entry = registry.get(name_or_path)
-        if entry is not None:
-            return Path(entry).resolve()
-    except Exception:
-        pass
-    p = Path(name_or_path).resolve()
-    if (p / ".kg").is_dir():
-        return p
-    raise SystemExit(f"corpus not found: {name_or_path!r}")
+    The persisted JSONL has 4 fields per row: question, ground_truth,
+    source_chunk_id, source_doc_id. We don't persist `source_text`
+    because it can be looked up from Chroma by chunk_id; we do so here
+    so loaded examples have the same shape as freshly-generated ones.
+
+    Dedup by exact question string. With multiple files this avoids
+    double-counting if you (accidentally or intentionally) pass two
+    testsets that share questions.
+    """
+    import json
+
+    chunk_text_by_id = {cid: text for cid, text, _meta in chunk_records}
+    seen_questions: set[str] = set()
+    out: list[TestExample] = []
+    for path in paths:
+        with path.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                d = json.loads(line)
+                q = d["question"]
+                if q in seen_questions:
+                    continue
+                seen_questions.add(q)
+                source_text = chunk_text_by_id.get(d["source_chunk_id"], "")
+                out.append(TestExample(
+                    question=q,
+                    ground_truth=d["ground_truth"],
+                    source_chunk_id=d["source_chunk_id"],
+                    source_doc_id=d["source_doc_id"],
+                    source_text=source_text,
+                ))
+    return out
 
 
 def _compute_intrinsic(
@@ -299,6 +396,62 @@ def _compute_intrinsic(
     }
 
 
+def _compute_rerank_delta(
+    examples: list[TestExample],
+    rag_results: list[RAGResult],
+    retriever: object,
+    *,
+    k: int,
+) -> dict[str, float]:
+    """Measure how much the cross-encoder reranker moves the seeding chunk.
+
+    For each question we already have the no-rerank top-k (in
+    `rag_results`). We do a second retrieval with `rerank=True` and
+    compute the rank of the seeding chunk in each pass. Delta is
+    `pre_rank - post_rank` where positive = rerank helped (moved the
+    chunk up). Chunks not in top-k get rank `k + 1` so a "not present
+    -> present" outcome is a positive delta of finite size, not inf.
+    """
+    deltas: list[float] = []
+    new_hits = 0   # rerank brought into top-k a chunk that wasn't there
+    lost_hits = 0  # rerank evicted a chunk that was there
+    for ex, rag in zip(examples, rag_results, strict=True):
+        pre_ids = rag.retrieved_chunk_ids
+        try:
+            post_ids = retrieve_only(
+                ex.question, retriever, k=k, rerank=True,
+            )
+        except Exception:
+            continue
+        pre_rank = (
+            pre_ids.index(ex.source_chunk_id) + 1
+            if ex.source_chunk_id in pre_ids
+            else k + 1
+        )
+        post_rank = (
+            post_ids.index(ex.source_chunk_id) + 1
+            if ex.source_chunk_id in post_ids
+            else k + 1
+        )
+        deltas.append(float(pre_rank - post_rank))
+        if pre_rank > k and post_rank <= k:
+            new_hits += 1
+        elif pre_rank <= k and post_rank > k:
+            lost_hits += 1
+
+    if not deltas:
+        return {}
+    deltas_sorted = sorted(deltas)
+    n = len(deltas)
+    median = deltas_sorted[n // 2]
+    return {
+        "rerank_delta_mean": sum(deltas) / n,
+        "rerank_delta_median": float(median),
+        "rerank_new_hits": float(new_hits),
+        "rerank_lost_hits": float(lost_hits),
+    }
+
+
 def _retrieval_failures(
     examples: list[TestExample], rag_results: list[RAGResult],
 ) -> list[tuple[TestExample, RAGResult]]:
@@ -315,22 +468,118 @@ def _retrieval_failures(
     return out
 
 
+def _build_ragas_judge(
+    *, backend: str, model: str, num_predict: int,
+) -> object:
+    """Build a RAGAS-native judge LLM using the new factory API.
+
+    Migrated off the deprecated `LangchainLLMWrapper`. Talks to Ollama
+    (local OR cloud) via Ollama's OpenAI-compatible endpoint at
+    `http://localhost:11434/v1`. For non-Ollama backends, falls through
+    to direct provider clients (OpenAI, Anthropic).
+
+    The Ollama path uses `provider="openai"` because Ollama exposes an
+    OpenAI-shaped REST API; the `client` we pass overrides the base URL
+    and tells RAGAS where to call. No actual OpenAI account is used.
+    """
+    from ragas.llms import llm_factory
+
+    backend = backend.lower()
+    if backend == "ollama":
+        import os
+
+        import openai
+
+        base_url = os.environ.get(
+            "OLLAMA_HOST", "http://localhost:11434",
+        ).rstrip("/")
+        if not base_url.endswith("/v1"):
+            base_url = f"{base_url}/v1"
+        client = openai.OpenAI(
+            base_url=base_url,
+            api_key="ollama",  # any string; Ollama ignores auth
+            timeout=600.0,     # generous: local models can be slow
+        )
+        return llm_factory(
+            model=model,
+            provider="openai",
+            client=client,
+        )
+    if backend == "openai":
+        import openai
+
+        client = openai.OpenAI(timeout=600.0)
+        return llm_factory(model=model, provider="openai", client=client)
+    if backend == "anthropic":
+        import anthropic
+
+        client = anthropic.Anthropic(timeout=600.0)
+        return llm_factory(model=model, provider="anthropic", client=client)
+    raise ValueError(f"unsupported judge backend for RAGAS: {backend!r}")
+
+
+def _prewarm_local_judge(
+    backend: str, model: str, num_predict: int,
+) -> None:
+    """Force a single tiny inference call so the model is hot before RAGAS.
+
+    Local Ollama models pay a 60-200s cold-start cost on the first
+    inference (weight load + CUDA init + JIT). RAGAS dispatches jobs
+    in parallel; if the first 16+ jobs all hit the cold model, they
+    queue behind the warmup and time out. This pre-warm absorbs the
+    cold start in a single dummy call so every real call lands on a
+    warm process.
+
+    No-op for non-local backends (cloud APIs keep models warm).
+    """
+    if backend.lower() != "ollama":
+        return
+    # Cloud-served Ollama models (`:cloud` suffix) live in Ollama's
+    # cloud infrastructure and are kept warm across users; no local
+    # cold-start cost.
+    if model.endswith(":cloud"):
+        return
+    print(f"[eval] pre-warming local judge {model}...")
+    t0 = time.perf_counter()
+    try:
+        from nuthatch.util.llm_backends import build_llm
+
+        warm_llm = build_llm(
+            backend=backend, model=model,
+            num_predict=16, temperature=0.0,
+        )
+        _ = warm_llm.invoke("Reply with just the word: ok")
+        dt = time.perf_counter() - t0
+        print(f"[eval] pre-warm done in {dt:.1f}s; judge model is hot")
+    except Exception as exc:
+        print(f"[eval] WARN: pre-warm failed: {exc!s}; "
+              "first RAGAS call may time out")
+
+
 def _run_ragas(
     examples: list[TestExample],
     rag_results: list[RAGResult],
-    judge_llm: object,
+    *,
+    judge_backend: str,
+    judge_model: str,
+    judge_num_predict: int,
 ) -> dict[str, float]:
-    """RAGAS LLM-as-judge metrics.
+    """RAGAS LLM-as-judge metrics, modern API + tolerant of slow judges.
 
-    Uses a nuthatch-backed embeddings adapter so RAGAS does not reach
-    for OpenAI's `text-embedding-ada-002` (the default that crashes
-    without `OPENAI_API_KEY`). The judge LLM is separate from the
-    generator LLM by default to avoid self-preference bias.
+    Three robustness fixes vs the prior implementation:
+      1. Pre-warm the judge if it's a local model (absorbs cold-start).
+      2. RunConfig(max_workers=1, timeout=600) - serial dispatch with a
+         generous per-call ceiling so head-of-line blocking from a slow
+         call cannot starve the queue.
+      3. Migrated off deprecated `LangchainLLMWrapper` /
+         `LangchainEmbeddingsWrapper` to the post-langchain factory API.
+
+    The embeddings adapter is `NuthatchEmbeddings` (BGE-M3, same as the
+    retriever) so RAGAS scores in the index's vector space rather than
+    reaching for OpenAI ada-002.
     """
     from datasets import Dataset
-    from ragas import evaluate
-    from ragas.embeddings import LangchainEmbeddingsWrapper
-    from ragas.llms import LangchainLLMWrapper
+    from ragas import RunConfig, evaluate
     from ragas.metrics import (
         answer_correctness,
         answer_relevancy,
@@ -339,7 +588,15 @@ def _run_ragas(
         faithfulness,
     )
 
-    from ragas_embeddings import NuthatchEmbeddings
+    from nuthatch.eval.ragas_embeddings import NuthatchEmbeddings
+
+    _prewarm_local_judge(judge_backend, judge_model, judge_num_predict)
+
+    ragas_llm = _build_ragas_judge(
+        backend=judge_backend, model=judge_model,
+        num_predict=judge_num_predict,
+    )
+    ragas_embeds = NuthatchEmbeddings()
 
     data = {
         "question": [ex.question for ex in examples],
@@ -348,8 +605,6 @@ def _run_ragas(
         "contexts": [r.retrieved_contexts for r in rag_results],
     }
     ds = Dataset.from_dict(data)
-    ragas_llm = LangchainLLMWrapper(judge_llm)
-    ragas_embeds = LangchainEmbeddingsWrapper(NuthatchEmbeddings())
     metrics = [
         context_precision,
         context_recall,
@@ -357,8 +612,17 @@ def _run_ragas(
         answer_relevancy,
         answer_correctness,
     ]
+    # Serial dispatch (max_workers=1) eliminates the head-of-line
+    # blocking that killed the prior run: when one slow call holds the
+    # pool, no other call sits in a timeout-eligible queue. timeout=600s
+    # covers any single local-model call short of pathological. seed=42
+    # is RAGAS's default; surfaced for reproducibility.
+    run_config = RunConfig(
+        timeout=600, max_workers=1, max_retries=3, max_wait=60, seed=42,
+    )
     result = evaluate(
         ds, metrics=metrics, llm=ragas_llm, embeddings=ragas_embeds,
+        run_config=run_config, raise_exceptions=False, show_progress=True,
     )
     # RAGAS 0.4.x returns an `EvaluationResult`, not a dict. The
     # per-metric means live in `_repr_dict` (private but stable since
@@ -389,6 +653,7 @@ def _write_report(
     examples: list[TestExample],
     rag_results: list[RAGResult],
     intrinsic: dict[str, float],
+    rerank_metrics: dict[str, float],
     ragas_scores: dict[str, float],
     dataset_path: Path,
     n_chunks: int,
@@ -476,7 +741,7 @@ def _write_report(
         lines.append(f"- Judge: `{args.judge_backend}::{args.judge_model}`")
     else:
         lines.append("- Judge: _skipped via `--skip-ragas`_")
-    lines.append(f"- Embeddings (retriever + RAGAS): nuthatch BGE-M3")
+    lines.append("- Embeddings (retriever + RAGAS): nuthatch BGE-M3")
     lines.append(f"- Sampling seed: {args.seed}")
     lines.append(f"- Per-doc question cap: {args.per_doc_cap}")
     lines.append(f"- Test set (reproducibility): `{dataset_path.name}`")
@@ -496,6 +761,51 @@ def _write_report(
         legend = intrinsic_legend.get(k, "")
         lines.append(f"| `{k}` | {v:.3f} | {legend} |")
     lines.append("")
+
+    # Section 3b: Rerank-delta (Tier 1, only if --measure-rerank ran)
+    if rerank_metrics:
+        lines.append("## Rerank delta (Tier 1: derived ground truth)")
+        lines.append("")
+        lines.append(
+            "Per-question delta in the seeding chunk's rank, comparing "
+            "vector retrieval alone vs vector + cross-encoder rerank. "
+            "**Positive = rerank helped** (moved the chunk up).",
+        )
+        lines.append("")
+        lines.append("| metric | value | reads as |")
+        lines.append("| --- | ---: | --- |")
+        rerank_legend = {
+            "rerank_delta_mean":
+                "mean rank-points the seeding chunk moved (+ = rerank helped)",
+            "rerank_delta_median":
+                "median rank-points moved; less sensitive to outliers",
+            "rerank_new_hits":
+                "count of questions where rerank brought the seeding chunk INTO top-k",
+            "rerank_lost_hits":
+                "count of questions where rerank EVICTED the seeding chunk from top-k",
+        }
+        for k, v in rerank_metrics.items():
+            legend = rerank_legend.get(k, "")
+            if k in ("rerank_new_hits", "rerank_lost_hits"):
+                lines.append(f"| `{k}` | {int(v)} | {legend} |")
+            else:
+                lines.append(f"| `{k}` | {v:+.3f} | {legend} |")
+        lines.append("")
+        net = rerank_metrics.get("rerank_new_hits", 0) - rerank_metrics.get(
+            "rerank_lost_hits", 0,
+        )
+        if net > 0:
+            lines.append(f"**Net hit gain from reranker: +{int(net)}** "
+                         "questions. Reranker is a net win on this corpus.")
+        elif net < 0:
+            lines.append(f"**Net hit loss from reranker: {int(net)}** "
+                         "questions. Reranker is a net loss on this corpus; "
+                         "consider dropping it.")
+        else:
+            lines.append("**Net hit change from reranker: 0** (movement "
+                         "within top-k only; check mean delta for "
+                         "ordering quality).")
+        lines.append("")
 
     # Section 4: Retrieval-failure diagnostic
     failures = _retrieval_failures(examples, rag_results)

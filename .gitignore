@@ -72,7 +72,7 @@ DECISIONS.md
 SPRINT_PLAN.md
 OPERATIONS.md
 
-# Internal-only architecture docs (use kestrel codename; do not publish)
+# Internal-only architecture docs 
 docs/architecture/kestrel_*.md
 docs/architecture/kestrel_vs_nuthatch.md
 docs/architecture/deferred_*.md

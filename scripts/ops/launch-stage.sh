@@ -21,14 +21,75 @@
 
 set -euo pipefail
 
-STAGE="${1:?usage: $0 <stage> <corpus> [extra args]}"
-CORPUS="${2:?usage: $0 <stage> <corpus> [extra args]}"
+# <stage> may be a single word (top-level subcommand, e.g. `ingest`)
+# OR a quoted multi-word path for nested subcommands (e.g. `"eval cluster"`,
+# `"viz d3"`). The script splits on whitespace and forwards each token
+# as a separate arg to nuthatch, so:
+#
+#   launch-stage.sh ingest inputs                  -> nuthatch ingest --corpus inputs
+#   launch-stage.sh "eval cluster" inputs --communities sbm
+#                                                  -> nuthatch eval cluster --corpus inputs --communities sbm
+#
+# This keeps the script CLI-structure-agnostic (no hardcoded list of
+# parent subcommands) while supporting the nested-subparser pattern
+# nuthatch uses for `eval`, `corpus`, `viz`.
+STAGE="${1:?usage: $0 <stage> <corpus> [--session-suffix S] [--python PATH] [extra args]}"
+CORPUS="${2:?usage: $0 <stage> <corpus> [--session-suffix S] [--python PATH] [extra args]}"
 shift 2 || true
+# Split the stage string on whitespace into an array of subcommand
+# tokens. Word-splitting is intentional here (the user passed the
+# space-separated path inside the quoted argument); shellcheck noise
+# is acceptable.
+# shellcheck disable=SC2206
+STAGE_ARGS=( $STAGE )
 
-NUTHATCH="${NUTHATCH_BIN:-.venv/bin/nuthatch}"
+# Peel script-level flags off the front before we forward the rest to
+# `nuthatch <stage>`. Two flags supported here:
+#   --session-suffix S  Append `-S` to the tmux session + log filename
+#                       so multiple instances of the same stage (e.g.
+#                       three cluster runs with different --backend
+#                       values) can co-exist without clobbering each
+#                       other's session or log. Without this flag the
+#                       script kills any prior `nuthatch-$STAGE` session
+#                       on launch (existing behaviour).
+#   --python PATH       Use a different python interpreter for this
+#                       run. Needed for `nuthatch cluster --backend sbm`
+#                       which requires graph-tool from a conda env
+#                       (e.g. nuthatch-gt); other backends + stages
+#                       stay on the default `.venv`.
+SUFFIX=""
+PYTHON_OVERRIDE=""
+FORWARD=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --session-suffix)
+            SUFFIX="${2:?--session-suffix needs a value}"
+            shift 2
+            ;;
+        --python)
+            PYTHON_OVERRIDE="${2:?--python needs a value}"
+            shift 2
+            ;;
+        *)
+            FORWARD+=("$1")
+            shift
+            ;;
+    esac
+done
 
-# Resolve corpus root so we know where logs go.
-CORPUS_ROOT=$("$NUTHATCH" status --corpus "$CORPUS" 2>/dev/null \
+# Resolve which nuthatch invocation to use. Default is the venv's
+# console script; --python swaps to `<python> -m nuthatch` so a conda
+# env (with its own python + nuthatch install) can run the stage
+# without re-pointing NUTHATCH_BIN globally.
+if [ -n "$PYTHON_OVERRIDE" ]; then
+    NUTHATCH_INVOKE=("$PYTHON_OVERRIDE" -m nuthatch)
+else
+    NUTHATCH_INVOKE=("${NUTHATCH_BIN:-.venv/bin/nuthatch}")
+fi
+
+# Resolve corpus root so we know where logs go. Use the same invocation
+# the stage will use so we know the corpus is resolvable from that env.
+CORPUS_ROOT=$("${NUTHATCH_INVOKE[@]}" status --corpus "$CORPUS" 2>/dev/null \
     | awk '/^corpus:/{print $2; exit}')
 if [ -z "$CORPUS_ROOT" ] || [ ! -d "$CORPUS_ROOT" ]; then
     echo "error: could not resolve corpus '$CORPUS'" >&2
@@ -38,15 +99,38 @@ fi
 AUDIT_DIR="$CORPUS_ROOT/.kg/audit"
 mkdir -p "$AUDIT_DIR"
 TS=$(date -u +%Y%m%dT%H%M%SZ)
-LOG="$AUDIT_DIR/$STAGE-$TS.log"
-SESSION="nuthatch-$STAGE"
+# Sanitise the stage path for filenames + tmux session names: replace
+# any internal whitespace with dashes so "eval cluster" -> "eval-cluster"
+# in `nuthatch-eval-cluster` / `eval-cluster-<ts>.log`. Then apply the
+# optional --session-suffix.
+STAGE_SLUG="${STAGE// /-}"
+NAME_TAG="$STAGE_SLUG${SUFFIX:+-$SUFFIX}"
+LOG="$AUDIT_DIR/$NAME_TAG-$TS.log"
+SESSION="nuthatch-$NAME_TAG"
 
-# Kill any existing session for this stage so re-launch is clean.
+# Kill any existing session for this exact session name so re-launch is
+# clean. With --session-suffix this only kills the matching suffixed
+# session, leaving any parallel runs untouched.
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 
-# Launch the stage under tmux with output unbuffered through tee.
+# Launch the stage under tmux with output unbuffered through tee. Build
+# the invocation as a shell-escaped string so the tmux command stays
+# quoting-safe even when forwarded args contain spaces.
+escape_arg() { printf "%q" "$1"; }
+INVOKE_STR=""
+for tok in "${NUTHATCH_INVOKE[@]}"; do
+    INVOKE_STR+=" $(escape_arg "$tok")"
+done
+for stage_tok in "${STAGE_ARGS[@]}"; do
+    INVOKE_STR+=" $(escape_arg "$stage_tok")"
+done
+INVOKE_STR+=" --corpus $(escape_arg "$CORPUS")"
+for tok in "${FORWARD[@]:-}"; do
+    [ -n "$tok" ] && INVOKE_STR+=" $(escape_arg "$tok")"
+done
+
 tmux new -d -s "$SESSION" \
-    "PYTHONUNBUFFERED=1 stdbuf -oL -eL '$NUTHATCH' $STAGE --corpus '$CORPUS' $* 2>&1 | stdbuf -oL tee '$LOG'"
+    "PYTHONUNBUFFERED=1 stdbuf -oL -eL${INVOKE_STR} 2>&1 | stdbuf -oL tee $(escape_arg "$LOG")"
 
 echo "[OK] tmux session: $SESSION"
 echo "     log:          $LOG"

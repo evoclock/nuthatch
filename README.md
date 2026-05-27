@@ -53,6 +53,13 @@ full architecture set are at
   <em>Same filter set as above, but with <code>cites</code> toggled on. The new edges show how one paper citing another can extend a community beyond what semantic / co-mention signals alone would produce. The contrast between the previous frame and this one is the citation-extension effect made visible.</em>
 </p>
 
+## Demo
+
+<p align="center">
+  <video src="assets/nuthatch_short_demo.mp4" controls width="720">
+  </video>
+</p>
+
 ## Why it exists
 
 The graph-augmented retrieval space has working open-source

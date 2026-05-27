@@ -1546,6 +1546,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     from nuthatch.graph.io import load_graph
     from nuthatch.mcp.server import NuthatchMCPServer
     from nuthatch.retrieve.vector import VectorRetriever
+    from nuthatch.token_econ.counterfactual import build_default_estimator
 
     layout = _resolve_layout_or_die(args)
 
@@ -1581,11 +1582,17 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     token_log_path = layout.kg / "token_log.jsonl"
     token_log = TokenLog(token_log_path)
 
+    estimator = build_default_estimator(
+        layout,
+        chunks_provider=store.iter_chunks,
+    )
+
     server = NuthatchMCPServer(
         layout,
         retriever=retriever,
         graph_loader=_graph_loader,
         token_log=token_log,
+        counterfactual_estimator=estimator,
     )
     server.run()
     return 0
