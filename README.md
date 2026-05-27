@@ -220,15 +220,14 @@ Planned work, not yet landed:
   SmolDocling and EasyOCR as the documented fallbacks per the
   OCR benchmark (`docs/extraction-benchmarks/ocr-comparison.md`).
 - **Chandra OCR 2 for math-heavy papers.** Post-extraction math
-  validation already records every broken inline span (position,
-  broken ratio, sample) per document. Rather than spinning up
-  Chandra per PDF, all broken spans across all deferred documents
-  are consolidated into a single page; Chandra resolves them in
-  one pass, and the corrected expressions are traced back to their
-  original positions in each source document's extracted markdown.
-  Documents below the broken-ratio threshold are already usable
-  as-is; only the span-level corrections need to be applied and
-  the deferred record closed.
+  validation records every broken inline span (position, broken
+  ratio, sample) per document. For each deferred document, all of
+  its broken inline math spans are consolidated into a single page;
+  Chandra resolves them in one pass against that page rather than
+  re-processing the full PDF, and the corrected expressions are
+  traced back to their original positions in the document's
+  extracted markdown. Only the span-level corrections need to be
+  applied and the deferred record closed.
 - **SPECTER2 as the scientific-paper embedding default.** The
   current default embedding model is `BAAI/bge-m3` (general
   purpose, all profiles). For the `scientific_paper` profile,
