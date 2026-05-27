@@ -150,6 +150,10 @@ module = [
 ignore_missing_imports = true
 follow_imports = "skip"
 
+[[tool.mypy.overrides]]
+module = "nuthatch.eval.ragas_embeddings"
+disable_error_code = "misc"
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
