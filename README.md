@@ -110,6 +110,61 @@ is available to explore before building your own.
   `skill-pi.md`, `skill-hermes.md`) for MCP registration details and
   recommended multi-step query flows
 
+## Extraction and model stack
+
+This section documents the exact tools and models used to build the reference
+corpus. It is here so others can replicate the setup or substitute equivalents
+at each stage.
+
+### PDF triage
+
+Every source PDF goes through a cheap pre-flight pass with `pdftotext`
+(poppler) before any extraction cost is paid. If the text layer is present
+and dense enough the document is classified as born-digital; otherwise it
+is routed to one of the OCR paths below.
+
+### Extraction routing
+
+| Input type | Condition | Extractor |
+|---|---|---|
+| Born-digital PDF | always | Docling (no OCR) |
+| Scanned PDF | GPU available, max quality | Chandra OCR 2 |
+| Scanned PDF | GPU available, not max quality | Granite-Docling 258M VLM |
+| Scanned PDF | CPU-only | Docling + EasyOCR |
+| Math span retry | per document, broken spans only | Chandra OCR 2 |
+
+**Math span retry.** Post-extraction validation records every broken inline
+math span per document (position, broken-ratio, sample). For each document
+that has broken spans, all of its broken inline math spans are consolidated
+into a single page; Chandra OCR 2 resolves them in one pass against that page
+and the corrected expressions are traced back to their original positions.
+Only the span-level corrections are applied and the deferred record is closed.
+
+**SmolDocling** is documented as a fallback (small VLM, CPU-capable) but is
+not yet wired into the routing logic.
+
+### Embedding models
+
+| Profile | Model | Notes |
+|---|---|---|
+| `scientific_paper` | SPECTER2 (AllenAI) | trained on the scientific citation graph; planned default for this profile |
+| All other profiles | BGE-M3 (BAAI) | general-purpose multilingual; current default for all profiles |
+
+### Eval stack
+
+Evaluation runs fully locally via Ollama except where noted.
+
+| Role | Model | Source |
+|---|---|---|
+| RAGAS generator / answerer | `gemini-3-flash-preview:cloud` | Ollama (local) |
+| RAGAS judge / graph eval / cluster eval | `granite3-dense:8b` | Ollama (local) |
+| Retrieval embeddings (eval) | BGE-M3 | same checkpoint as ingest, via `NuthatchEmbeddings` RAGAS adapter |
+| Cluster label relabelling | `granite3-dense:8b` | Ollama (local), `--relabel-llm` pass |
+
+All models listed as "Ollama (local)" run on-device with no outbound traffic.
+Chandra OCR 2 and BGE-M3 likewise run locally; SPECTER2 can be served locally
+via the HuggingFace `transformers` backend.
+
 ## Architecture
 
 <p align="center">
