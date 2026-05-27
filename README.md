@@ -219,16 +219,16 @@ Planned work, not yet landed:
   becomes the default extractor for born-digital text, with
   SmolDocling and EasyOCR as the documented fallbacks per the
   OCR benchmark (`docs/extraction-benchmarks/ocr-comparison.md`).
-- **Chandra OCR 2 for math-heavy papers.** Any paper the triage
-  step flags as math-heavy, or that is quarantined due to
-  irretrievable mathematical content, is routed to Chandra OCR 2.
-  Each such document gets a per-document lineage trace recording
-  the failed extraction attempt; the trace and whatever partial
-  content was recovered are knitted into a single provenance page
-  that lives in the quarantine record. Once Chandra resolves the
-  math, the full document can be promoted to the processed corpus
-  with the lineage chain intact, and the quarantine record is
-  closed against it.
+- **Chandra OCR 2 for math-heavy papers.** Post-extraction math
+  validation already records every broken inline span (position,
+  broken ratio, sample) per document. Rather than spinning up
+  Chandra per PDF, all broken spans across all deferred documents
+  are consolidated into a single page; Chandra resolves them in
+  one pass, and the corrected expressions are traced back to their
+  original positions in each source document's extracted markdown.
+  Documents below the broken-ratio threshold are already usable
+  as-is; only the span-level corrections need to be applied and
+  the deferred record closed.
 - **SPECTER2 as the scientific-paper embedding default.** The
   current default embedding model is `BAAI/bge-m3` (general
   purpose, all profiles). For the `scientific_paper` profile,
