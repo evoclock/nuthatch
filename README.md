@@ -56,8 +56,9 @@ full architecture set are at
 ## Demo
 
 <p align="center">
-  <video src="assets/nuthatch_short_demo.mp4" controls width="720">
-  </video>
+  <a href="https://www.youtube.com/watch?v=BlyR4Qi6fsI">
+    <img src="https://img.youtube.com/vi/BlyR4Qi6fsI/maxresdefault.jpg" alt="Nuthatch demo" width="720">
+  </a>
 </p>
 
 ## Why it exists
