@@ -39,16 +39,35 @@ from typing import Any
 from nuthatch.embed.embed import Embedder
 from nuthatch.embed.store import Neighbour, VectorStore
 
+# Cross-encoder reranker used optionally to rescore top-N dense hits.
+# Same model the dedup module uses (`BAAI/bge-reranker-v2-m3`) so we
+# don't proliferate weights. Cross-encoders are slow per pair (~50-200ms
+# on GPU); we only call them on the over-retrieved top-N, not the full
+# index.
+DEFAULT_RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
+
+# When rerank is requested, dense retrieval over-fetches this multiple
+# of `k` so the reranker has room to reorder. Higher = better recall
+# at the rerank stage; cost is linear in `k * over_fetch`.
+_RERANK_OVER_FETCH: int = 4
+
 
 @dataclass(frozen=True)
 class RetrievedChunk:
-    """A single retrieval hit ready for downstream consumption."""
+    """A single retrieval hit ready for downstream consumption.
+
+    `score` is the dense (bi-encoder) similarity. When `rerank_score`
+    is set, the chunk has been rescored by the cross-encoder; the
+    final ranking is by rerank_score then score (tie-break). When
+    rerank was not requested, rerank_score is None.
+    """
 
     chunk_id: str
     text: str
     score: float  # similarity in [0, 1]; higher is closer
     doc_id: str
     metadata: dict[str, Any] = field(default_factory=dict)
+    rerank_score: float | None = None
 
 
 # Tokens we strip from queries when computing keyword overlap. The
@@ -87,29 +106,58 @@ def _neighbour_to_chunk(n: Neighbour) -> RetrievedChunk:
 
 
 class VectorRetriever:
-    """Per-corpus dense vector retrieval.
+    """Per-corpus dense vector retrieval, with optional cross-encoder rerank.
 
     Construction parameters:
         store: the corpus's `VectorStore` instance.
         embedder: an `Embedder` for query encoding. Reuse one
             instance across queries to amortise model load.
+        reranker_model: cross-encoder name; pass `None` to disable rerank
+            entirely. Default `BAAI/bge-reranker-v2-m3` matches the
+            ingest-time dedup reranker so we don't proliferate weights.
 
     Methods:
-        search(query, k, where): single-stage dense retrieval.
+        search(query, k, where, rerank): single-stage dense retrieval,
+            optionally rescored by the cross-encoder.
         search_with_keyword_overlay(query, k, where): merges
             keyword-overlap hits ahead of dense hits for short
             noun-phrase queries that dense models underweight.
+
+    Default behaviour is unchanged: `search()` without `rerank=True`
+    returns the raw dense top-k, exactly as before. Reranking is opt-in
+    until measured to earn its inference cost on a given corpus.
     """
 
-    __slots__ = ("_embedder", "_store")
+    __slots__ = ("_embedder", "_reranker", "_reranker_model", "_store")
 
     def __init__(
         self,
         store: VectorStore,
         embedder: Embedder | None = None,
+        *,
+        reranker_model: str | None = DEFAULT_RERANKER_MODEL,
     ) -> None:
         self._store = store
         self._embedder = embedder or Embedder()
+        self._reranker_model = reranker_model
+        self._reranker: Any = None
+
+    @property
+    def embedder(self) -> Embedder:
+        """Public accessor used by `mcp.server._community_search` to
+        reuse the same query-encoding model the corpus was embedded
+        under. Kept as a property (not a public attribute) because
+        `__slots__` declares the storage as `_embedder`."""
+        return self._embedder
+
+    def _ensure_reranker(self) -> Any | None:
+        if self._reranker_model is None:
+            return None
+        if self._reranker is None:
+            from sentence_transformers import CrossEncoder
+
+            self._reranker = CrossEncoder(self._reranker_model)
+        return self._reranker
 
     def search(
         self,
@@ -117,12 +165,46 @@ class VectorRetriever:
         *,
         k: int = 5,
         where: dict[str, Any] | None = None,
+        rerank: bool = False,
     ) -> list[RetrievedChunk]:
         if not query or not query.strip():
             return []
         embedding = self._embedder.encode([query])[0]
-        neighbours = self._store.query(embedding=embedding, k=k, where=where)
-        return [_neighbour_to_chunk(n) for n in neighbours]
+        if not rerank:
+            neighbours = self._store.query(embedding=embedding, k=k, where=where)
+            return [_neighbour_to_chunk(n) for n in neighbours]
+
+        # Rerank path: over-fetch, cross-encoder rescore, return top-k.
+        # If the reranker is disabled at construction time, fall back to
+        # plain dense top-k rather than silently degrading the request.
+        reranker = self._ensure_reranker()
+        if reranker is None:
+            neighbours = self._store.query(embedding=embedding, k=k, where=where)
+            return [_neighbour_to_chunk(n) for n in neighbours]
+
+        over_k = max(k * _RERANK_OVER_FETCH, k)
+        neighbours = self._store.query(embedding=embedding, k=over_k, where=where)
+        candidates = [_neighbour_to_chunk(n) for n in neighbours]
+        if not candidates:
+            return []
+        pairs = [(query, c.text) for c in candidates]
+        scores = reranker.predict(pairs)
+        rescored = [
+            RetrievedChunk(
+                chunk_id=c.chunk_id,
+                text=c.text,
+                score=c.score,
+                doc_id=c.doc_id,
+                metadata=c.metadata,
+                rerank_score=float(s),
+            )
+            for c, s in zip(candidates, scores, strict=True)
+        ]
+        rescored.sort(
+            key=lambda c: (c.rerank_score or 0.0, c.score),
+            reverse=True,
+        )
+        return rescored[:k]
 
     def search_with_keyword_overlay(
         self,
