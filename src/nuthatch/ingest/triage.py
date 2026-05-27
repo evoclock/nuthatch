@@ -105,42 +105,49 @@ def triage_pdf(pdf: Path) -> TriageResult:
     try:
         out = subprocess.run(
             ["pdftotext", "-layout", "-f", "1", "-l", "2", str(pdf), "-"],
-            capture_output=True, text=True, timeout=20, check=False,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
         ).stdout
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return TriageResult(
             path=pdf,
             classification=TriageClass.UNKNOWN,
             reason="pdftotext unavailable or timed out",
-            has_title=False, has_authors=False, has_abstract=False,
+            has_title=False,
+            has_authors=False,
+            has_abstract=False,
         )
 
     # Skip the bioRxiv watermark paragraph (always lines 1-3 of page 1).
     body = "\n".join(out.split("\n")[5:])
 
-    has_title = bool(
-        _TITLE_LINE_RE.search(body)
-        or _ARTICLE_TYPE_PRECEDES_TITLE_RE.search(body)
-    )
+    has_title = bool(_TITLE_LINE_RE.search(body) or _ARTICLE_TYPE_PRECEDES_TITLE_RE.search(body))
     has_authors = bool(
         _AUTHOR_CSV_RE.search(body)
         or _AFFIL_DIGIT_NAME_RE.search(body)
         or _SINGLE_AUTHOR_WITH_EMAIL_RE.search(body)
     )
-    has_abstract = bool(
-        _ABSTRACT_WORD_RE.search(body) or _LONG_PARA_RE.search(body)
-    )
+    has_abstract = bool(_ABSTRACT_WORD_RE.search(body) or _LONG_PARA_RE.search(body))
 
     if has_title and has_authors and has_abstract:
         return TriageResult(
-            pdf, TriageClass.PASS, "title + authors + abstract detected",
-            has_title, has_authors, has_abstract,
+            pdf,
+            TriageClass.PASS,
+            "title + authors + abstract detected",
+            has_title,
+            has_authors,
+            has_abstract,
         )
     if has_title and has_authors:
         return TriageResult(
-            pdf, TriageClass.FLAG,
+            pdf,
+            TriageClass.FLAG,
             "no Abstract keyword on p1; will rely on paragraph fallback",
-            has_title, has_authors, has_abstract,
+            has_title,
+            has_authors,
+            has_abstract,
         )
     missing = []
     if not has_title:
@@ -150,9 +157,12 @@ def triage_pdf(pdf: Path) -> TriageResult:
     if not has_abstract:
         missing.append("abstract")
     return TriageResult(
-        pdf, TriageClass.DEFER,
+        pdf,
+        TriageClass.DEFER,
         f"missing: {', '.join(missing)}",
-        has_title, has_authors, has_abstract,
+        has_title,
+        has_authors,
+        has_abstract,
     )
 
 
@@ -173,7 +183,8 @@ def triage_corpus(
 
 
 def auto_defer(
-    results: Iterable[TriageResult], layout: CorpusLayout,
+    results: Iterable[TriageResult],
+    layout: CorpusLayout,
 ) -> list[Path]:
     """Move DEFER-classified PDFs to `<corpus>/defer/<original_subdir>/`.
 

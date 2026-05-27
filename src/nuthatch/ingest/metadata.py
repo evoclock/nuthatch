@@ -63,27 +63,44 @@ _TITLE_LABEL_RE = re.compile(r"^\s*Title:\s*(.+?)\s*$", re.MULTILINE)
 # with one of these (after stripping trailing digits / punctuation /
 # colons) is rejected as a title candidate. Real titles are rarely a
 # single word matching one of these.
-_SECTION_HEADING_NAMES: frozenset[str] = frozenset({
-    "abstract", "introduction", "background", "summary", "overview",
-    "methods", "method", "materials and methods", "materials",
-    "results", "discussion", "conclusion", "conclusions",
-    "references", "bibliography", "acknowledgements", "acknowledgments",
-    "supplementary", "appendix", "data availability",
-    "author contributions", "funding", "conflict of interest",
-    "ethics statement", "ethics declaration", "keywords",
-    "main", "main text", "results and discussion",
-})
-_ARXIV_ID_RE = re.compile(
-    r"arXiv\s*[:=]?\s*(\d{4}\.\d{4,5}(?:v\d+)?)", re.IGNORECASE
+_SECTION_HEADING_NAMES: frozenset[str] = frozenset(
+    {
+        "abstract",
+        "introduction",
+        "background",
+        "summary",
+        "overview",
+        "methods",
+        "method",
+        "materials and methods",
+        "materials",
+        "results",
+        "discussion",
+        "conclusion",
+        "conclusions",
+        "references",
+        "bibliography",
+        "acknowledgements",
+        "acknowledgments",
+        "supplementary",
+        "appendix",
+        "data availability",
+        "author contributions",
+        "funding",
+        "conflict of interest",
+        "ethics statement",
+        "ethics declaration",
+        "keywords",
+        "main",
+        "main text",
+        "results and discussion",
+    }
 )
+_ARXIV_ID_RE = re.compile(r"arXiv\s*[:=]?\s*(\d{4}\.\d{4,5}(?:v\d+)?)", re.IGNORECASE)
 _DOI_RE = re.compile(r"\b(10\.\d{4,9}/[-._;()/:A-Z0-9]+)\b", re.IGNORECASE)
 _YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
-_PATENT_NUMBER_RE = re.compile(
-    r"\b(US|EP|WO)\d{6,10}[A-Z]?\d?\b", re.IGNORECASE
-)
-_AUTHORS_LINE_RE = re.compile(
-    r"^\s*(?:Authors?:|By)\s*(.+?)\s*$", re.MULTILINE | re.IGNORECASE
-)
+_PATENT_NUMBER_RE = re.compile(r"\b(US|EP|WO)\d{6,10}[A-Z]?\d?\b", re.IGNORECASE)
+_AUTHORS_LINE_RE = re.compile(r"^\s*(?:Authors?:|By)\s*(.+?)\s*$", re.MULTILINE | re.IGNORECASE)
 _ABSTRACT_HEADING_RE = re.compile(
     r"^#{1,3}\s*Abstract\s*\n+(.+?)(?:\n#{1,3}\s|\Z)",
     re.DOTALL | re.IGNORECASE | re.MULTILINE,
@@ -103,8 +120,15 @@ _LONG_PARAGRAPH_MIN_CHARS: int = 250
 # so `Buralkin1,2,3` becomes `Buralkin` and the multi-author line can
 # be parsed.
 _AFFIL_MARKER_RE = re.compile(
-    r"[\d" + chr(0x2217) + chr(0x2020) + chr(0x2021)
-    + r"\*" + chr(0x00A7) + chr(0x00B6) + r"\#" + r"]+|\([^)]+\)"
+    r"[\d"
+    + chr(0x2217)
+    + chr(0x2020)
+    + chr(0x2021)
+    + r"\*"
+    + chr(0x00A7)
+    + chr(0x00B6)
+    + r"\#"
+    + r"]+|\([^)]+\)"
 )
 
 # LaTeX-math superscripts that some bioRxiv preprints render
@@ -270,9 +294,7 @@ def _extract_title(markdown: str) -> str | None:
             continue
         # Skip cells that look like author CSV lines (have commas
         # and Title-Case run patterns); titles are usually free prose.
-        if "," in cleaned and _PLAIN_CSV_AUTHORS_LINE_RE.fullmatch(
-            _strip_affil_markers(cleaned)
-        ):
+        if "," in cleaned and _PLAIN_CSV_AUTHORS_LINE_RE.fullmatch(_strip_affil_markers(cleaned)):
             continue
         if len(cleaned) >= 20:
             return cleaned
@@ -572,9 +594,7 @@ def extract_and_validate(
     if source_filename is not None:
         from nuthatch.ingest.source_metadata import enrich_from_source
 
-        source_meta = enrich_from_source(
-            source_filename, cache_dir=metadata_cache_dir
-        )
+        source_meta = enrich_from_source(source_filename, cache_dir=metadata_cache_dir)
         if source_meta is not None:
             source_extracted = source_meta.to_dict()
 

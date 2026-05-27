@@ -196,7 +196,10 @@ def _fetch_url(
                 delay = _RETRY_BASE_DELAY_SECONDS * (2**attempt)
                 _LOG.info(
                     "rate-limited (429) on %s; retry %d/%d in %.1fs",
-                    url, attempt + 1, _MAX_RETRY_ON_429, delay,
+                    url,
+                    attempt + 1,
+                    _MAX_RETRY_ON_429,
+                    delay,
                 )
                 time.sleep(delay)
                 continue
@@ -283,17 +286,13 @@ def enrich_from_source(
     """
     arxiv_id = extract_arxiv_id_from_filename(source_filename)
     if arxiv_id:
-        meta = fetch_arxiv_metadata(
-            arxiv_id, cache_dir=cache_dir, url_validator=url_validator
-        )
+        meta = fetch_arxiv_metadata(arxiv_id, cache_dir=cache_dir, url_validator=url_validator)
         if meta is not None:
             return meta
         return SourceMetadata(arxiv_id=arxiv_id, source="arxiv_filename_fallback")
     biorxiv_doi = extract_biorxiv_doi_from_filename(source_filename)
     if biorxiv_doi:
-        meta = fetch_biorxiv_metadata(
-            biorxiv_doi, cache_dir=cache_dir, url_validator=url_validator
-        )
+        meta = fetch_biorxiv_metadata(biorxiv_doi, cache_dir=cache_dir, url_validator=url_validator)
         if meta is not None:
             return meta
         year = _year_from_biorxiv_doi(biorxiv_doi)

@@ -260,27 +260,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_corpus_arg(semex_p)
     semex_p.add_argument(
-        "--backend", default="ollama",
+        "--backend",
+        default="ollama",
         help="LLM backend (default: ollama)",
     )
     semex_p.add_argument(
-        "--model", default="gemini-3-flash-preview:cloud",
+        "--model",
+        default="gemini-3-flash-preview:cloud",
         help="model id; default is Gemini Flash cloud for speed",
     )
     semex_p.add_argument(
-        "--num-predict", type=int, default=3072,
+        "--num-predict",
+        type=int,
+        default=3072,
         help="token budget for the LLM (default: 3072 for the 5-field response)",
     )
     semex_p.add_argument(
-        "--max-docs", type=int, default=0,
+        "--max-docs",
+        type=int,
+        default=0,
         help="process only the first N docs (0 = all)",
     )
     semex_p.add_argument(
-        "--excerpt-chars", type=int, default=6000,
+        "--excerpt-chars",
+        type=int,
+        default=6000,
         help="how much of each body to send to the LLM",
     )
     semex_p.add_argument(
-        "--force", action="store_true",
+        "--force",
+        action="store_true",
         help="re-extract even if a sidecar already exists",
     )
 
@@ -305,36 +314,42 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_corpus_arg(cluster_p)
     cluster_p.add_argument(
-        "--backend", choices=("sbm", "leiden", "embeddings"), default=None,
+        "--backend",
+        choices=("sbm", "leiden", "embeddings"),
+        default=None,
         help="force a specific clustering backend, bypassing the rigor "
-             "router. Required when running multiple backends in sequence "
-             "for comparison. SBM needs graph-tool (conda env); leiden + "
-             "embeddings work in the venv.",
+        "router. Required when running multiple backends in sequence "
+        "for comparison. SBM needs graph-tool (conda env); leiden + "
+        "embeddings work in the venv.",
     )
     cluster_p.add_argument(
-        "--output-suffix", default=None,
+        "--output-suffix",
+        default=None,
         help="also copy the persisted communities.json to "
-             "communities_<suffix>.json after the run, so multiple backends "
-             "can co-exist on disk. Same for community_centroids.npy. The "
-             "canonical communities.json is preserved.",
+        "communities_<suffix>.json after the run, so multiple backends "
+        "can co-exist on disk. Same for community_centroids.npy. The "
+        "canonical communities.json is preserved.",
     )
     cluster_p.add_argument(
-        "--relabel-llm", action="store_true",
+        "--relabel-llm",
+        action="store_true",
         help="after clustering, replace the heuristic word-frequency "
-             "labels with topical 2-4 word names produced by an LLM "
-             "(default backend: ollama, default model: granite3-dense:8b). "
-             "Writes to canonical communities.json and any "
-             "communities_<suffix>.json siblings produced this run.",
+        "labels with topical 2-4 word names produced by an LLM "
+        "(default backend: ollama, default model: granite3-dense:8b). "
+        "Writes to canonical communities.json and any "
+        "communities_<suffix>.json siblings produced this run.",
     )
     cluster_p.add_argument(
-        "--relabel-backend", default="ollama",
+        "--relabel-backend",
+        default="ollama",
         help="LLM backend used by --relabel-llm. Supported: ollama, "
-             "openai, anthropic. Default: ollama (local, no API key).",
+        "openai, anthropic. Default: ollama (local, no API key).",
     )
     cluster_p.add_argument(
-        "--relabel-model", default=None,
+        "--relabel-model",
+        default=None,
         help="LLM model id used by --relabel-llm. Default depends on "
-             "backend; for ollama: granite3-dense:8b.",
+        "backend; for ollama: granite3-dense:8b.",
     )
 
     eval_p = subparsers.add_parser(
@@ -376,9 +391,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_corpus_arg(eval_cluster_p)
     eval_cluster_p.add_argument(
-        "--communities", default=None,
-        help="suffix of the communities file to evaluate "
-             "(omit for default communities.json)",
+        "--communities",
+        default=None,
+        help="suffix of the communities file to evaluate (omit for default communities.json)",
     )
     eval_cluster_p.add_argument("--sample-communities", type=int, default=100)
     eval_cluster_p.add_argument("--docs-per-community", type=int, default=5)
@@ -404,20 +419,22 @@ def build_parser() -> argparse.ArgumentParser:
     eval_ragas_p.add_argument("--seed", type=int, default=0)
     eval_ragas_p.add_argument("--gen-backend", default="ollama")
     eval_ragas_p.add_argument(
-        "--gen-model", default="gemini-3-flash-preview:cloud",
+        "--gen-model",
+        default="gemini-3-flash-preview:cloud",
         help="generator + answerer model. Default is Gemini Flash cloud "
-             "(fast + JSON-compliant for testset generation, paired with "
-             "local granite3-dense:8b as the cross-family judge to reduce "
-             "self-preference bias).",
+        "(fast + JSON-compliant for testset generation, paired with "
+        "local granite3-dense:8b as the cross-family judge to reduce "
+        "self-preference bias).",
     )
     eval_ragas_p.add_argument("--gen-num-predict", type=int, default=2048)
     eval_ragas_p.add_argument("--judge-backend", default="ollama")
     eval_ragas_p.add_argument(
-        "--judge-model", default="granite3-dense:8b",
+        "--judge-model",
+        default="granite3-dense:8b",
         help="structured-output local judge (IBM Granite 3 dense 8B). "
-             "Non-reasoning so it does not burn the token budget on a "
-             "thinking trace before emitting JSON content. Different "
-             "family from Gemini generator to reduce self-preference bias.",
+        "Non-reasoning so it does not burn the token budget on a "
+        "thinking trace before emitting JSON content. Different "
+        "family from Gemini generator to reduce self-preference bias.",
     )
     eval_ragas_p.add_argument("--judge-num-predict", type=int, default=1024)
     eval_ragas_p.add_argument("--out-dir", default="pipeline_output")
@@ -445,18 +462,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_corpus_arg(viz_d3_p)
     viz_d3_p.add_argument(
-        "--communities", default=None,
+        "--communities",
+        default=None,
         help="suffix of communities file to overlay "
-             "('sbm', 'leiden', 'embeddings', ...), or 'all' to render "
-             "one HTML per available backend output. Omit for an "
-             "uncoloured baseline HTML.",
+        "('sbm', 'leiden', 'embeddings', ...), or 'all' to render "
+        "one HTML per available backend output. Omit for an "
+        "uncoloured baseline HTML.",
     )
-    viz_d3_p.add_argument("--filter-types", default=None,
-        help="comma-separated entity types to keep "
-             "(e.g. document,topic)")
+    viz_d3_p.add_argument(
+        "--filter-types",
+        default=None,
+        help="comma-separated entity types to keep (e.g. document,topic)",
+    )
     viz_d3_p.add_argument("--max-nodes", type=int, default=3000)
-    viz_d3_p.add_argument("--layout", default="forceatlas2",
-        choices=("forceatlas2", "spring", "kamada_kawai"))
+    viz_d3_p.add_argument(
+        "--layout", default="forceatlas2", choices=("forceatlas2", "spring", "kamada_kawai")
+    )
     viz_d3_p.add_argument("--layout-iterations", type=int, default=200)
     viz_d3_p.add_argument("--out-dir", default="pipeline_output")
 
@@ -491,18 +512,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_corpus_arg(publish_p)
     publish_p.add_argument(
-        "--to", type=str, required=True,
+        "--to",
+        type=str,
+        required=True,
         help="destination directory for the published KB.",
     )
     publish_p.add_argument(
-        "--name", type=str, default=None,
+        "--name",
+        type=str,
+        default=None,
         help=(
             "KB name used in generated README / AGENTS.md / config. "
             "Defaults to the destination directory's basename."
         ),
     )
     publish_p.add_argument(
-        "--license", type=str, default="CC-BY-4.0",
+        "--license",
+        type=str,
+        default="CC-BY-4.0",
         help=(
             "SPDX license identifier for the published KB. "
             "Defaults to CC-BY-4.0. Use PROPRIETARY for private "
@@ -510,25 +537,29 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     publish_p.add_argument(
-        "--no-chroma", action="store_true",
+        "--no-chroma",
+        action="store_true",
         help=(
             "skip the chroma vector store (large; contains chunk text "
             "which may be license-mixed for non-CC-BY corpora)."
         ),
     )
     publish_p.add_argument(
-        "--include-bodies", action="store_true",
+        "--include-bodies",
+        action="store_true",
         help=(
             "include .kg/extracted/ full-text bodies. Only safe for "
             "corpora where every source is permissively-licensed."
         ),
     )
     publish_p.add_argument(
-        "--no-eval", action="store_true",
+        "--no-eval",
+        action="store_true",
         help="skip copying eval reports from docs/.",
     )
     publish_p.add_argument(
-        "--no-d3-html", action="store_true",
+        "--no-d3-html",
+        action="store_true",
         help="skip the D3 topology HTML.",
     )
 
@@ -625,6 +656,7 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
     # flag wins over an inherited NUTHATCH_ACCELERATOR env value so
     # operators can override per-run without unsetting the env.
     import os
+
     accel = getattr(args, "accelerator", None)
     if accel:
         os.environ["NUTHATCH_ACCELERATOR"] = accel
@@ -649,8 +681,7 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
     print(f"[ingest] corpus root: {layout.root}", flush=True)
     sources = orchestrator._gather_source_files()
     print(
-        f"[ingest] scanned {len(sources)} file(s) under the corpus root "
-        "(reserved dirs skipped)",
+        f"[ingest] scanned {len(sources)} file(s) under the corpus root (reserved dirs skipped)",
         flush=True,
     )
     if not sources:
@@ -667,8 +698,7 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
         # a silent wait followed by a single summary.
         reason_suffix = f" ({result.reason})" if result.reason else ""
         print(
-            f"[{i:>4}/{total}] {result.status.value:<11} "
-            f"{result.source_filename}{reason_suffix}",
+            f"[{i:>4}/{total}] {result.status.value:<11} {result.source_filename}{reason_suffix}",
             flush=True,
         )
 
@@ -928,11 +958,16 @@ def _cmd_semantic_extract(args: argparse.Namespace) -> int:
 
     forwarded = ["--corpus", args.corpus] if getattr(args, "corpus", None) else []
     forwarded += [
-        "--backend", args.backend,
-        "--model", args.model,
-        "--num-predict", str(args.num_predict),
-        "--max-docs", str(args.max_docs),
-        "--excerpt-chars", str(args.excerpt_chars),
+        "--backend",
+        args.backend,
+        "--model",
+        args.model,
+        "--num-predict",
+        str(args.num_predict),
+        "--max-docs",
+        str(args.max_docs),
+        "--excerpt-chars",
+        str(args.excerpt_chars),
     ]
     if getattr(args, "force", False):
         forwarded.append("--force")
@@ -944,6 +979,7 @@ def _cmd_embed(args: argparse.Namespace) -> int:
     # constructor (which reads the env var) sees it. The CLI flag wins
     # over an inherited env value.
     import os
+
     accel = getattr(args, "accelerator", None)
     if accel:
         os.environ["NUTHATCH_ACCELERATOR"] = accel
@@ -957,8 +993,7 @@ def _cmd_embed(args: argparse.Namespace) -> int:
         f"[OK] embed: scanned {result.n_docs_scanned}, "
         f"embedded {result.n_docs_embedded}, "
         f"skipped {result.n_docs_skipped} (already in store), "
-        f"chunks added {result.n_chunks_added}"
-        + (" [--force]" if result.forced else "")
+        f"chunks added {result.n_chunks_added}" + (" [--force]" if result.forced else "")
     )
     if result.failed:
         print(f"[WARN] {len(result.failed)} docs failed (first 5 shown):")
@@ -973,10 +1008,7 @@ def _cmd_graph(args: argparse.Namespace) -> int:
 
     layout = _resolve_layout_or_die(args)
     result = build_graph_for_corpus(layout)
-    print(
-        f"[OK] graph: {result.n_docs} docs -> "
-        f"{result.n_nodes} nodes, {result.n_edges} edges"
-    )
+    print(f"[OK] graph: {result.n_docs} docs -> {result.n_nodes} nodes, {result.n_edges} edges")
     print(f"     graph: {result.graph_path}")
     if result.n_concept_sidecars > 0:
         print(
@@ -1048,6 +1080,7 @@ def _cmd_cluster(args: argparse.Namespace) -> int:
         # is intrinsic to the cluster CLI's input prep (not a separate
         # phase) so re-runs are idempotent and the user can't forget.
         from nuthatch.clustering.projection import project_to_doc_doc
+
         g_for_clustering = project_to_doc_doc(g)
         print(
             f"[cluster] projected to doc-doc: "
@@ -1067,12 +1100,15 @@ def _cmd_cluster(args: argparse.Namespace) -> int:
     if backend_override:
         if backend_override == "sbm":
             from nuthatch.clustering.backends.sbm import SBMBackend
+
             response = SBMBackend().cluster(request)
         elif backend_override == "leiden":
             from nuthatch.clustering.backends.leiden import LeidenBackend
+
             response = LeidenBackend().cluster(request)
         elif backend_override == "embeddings":
             from nuthatch.clustering.backends.embeddings import EmbeddingsBackend
+
             response = EmbeddingsBackend().cluster(request)
         else:
             print(
@@ -1080,8 +1116,7 @@ def _cmd_cluster(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 2
-        print(f"[cluster] backend forced: {backend_override} "
-              f"(rigor={response.rigor_used.value})")
+        print(f"[cluster] backend forced: {backend_override} (rigor={response.rigor_used.value})")
     else:
         router = ClusteringRouter()
         response = router.cluster(request)
@@ -1125,8 +1160,10 @@ def _cmd_cluster(args: argparse.Namespace) -> int:
     )
     print(f"     index:  {index_path.relative_to(layout.root)}")
     if centroids:
-        print(f"     centroids: {len(centroids)} communities x "
-              f"{len(next(iter(centroids.values())))} dims")
+        print(
+            f"     centroids: {len(centroids)} communities x "
+            f"{len(next(iter(centroids.values())))} dims"
+        )
     if response.notes:
         print(f"     notes:  {response.notes}")
 
@@ -1145,12 +1182,9 @@ def _cmd_cluster(args: argparse.Namespace) -> int:
         print(f"     copied:  {suffixed_index.relative_to(layout.root)}")
         centroids_src = layout.kg / "community_centroids.npy"
         if centroids_src.is_file():
-            suffixed_centroids = (
-                layout.kg / f"community_centroids_{suffix}.npy"
-            )
+            suffixed_centroids = layout.kg / f"community_centroids_{suffix}.npy"
             shutil.copy2(centroids_src, suffixed_centroids)
-            print(f"     copied:  "
-                  f"{suffixed_centroids.relative_to(layout.root)}")
+            print(f"     copied:  {suffixed_centroids.relative_to(layout.root)}")
 
     # --relabel-llm rewrites the heuristic word-frequency labels with
     # topical 2-4 word names produced by an LLM. Applied to canonical
@@ -1166,9 +1200,7 @@ def _cmd_cluster(args: argparse.Namespace) -> int:
         )
 
         backend_name = getattr(args, "relabel_backend", "ollama")
-        model_name = (
-            getattr(args, "relabel_model", None) or DEFAULT_RELABEL_MODEL
-        )
+        model_name = getattr(args, "relabel_model", None) or DEFAULT_RELABEL_MODEL
         targets: list[Path] = [index_path]
         if suffix:
             suffixed_target = layout.kg / f"communities_{suffix}.json"
@@ -1177,20 +1209,17 @@ def _cmd_cluster(args: argparse.Namespace) -> int:
         cards_dir = layout.root / "cards"
         try:
             invoke = build_default_invoke(
-                backend=backend_name, model=model_name,
+                backend=backend_name,
+                model=model_name,
             )
         except (ImportError, ValueError) as exc:
-            print(
-                f"     relabel: skipped (could not build {backend_name}/"
-                f"{model_name}: {exc!s})"
-            )
+            print(f"     relabel: skipped (could not build {backend_name}/{model_name}: {exc!s})")
         else:
-            print(
-                f"     relabel: {backend_name}/{model_name} over "
-                f"{len(targets)} file(s)"
-            )
+            print(f"     relabel: {backend_name}/{model_name} over {len(targets)} file(s)")
             diffs = relabel_communities(
-                targets, cards_dir, llm_invoke=invoke,
+                targets,
+                cards_dir,
+                llm_invoke=invoke,
             )
             for path, per_file in diffs.items():
                 rel = path.relative_to(layout.root)
@@ -1213,6 +1242,7 @@ def _load_paper_metadata(layout: Any) -> dict[str, dict[str, Any]]:
     if not extracted.is_dir():
         return {}
     import json as _json
+
     out: dict[str, dict[str, Any]] = {}
     for meta_path in sorted(extracted.glob("*.meta.json")):
         try:
@@ -1349,12 +1379,18 @@ def _cmd_eval_graph(args: argparse.Namespace) -> int:
 
     forwarded = ["--corpus", args.corpus] if getattr(args, "corpus", None) else []
     forwarded += [
-        "--sample-docs", str(args.sample_docs),
-        "--seed", str(args.seed),
-        "--judge-backend", args.judge_backend,
-        "--judge-model", args.judge_model,
-        "--judge-num-predict", str(args.judge_num_predict),
-        "--out-dir", args.out_dir,
+        "--sample-docs",
+        str(args.sample_docs),
+        "--seed",
+        str(args.seed),
+        "--judge-backend",
+        args.judge_backend,
+        "--judge-model",
+        args.judge_model,
+        "--judge-num-predict",
+        str(args.judge_num_predict),
+        "--out-dir",
+        args.out_dir,
     ]
     if args.skip_judge:
         forwarded.append("--skip-judge")
@@ -1373,13 +1409,20 @@ def _cmd_eval_cluster(args: argparse.Namespace) -> int:
     if args.communities:
         forwarded += ["--communities", args.communities]
     forwarded += [
-        "--sample-communities", str(args.sample_communities),
-        "--docs-per-community", str(args.docs_per_community),
-        "--seed", str(args.seed),
-        "--judge-backend", args.judge_backend,
-        "--judge-model", args.judge_model,
-        "--judge-num-predict", str(args.judge_num_predict),
-        "--out-dir", args.out_dir,
+        "--sample-communities",
+        str(args.sample_communities),
+        "--docs-per-community",
+        str(args.docs_per_community),
+        "--seed",
+        str(args.seed),
+        "--judge-backend",
+        args.judge_backend,
+        "--judge-model",
+        args.judge_model,
+        "--judge-num-predict",
+        str(args.judge_num_predict),
+        "--out-dir",
+        args.out_dir,
     ]
     if args.skip_judge:
         forwarded.append("--skip-judge")
@@ -1392,17 +1435,28 @@ def _cmd_eval_ragas(args: argparse.Namespace) -> int:
 
     forwarded = ["--corpus", args.corpus] if getattr(args, "corpus", None) else []
     forwarded += [
-        "--n-questions", str(args.n_questions),
-        "--per-doc-cap", str(args.per_doc_cap),
-        "--k", str(args.k),
-        "--seed", str(args.seed),
-        "--gen-backend", args.gen_backend,
-        "--gen-model", args.gen_model,
-        "--gen-num-predict", str(args.gen_num_predict),
-        "--judge-backend", args.judge_backend,
-        "--judge-model", args.judge_model,
-        "--judge-num-predict", str(args.judge_num_predict),
-        "--out-dir", args.out_dir,
+        "--n-questions",
+        str(args.n_questions),
+        "--per-doc-cap",
+        str(args.per_doc_cap),
+        "--k",
+        str(args.k),
+        "--seed",
+        str(args.seed),
+        "--gen-backend",
+        args.gen_backend,
+        "--gen-model",
+        args.gen_model,
+        "--gen-num-predict",
+        str(args.gen_num_predict),
+        "--judge-backend",
+        args.judge_backend,
+        "--judge-model",
+        args.judge_model,
+        "--judge-num-predict",
+        str(args.judge_num_predict),
+        "--out-dir",
+        args.out_dir,
     ]
     if args.skip_ragas:
         forwarded.append("--skip-ragas")
@@ -1427,10 +1481,14 @@ def _cmd_viz_d3(args: argparse.Namespace) -> int:
     if args.filter_types:
         forwarded += ["--filter-types", args.filter_types]
     forwarded += [
-        "--max-nodes", str(args.max_nodes),
-        "--layout", args.layout,
-        "--layout-iterations", str(args.layout_iterations),
-        "--out-dir", args.out_dir,
+        "--max-nodes",
+        str(args.max_nodes),
+        "--layout",
+        args.layout,
+        "--layout-iterations",
+        str(args.layout_iterations),
+        "--out-dir",
+        args.out_dir,
     ]
     return _viz_main(forwarded)
 
@@ -1469,10 +1527,7 @@ def _cmd_render(args: argparse.Namespace) -> int:
             concepts = _json.loads(concepts_path.read_text(encoding="utf-8"))
         except _json.JSONDecodeError:
             continue
-        doc_id = str(
-            concepts.get("doc_id")
-            or concepts_path.stem.replace(".concepts", "")
-        )
+        doc_id = str(concepts.get("doc_id") or concepts_path.stem.replace(".concepts", ""))
         if doc_id in paper_metadata:
             for field in ("topics", "methods", "summary"):
                 val = concepts.get(field)
@@ -1495,10 +1550,7 @@ def _cmd_render(args: argparse.Namespace) -> int:
     community_membership: dict[str, list[str]] = {}
     if community_index is not None:
         for cid_int, members in community_index.members.items():
-            doc_ids = [
-                m[len("doc::"):] if m.startswith("doc::") else m
-                for m in members
-            ]
+            doc_ids = [m[len("doc::") :] if m.startswith("doc::") else m for m in members]
             community_membership[str(cid_int)] = doc_ids
 
     result = export_vault(
@@ -1507,10 +1559,7 @@ def _cmd_render(args: argparse.Namespace) -> int:
         community_membership=community_membership or None,
         source_note="render",
     )
-    print(
-        f"[OK] render: {result.n_cards} cards, "
-        f"{result.n_communities} community pages"
-    )
+    print(f"[OK] render: {result.n_cards} cards, {result.n_communities} community pages")
     print(f"     cards: {result.cards_dir}")
     print(f"     communities: {result.communities_dir}")
     print(f"     dashboard: {result.dashboard_path}")
@@ -1634,8 +1683,7 @@ def _cmd_publish(args: argparse.Namespace) -> int:
         tool_repo_root=tool_repo_root,
     )
 
-    print(f"[OK] publish: {result.n_cards} cards, "
-          f"{result.n_community_pages} community pages")
+    print(f"[OK] publish: {result.n_cards} cards, {result.n_community_pages} community pages")
     print(f"     dest: {result.dest}")
     print(f"     bytes written: {result.bytes_written:,}")
     print(f"     chroma included: {result.included_chroma}")

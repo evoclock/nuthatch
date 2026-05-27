@@ -103,21 +103,35 @@ def main(argv: list[str]) -> int:
         description=(__doc__ or "").split("\n\n", 1)[0],
     )
     p.add_argument("--corpus", required=True, help="corpus name or path")
-    p.add_argument("--backend", default="ollama",
-                   help="LLM backend for concept extraction (default: ollama)")
-    p.add_argument("--model", default="gemini-3-flash-preview:cloud",
-                   help="model id; default is Gemini Flash cloud for speed")
-    p.add_argument("--num-predict", type=int, default=3072,
-                   help="token budget for the LLM. Default 3072 accommodates "
-                        "a 2-4 sentence summary + 5-10 topics + 3-7 methods + "
-                        "named_entities without truncating the JSON.")
-    p.add_argument("--max-docs", type=int, default=0,
-                   help="process only the first N docs (0 = all)")
-    p.add_argument("--excerpt-chars", type=int, default=6000,
-                   help="how much of each body to send to the LLM. Bigger "
-                        "captures more concepts but slows extraction.")
-    p.add_argument("--force", action="store_true",
-                   help="re-extract even if a concepts sidecar already exists")
+    p.add_argument(
+        "--backend", default="ollama", help="LLM backend for concept extraction (default: ollama)"
+    )
+    p.add_argument(
+        "--model",
+        default="gemini-3-flash-preview:cloud",
+        help="model id; default is Gemini Flash cloud for speed",
+    )
+    p.add_argument(
+        "--num-predict",
+        type=int,
+        default=3072,
+        help="token budget for the LLM. Default 3072 accommodates "
+        "a 2-4 sentence summary + 5-10 topics + 3-7 methods + "
+        "named_entities without truncating the JSON.",
+    )
+    p.add_argument(
+        "--max-docs", type=int, default=0, help="process only the first N docs (0 = all)"
+    )
+    p.add_argument(
+        "--excerpt-chars",
+        type=int,
+        default=6000,
+        help="how much of each body to send to the LLM. Bigger "
+        "captures more concepts but slows extraction.",
+    )
+    p.add_argument(
+        "--force", action="store_true", help="re-extract even if a concepts sidecar already exists"
+    )
     args = p.parse_args(argv)
 
     from nuthatch.corpus.layout import CorpusLayout
@@ -130,13 +144,15 @@ def main(argv: list[str]) -> int:
 
     doc_files = sorted(extracted_dir.glob("*.md"))
     if args.max_docs > 0:
-        doc_files = doc_files[:args.max_docs]
+        doc_files = doc_files[: args.max_docs]
     print(f"[concepts] candidates: {len(doc_files)} docs")
 
     print(f"[concepts] LLM: {args.backend}::{args.model}")
     llm = build_llm(
-        backend=args.backend, model=args.model,
-        num_predict=args.num_predict, temperature=0.0,
+        backend=args.backend,
+        model=args.model,
+        num_predict=args.num_predict,
+        temperature=0.0,
     )
 
     t0 = time.perf_counter()
@@ -151,7 +167,7 @@ def main(argv: list[str]) -> int:
             continue
 
         body = md_path.read_text(encoding="utf-8", errors="ignore")
-        excerpt = body[:args.excerpt_chars]
+        excerpt = body[: args.excerpt_chars]
         if len(excerpt.strip()) < 200:
             print(f"  [{i:>4d}/{len(doc_files)}] SKIP {doc_id} (body too short)")
             n_skipped += 1

@@ -84,12 +84,10 @@ class TestSupersessionApply:
         result = apply_supersession(g, cards, pairs)
         assert len(result.pairs_applied) == 1
         # Edge exists with relation supersedes.
-        edges = [
-            (u, v, d)
-            for u, v, d in g.edges(data=True)
-            if d.get("relation") == "supersedes"
+        edges = [(u, v, d) for u, v, d in g.edges(data=True) if d.get("relation") == "supersedes"]
+        assert edges == [
+            ("doc::p2", "doc::p1", {"relation": "supersedes", "confidence": "EXTRACTED"})
         ]
-        assert edges == [("doc::p2", "doc::p1", {"relation": "supersedes", "confidence": "EXTRACTED"})]
         assert cards["p1"]["status"] == "superseded"
         assert cards["p1"]["relevance"] == 0.1  # downweighted by default 0.1
 
@@ -129,7 +127,12 @@ def _write_card_file(
     if supersedes is not None:
         front["supersedes"] = supersedes
     body = f"# {title}\n\nbody for {doc_id}\n"
-    text = "---\n" + yaml.dump(front, default_flow_style=False, sort_keys=False).rstrip() + "\n---\n" + body
+    text = (
+        "---\n"
+        + yaml.dump(front, default_flow_style=False, sort_keys=False).rstrip()
+        + "\n---\n"
+        + body
+    )
     (cards_dir / f"{doc_id}.md").write_text(text, encoding="utf-8")
 
 
@@ -190,9 +193,7 @@ class TestRunDecayPass:
         cards_dir = layout.root / "cards"
         cards_dir.mkdir(parents=True, exist_ok=True)
         _write_card_file(cards_dir, "old", title="Old", relevance=1.0)
-        _write_card_file(
-            cards_dir, "new", title="New", supersedes=["old"], relevance=1.0
-        )
+        _write_card_file(cards_dir, "new", title="New", supersedes=["old"], relevance=1.0)
         result = run_decay_pass(layout, now=date(2026, 5, 26))
         assert result.n_superseded_this_pass == 1
         front_old, _ = parse_card(cards_dir / "old.md")

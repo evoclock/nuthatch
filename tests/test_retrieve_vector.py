@@ -89,16 +89,12 @@ class TestKeywordOverlay:
             ]
         )
         rv = VectorRetriever(store, embedder=_FakeEmbedder())
-        hits = rv.search_with_keyword_overlay(
-            "mendelian populations", k=2
-        )
+        hits = rv.search_with_keyword_overlay("mendelian populations", k=2)
         # c2 promoted to first despite worse dense distance.
         assert hits[0].chunk_id == "c2"
 
     def test_no_keyword_match_keeps_dense_order(self) -> None:
-        store = _FakeStore(
-            [_n("c1", 0.05, title="alpha"), _n("c2", 0.30, title="beta")]
-        )
+        store = _FakeStore([_n("c1", 0.05, title="alpha"), _n("c2", 0.30, title="beta")])
         rv = VectorRetriever(store, embedder=_FakeEmbedder())
         hits = rv.search_with_keyword_overlay("no overlap here", k=2)
         assert [h.chunk_id for h in hits] == ["c1", "c2"]

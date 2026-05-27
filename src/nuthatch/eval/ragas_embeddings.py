@@ -56,7 +56,9 @@ class NuthatchEmbeddings(BaseRagasEmbedding):
         return self.embed_text(text)
 
     async def aembed_texts(
-        self, texts: list[str], **kwargs: Any,
+        self,
+        texts: list[str],
+        **kwargs: Any,
     ) -> list[list[float]]:
         return self.embed_texts(texts)
 
@@ -74,6 +76,8 @@ class NuthatchEmbeddings(BaseRagasEmbedding):
         return self.embed_text(text, **kwargs)
 
     async def aembed_documents(
-        self, texts: list[str], **kwargs: Any,
+        self,
+        texts: list[str],
+        **kwargs: Any,
     ) -> list[list[float]]:
         return self.embed_texts(texts, **kwargs)

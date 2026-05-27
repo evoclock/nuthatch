@@ -116,10 +116,7 @@ def project_to_doc_doc(g: nx.MultiDiGraph) -> nx.Graph:
             # match contributes ~7.0 (vs the ~1.0 baseline of one
             # shared entity). Without this boost the semantic signal
             # drowns under entity-co-occurrence noise.
-            weight = (
-                float(data.get("similarity", 1.0))
-                * _SHARES_SUMMARY_WEIGHT_FACTOR
-            )
+            weight = float(data.get("similarity", 1.0)) * _SHARES_SUMMARY_WEIGHT_FACTOR
         elif relation == "cites":
             # Asserted directed relationship between papers. Stronger
             # than entity co-occurrence; weaker than summary

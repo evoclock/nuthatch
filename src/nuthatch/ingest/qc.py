@@ -70,9 +70,7 @@ def check_extract_yield(
         if per_page < min_per_page:
             return CheckResult(
                 passed=False,
-                reason=(
-                    f"extract_yield_per_page_too_low:{per_page:.1f}<{min_per_page}"
-                ),
+                reason=(f"extract_yield_per_page_too_low:{per_page:.1f}<{min_per_page}"),
                 details=details,
             )
     return CheckResult(passed=True, reason=None, details=details)

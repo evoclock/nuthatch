@@ -68,21 +68,26 @@ def main(argv: list[str]) -> int:
     )
     p.add_argument("--corpus", required=True, help="corpus name or path")
     p.add_argument(
-        "--index", default="all",
+        "--index",
+        default="all",
         choices=("sbm", "leiden", "embeddings", "all", "canonical"),
         help="which file(s) to rewrite. 'all' covers canonical + every "
-             "communities_<suffix>.json sibling.",
+        "communities_<suffix>.json sibling.",
     )
     p.add_argument(
-        "--backend", default=DEFAULT_RELABEL_BACKEND,
+        "--backend",
+        default=DEFAULT_RELABEL_BACKEND,
         help="LLM backend (ollama | openai | anthropic).",
     )
     p.add_argument(
-        "--model", default=DEFAULT_RELABEL_MODEL,
+        "--model",
+        default=DEFAULT_RELABEL_MODEL,
         help=f"model id; default {DEFAULT_RELABEL_MODEL} (cheap local).",
     )
     p.add_argument(
-        "--temperature", type=float, default=0.1,
+        "--temperature",
+        type=float,
+        default=0.1,
         help="generation temperature; 0.1 keeps labels stable.",
     )
     args = p.parse_args(argv)
@@ -105,7 +110,9 @@ def main(argv: list[str]) -> int:
     print(f"[relabel] corpus: {corpus_root}")
     print(f"[relabel] LLM:    {args.backend} / {args.model}")
     invoke = build_default_invoke(
-        backend=args.backend, model=args.model, temperature=args.temperature,
+        backend=args.backend,
+        model=args.model,
+        temperature=args.temperature,
     )
     diffs = relabel_communities(targets, cards_dir, llm_invoke=invoke)
 

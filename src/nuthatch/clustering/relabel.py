@@ -108,14 +108,9 @@ def _read_card_meta(card_path: Path) -> dict[str, Any]:
             val = v.strip()
             if cur_key == "title" and val:
                 out["title"] = val
-            elif (
-                cur_key == "tags" and val
-                and val.startswith("[") and val.endswith("]")
-            ):
+            elif cur_key == "tags" and val and val.startswith("[") and val.endswith("]"):
                 # inline list form (rare in our cards): tags: [a, b, c]
-                out["tags"] = [
-                    t.strip() for t in val[1:-1].split(",") if t.strip()
-                ]
+                out["tags"] = [t.strip() for t in val[1:-1].split(",") if t.strip()]
     return out
 
 
@@ -130,9 +125,7 @@ def _build_member_block(
     for raw_id in member_ids[:max_members]:
         # Members in communities_*.json carry the graph node prefix
         # `doc::`; card filenames omit it. Strip before lookup.
-        doc_id = (
-            raw_id[len("doc::"):] if raw_id.startswith("doc::") else raw_id
-        )
+        doc_id = raw_id[len("doc::") :] if raw_id.startswith("doc::") else raw_id
         meta = _read_card_meta(cards_dir / f"{doc_id}.md")
         title = str(meta["title"]).strip() or doc_id
         tags = ", ".join(meta["tags"][:5])
@@ -154,7 +147,7 @@ def _clean_label(raw: str) -> str:
     s = raw.strip()
     for prefix in ("Topical name:", "Name:", "Label:", "Cluster:"):
         if s.lower().startswith(prefix.lower()):
-            s = s[len(prefix):].strip()
+            s = s[len(prefix) :].strip()
     s = s.strip("\"'`")
     s = s.splitlines()[0].strip() if s else s
     words = s.split()
@@ -183,8 +176,7 @@ def _label_one(
         return new
     except Exception as exc:
         print(
-            f"[relabel] community {community_id}: LLM failed ({exc!s}); "
-            "keeping heuristic label.",
+            f"[relabel] community {community_id}: LLM failed ({exc!s}); keeping heuristic label.",
             file=sys.stderr,
         )
         return old_label
@@ -212,14 +204,19 @@ def relabel_index_file(
     for cid_str, member_ids in members.items():
         old = str(old_labels.get(cid_str, ""))
         new = _label_one(
-            llm_invoke, int(cid_str), list(member_ids), cards_dir, old,
+            llm_invoke,
+            int(cid_str),
+            list(member_ids),
+            cards_dir,
+            old,
         )
         new_labels[cid_str] = new
         diff[int(cid_str)] = (old, new)
 
     payload["labels"] = new_labels
     path.write_text(
-        json.dumps(payload, indent=2, default=str), encoding="utf-8",
+        json.dumps(payload, indent=2, default=str),
+        encoding="utf-8",
     )
     return diff
 
@@ -250,9 +247,7 @@ def discover_index_paths(kg_dir: Path) -> list[Path]:
     lexicographic order. Returns an empty list if no files exist.
     """
     canonical = kg_dir / "communities.json"
-    suffixed = sorted(
-        p for p in kg_dir.glob("communities_*.json") if p.is_file()
-    )
+    suffixed = sorted(p for p in kg_dir.glob("communities_*.json") if p.is_file())
     paths: list[Path] = []
     if canonical.is_file():
         paths.append(canonical)
@@ -277,8 +272,10 @@ def build_default_invoke(
     from nuthatch.util.llm_backends import build_llm
 
     llm = build_llm(
-        backend=backend, model=model,
-        temperature=temperature, num_predict=num_predict,
+        backend=backend,
+        model=model,
+        temperature=temperature,
+        num_predict=num_predict,
     )
 
     def _invoke(prompt: str) -> str:

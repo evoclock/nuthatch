@@ -91,9 +91,7 @@ class EmbeddingsBackend:
         k = self._pick_k(len(node_ids))
 
         t0 = time.perf_counter()
-        model = KMeans(
-            n_clusters=k, random_state=self.random_state, n_init="auto"
-        )
+        model = KMeans(n_clusters=k, random_state=self.random_state, n_init="auto")
         labels = model.fit_predict(embeddings)
         elapsed = time.perf_counter() - t0
 

@@ -14,6 +14,7 @@ def _add_marker(value: str):
     def fn(ctx: dict) -> dict:
         ctx.setdefault("markers", []).append(value)
         return ctx
+
     return fn
 
 

@@ -17,16 +17,10 @@ from nuthatch.ingest.extract import ExtractionStrategy, pick_strategy
 
 class TestPickStrategy:
     def test_high_text_yield_routes_to_docling(self) -> None:
-        assert (
-            pick_strategy(4000.0, has_gpu=True)
-            is ExtractionStrategy.DIGITAL_DOCLING
-        )
+        assert pick_strategy(4000.0, has_gpu=True) is ExtractionStrategy.DIGITAL_DOCLING
 
     def test_high_text_yield_no_gpu_still_docling(self) -> None:
-        assert (
-            pick_strategy(4000.0, has_gpu=False)
-            is ExtractionStrategy.DIGITAL_DOCLING
-        )
+        assert pick_strategy(4000.0, has_gpu=False) is ExtractionStrategy.DIGITAL_DOCLING
 
     def test_low_yield_with_gpu_max_quality_routes_to_chandra(self) -> None:
         assert (
@@ -41,10 +35,7 @@ class TestPickStrategy:
         )
 
     def test_low_yield_no_gpu_routes_to_easyocr(self) -> None:
-        assert (
-            pick_strategy(50.0, has_gpu=False)
-            is ExtractionStrategy.SCANNED_EASYOCR
-        )
+        assert pick_strategy(50.0, has_gpu=False) is ExtractionStrategy.SCANNED_EASYOCR
 
 
 class TestThresholdBoundary:
@@ -66,7 +57,4 @@ class TestThresholdBoundary:
         assert pick_strategy(yield_value, has_gpu=True) is expected
 
     def test_extreme_high_yield(self) -> None:
-        assert (
-            pick_strategy(1_000_000.0, has_gpu=True)
-            is ExtractionStrategy.DIGITAL_DOCLING
-        )
+        assert pick_strategy(1_000_000.0, has_gpu=True) is ExtractionStrategy.DIGITAL_DOCLING

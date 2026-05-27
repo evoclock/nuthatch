@@ -51,20 +51,29 @@ def main(argv: list[str]) -> int:
         description=(__doc__ or "").split("\n\n", 1)[0],
     )
     p.add_argument("--corpus", required=True, help="corpus name or path")
-    p.add_argument("--sample-docs", type=int, default=100,
-                   help="how many documents to sample for LLM-judged "
-                        "extraction-quality scoring")
+    p.add_argument(
+        "--sample-docs",
+        type=int,
+        default=100,
+        help="how many documents to sample for LLM-judged extraction-quality scoring",
+    )
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--judge-backend", default="ollama")
-    p.add_argument("--judge-model", default="granite3-dense:8b",
-                   help="LLM judge for extraction quality; structured-output "
-                        "models (IBM Granite 3 etc.) follow the per-entity "
-                        "JSON decomposition prompt reliably without burning "
-                        "the token budget on a reasoning trace")
+    p.add_argument(
+        "--judge-model",
+        default="granite3-dense:8b",
+        help="LLM judge for extraction quality; structured-output "
+        "models (IBM Granite 3 etc.) follow the per-entity "
+        "JSON decomposition prompt reliably without burning "
+        "the token budget on a reasoning trace",
+    )
     p.add_argument("--judge-num-predict", type=int, default=1024)
-    p.add_argument("--skip-judge", action="store_true",
-                   help="run only intrinsic metrics; skip LLM-judged "
-                        "extraction quality. Useful for fast smoke tests.")
+    p.add_argument(
+        "--skip-judge",
+        action="store_true",
+        help="run only intrinsic metrics; skip LLM-judged "
+        "extraction quality. Useful for fast smoke tests.",
+    )
     p.add_argument("--out-dir", default="pipeline_output")
     args = p.parse_args(argv)
 
@@ -77,14 +86,12 @@ def main(argv: list[str]) -> int:
 
     graph_path = layout.kg / "graph" / "graph.json"
     if not graph_path.exists():
-        print(f"[graph-eval] no graph at {graph_path}; "
-              "run `nuthatch graph` first.")
+        print(f"[graph-eval] no graph at {graph_path}; run `nuthatch graph` first.")
         return 2
 
     print(f"[graph-eval] loading graph: {graph_path}")
     g = load_graph(graph_path)
-    print(f"[graph-eval] {g.number_of_nodes()} nodes, "
-          f"{g.number_of_edges()} edges")
+    print(f"[graph-eval] {g.number_of_nodes()} nodes, {g.number_of_edges()} edges")
 
     print("[graph-eval] computing intrinsic metrics...")
     intrinsic = _compute_intrinsic(g)
@@ -98,19 +105,20 @@ def main(argv: list[str]) -> int:
 
     judge_results: list[dict] = []
     if not args.skip_judge:
-        print(f"[graph-eval] LLM judge: "
-              f"{args.judge_backend}::{args.judge_model}")
+        print(f"[graph-eval] LLM judge: {args.judge_backend}::{args.judge_model}")
         judge_llm = build_llm(
             backend=args.judge_backend,
             model=args.judge_model,
             num_predict=args.judge_num_predict,
             temperature=0.0,
         )
-        print(f"[graph-eval] sampling {args.sample_docs} docs for "
-              "extraction-quality judging...")
+        print(f"[graph-eval] sampling {args.sample_docs} docs for extraction-quality judging...")
         judge_results = _judge_extraction_quality(
-            g, layout, judge_llm,
-            sample_size=args.sample_docs, seed=args.seed,
+            g,
+            layout,
+            judge_llm,
+            sample_size=args.sample_docs,
+            seed=args.seed,
         )
         if judge_results:
             mean_p = sum(r["precision"] for r in judge_results) / len(
@@ -138,6 +146,7 @@ def main(argv: list[str]) -> int:
     )
     print(f"[graph-eval] report: {report_path}")
     return 0
+
 
 def _compute_intrinsic(g) -> dict:
     """Structural-quality metrics from the graph topology alone."""
@@ -230,7 +239,12 @@ Do not include code fences, prefix, or any text outside the JSON.
 
 
 def _judge_extraction_quality(
-    g, layout, judge_llm, *, sample_size: int, seed: int,
+    g,
+    layout,
+    judge_llm,
+    *,
+    sample_size: int,
+    seed: int,
 ) -> list[dict]:
     """Sample documents, ask the judge LLM to rate extracted entities.
 
@@ -245,8 +259,7 @@ def _judge_extraction_quality(
     # Documents are nodes with type == "document". Pull their attached
     # entities via outgoing edges from the doc node.
     doc_nodes = [
-        (node, data) for node, data in g.nodes(data=True)
-        if data.get("node_type") == "document"
+        (node, data) for node, data in g.nodes(data=True) if data.get("node_type") == "document"
     ]
     if not doc_nodes:
         print("[graph-eval] no document nodes; skipping extraction judging")
@@ -279,11 +292,11 @@ def _judge_extraction_quality(
         if not excerpt:
             continue
 
-        entities_str = "\n".join(
-            f"  - {etype} | {ename}" for etype, ename in entities[:30]
-        )
+        entities_str = "\n".join(f"  - {etype} | {ename}" for etype, ename in entities[:30])
         prompt = _EXTRACTION_JUDGE_PROMPT.format(
-            title=title, excerpt=excerpt, entities=entities_str,
+            title=title,
+            excerpt=excerpt,
+            entities=entities_str,
         )
         print(f"  [{i:>3d}/{len(sample)}] {title[:60]}...", flush=True)
         try:
@@ -303,27 +316,22 @@ def _judge_extraction_quality(
         if not isinstance(raw_entities, list):
             continue
         per_entity = [e for e in raw_entities if isinstance(e, dict)]
-        real_and_typed = sum(
-            1 for e in per_entity
-            if e.get("real") and e.get("correctly_typed")
-        )
-        precision = (
-            real_and_typed / len(per_entity) if per_entity else 0.0
-        )
+        real_and_typed = sum(1 for e in per_entity if e.get("real") and e.get("correctly_typed"))
+        precision = real_and_typed / len(per_entity) if per_entity else 0.0
         missed = int(parsed.get("missed_entity_count", 0))
         denom = len(per_entity) + missed
-        recall_proxy = (
-            len(per_entity) / denom if denom else 0.0
+        recall_proxy = len(per_entity) / denom if denom else 0.0
+        results.append(
+            {
+                "doc_id": str(doc_node),
+                "title": title[:120],
+                "n_extracted": len(per_entity),
+                "n_real_and_typed": real_and_typed,
+                "n_missed_estimate": missed,
+                "precision": precision,
+                "recall_proxy": recall_proxy,
+            }
         )
-        results.append({
-            "doc_id": str(doc_node),
-            "title": title[:120],
-            "n_extracted": len(per_entity),
-            "n_real_and_typed": real_and_typed,
-            "n_missed_estimate": missed,
-            "precision": precision,
-            "recall_proxy": recall_proxy,
-        })
     return results
 
 
@@ -457,8 +465,10 @@ def _write_report(
         )
         lines.append("## Tier 2: LLM-judged extraction fidelity")
         lines.append("")
-        lines.append(f"Sampled {len(judge_results)} documents. "
-                     f"Judge: `{args.judge_backend}::{args.judge_model}`.")
+        lines.append(
+            f"Sampled {len(judge_results)} documents. "
+            f"Judge: `{args.judge_backend}::{args.judge_model}`."
+        )
         lines.append("")
         lines.append("| metric | value | reads as |")
         lines.append("| --- | ---: | --- |")

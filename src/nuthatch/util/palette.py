@@ -16,27 +16,27 @@ from __future__ import annotations
 # for the bibliographic surface (authors, citations), cool tones for
 # the conceptual surface (topics, methods, named_entities).
 TYPE_COLORS: dict[str, str] = {
-    "document":     "#79c39e",  # sage primary
-    "author":       "#e77843",  # rust
-    "citation":     "#ee9b69",  # apricot
-    "topic":        "#ead1b5",  # cream
-    "method":       "#a8d5ba",  # sage tint
+    "document": "#79c39e",  # sage primary
+    "author": "#e77843",  # rust
+    "citation": "#ee9b69",  # apricot
+    "topic": "#ead1b5",  # cream
+    "method": "#a8d5ba",  # sage tint
     "named_entity": "#f4b08e",  # apricot tint
-    "gene":         "#f4b08e",  # apricot tint
-    "person":       "#e77843",  # rust
-    "org":          "#ee9b69",  # apricot
-    "place":        "#d9c7a7",  # cream tint
-    "other":        "#999999",
-    "unknown":      "#666666",
+    "gene": "#f4b08e",  # apricot tint
+    "person": "#e77843",  # rust
+    "org": "#ee9b69",  # apricot
+    "place": "#d9c7a7",  # cream tint
+    "other": "#999999",
+    "unknown": "#666666",
 }
 
 # Edge colour per relation. Citation + authorship edges are saturated
 # so they stand out against the dominant co_mentioned_in noise floor.
 RELATION_COLORS: dict[str, str] = {
-    "co_mentioned_in":     "rgba(255,255,255,0.04)",
-    "cites":               "rgba(231,120,67,0.35)",
-    "authored_by":         "rgba(121,195,158,0.35)",
-    "mentions":            "rgba(168,213,186,0.20)",
+    "co_mentioned_in": "rgba(255,255,255,0.04)",
+    "cites": "rgba(231,120,67,0.35)",
+    "authored_by": "rgba(121,195,158,0.35)",
+    "mentions": "rgba(168,213,186,0.20)",
     "shares_summary_with": "rgba(238,155,105,0.30)",
-    "has_topic":           "rgba(234,209,181,0.30)",
+    "has_topic": "rgba(234,209,181,0.30)",
 }

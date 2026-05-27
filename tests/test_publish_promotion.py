@@ -39,7 +39,8 @@ def _make_minimal_corpus(root: Path) -> None:
         },
     }
     (root / ".kg" / "graph" / "graph.json").write_text(
-        json.dumps(graph_payload), encoding="utf-8",
+        json.dumps(graph_payload),
+        encoding="utf-8",
     )
 
 
@@ -77,22 +78,26 @@ class TestCanonicalPromotion:
 
         dest = tmp_path / "kb"
         publish_corpus(
-            corpus_root=corpus, dest=dest, kb_name="test-kb",
-            include_chroma=False, include_eval=False, include_d3_html=False,
+            corpus_root=corpus,
+            dest=dest,
+            kb_name="test-kb",
+            include_chroma=False,
+            include_eval=False,
+            include_d3_html=False,
         )
 
         canonical_index = dest / ".kg" / "communities.json"
         canonical_centroids = dest / ".kg" / "community_centroids.npy"
-        assert canonical_index.is_file(), \
+        assert canonical_index.is_file(), (
             "publish must promote suffixed sbm index to canonical name"
-        assert canonical_centroids.is_file(), \
+        )
+        assert canonical_centroids.is_file(), (
             "publish must promote suffixed sbm centroids to canonical name"
+        )
 
         # And canonical content matches the promoted file.
         promoted = json.loads(canonical_index.read_text(encoding="utf-8"))
-        original = json.loads(
-            (dest / ".kg" / "communities_sbm.json").read_text(encoding="utf-8")
-        )
+        original = json.loads((dest / ".kg" / "communities_sbm.json").read_text(encoding="utf-8"))
         assert promoted["labels"] == original["labels"]
 
     def test_prefers_sbm_over_leiden(self, tmp_path: Path) -> None:
@@ -103,19 +108,23 @@ class TestCanonicalPromotion:
 
         dest = tmp_path / "kb"
         publish_corpus(
-            corpus_root=corpus, dest=dest, kb_name="test-kb",
-            include_chroma=False, include_eval=False, include_d3_html=False,
+            corpus_root=corpus,
+            dest=dest,
+            kb_name="test-kb",
+            include_chroma=False,
+            include_eval=False,
+            include_d3_html=False,
         )
 
-        promoted = json.loads(
-            (dest / ".kg" / "communities.json").read_text(encoding="utf-8")
-        )
+        promoted = json.loads((dest / ".kg" / "communities.json").read_text(encoding="utf-8"))
         # sbm wins over leiden; labels carry the sbm-content marker.
-        assert any("sbm-content" in v for v in promoted["labels"].values()), \
+        assert any("sbm-content" in v for v in promoted["labels"].values()), (
             f"expected sbm promotion, got labels {promoted['labels']!r}"
+        )
 
     def test_falls_back_to_leiden_when_sbm_absent(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         corpus = tmp_path / "corpus"
         _make_minimal_corpus(corpus)
@@ -125,15 +134,18 @@ class TestCanonicalPromotion:
 
         dest = tmp_path / "kb"
         publish_corpus(
-            corpus_root=corpus, dest=dest, kb_name="test-kb",
-            include_chroma=False, include_eval=False, include_d3_html=False,
+            corpus_root=corpus,
+            dest=dest,
+            kb_name="test-kb",
+            include_chroma=False,
+            include_eval=False,
+            include_d3_html=False,
         )
 
-        promoted = json.loads(
-            (dest / ".kg" / "communities.json").read_text(encoding="utf-8")
-        )
-        assert any("leiden-x" in v for v in promoted["labels"].values()), \
+        promoted = json.loads((dest / ".kg" / "communities.json").read_text(encoding="utf-8"))
+        assert any("leiden-x" in v for v in promoted["labels"].values()), (
             f"expected leiden promotion when sbm absent, got {promoted['labels']!r}"
+        )
 
     def test_preserves_existing_canonical(self, tmp_path: Path) -> None:
         corpus = tmp_path / "corpus"
@@ -144,16 +156,18 @@ class TestCanonicalPromotion:
 
         dest = tmp_path / "kb"
         publish_corpus(
-            corpus_root=corpus, dest=dest, kb_name="test-kb",
-            include_chroma=False, include_eval=False, include_d3_html=False,
+            corpus_root=corpus,
+            dest=dest,
+            kb_name="test-kb",
+            include_chroma=False,
+            include_eval=False,
+            include_d3_html=False,
         )
 
-        promoted = json.loads(
-            (dest / ".kg" / "communities.json").read_text(encoding="utf-8")
+        promoted = json.loads((dest / ".kg" / "communities.json").read_text(encoding="utf-8"))
+        assert any("canonical-already" in v for v in promoted["labels"].values()), (
+            "publish must NOT overwrite an existing canonical index"
         )
-        assert any(
-            "canonical-already" in v for v in promoted["labels"].values()
-        ), "publish must NOT overwrite an existing canonical index"
 
 
 class TestSuffixedCentroidsGlobbed:
@@ -166,8 +180,12 @@ class TestSuffixedCentroidsGlobbed:
 
         dest = tmp_path / "kb"
         publish_corpus(
-            corpus_root=corpus, dest=dest, kb_name="test-kb",
-            include_chroma=False, include_eval=False, include_d3_html=False,
+            corpus_root=corpus,
+            dest=dest,
+            kb_name="test-kb",
+            include_chroma=False,
+            include_eval=False,
+            include_d3_html=False,
         )
 
         assert (dest / ".kg" / "community_centroids_sbm.npy").is_file()

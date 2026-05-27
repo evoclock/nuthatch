@@ -68,9 +68,7 @@ def find_supersession_pairs(
         for old in raw:
             old_str = str(old).strip()
             if old_str:
-                pairs.append(
-                    SupersessionPair(new_doc_id=new_doc_id, old_doc_id=old_str)
-                )
+                pairs.append(SupersessionPair(new_doc_id=new_doc_id, old_doc_id=old_str))
     return pairs
 
 

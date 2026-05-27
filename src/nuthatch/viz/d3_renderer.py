@@ -50,16 +50,19 @@ def main(argv: list[str]) -> int:
         description=(__doc__ or "").split("\n\n", 1)[0],
     )
     p.add_argument("--corpus", required=True, help="corpus name or path")
-    p.add_argument("--communities", default=None,
-                   help="suffix of the communities file to colour nodes by "
-                        "(e.g. 'sbm' loads communities_sbm.json). Pass 'all' "
-                        "to render one HTML per available communities_*.json "
-                        "side-by-side, sharing the layout pass.")
-    p.add_argument("--filter-types", default=None,
-                   help="comma-separated entity types to keep")
+    p.add_argument(
+        "--communities",
+        default=None,
+        help="suffix of the communities file to colour nodes by "
+        "(e.g. 'sbm' loads communities_sbm.json). Pass 'all' "
+        "to render one HTML per available communities_*.json "
+        "side-by-side, sharing the layout pass.",
+    )
+    p.add_argument("--filter-types", default=None, help="comma-separated entity types to keep")
     p.add_argument("--max-nodes", type=int, default=3000)
-    p.add_argument("--layout", default="forceatlas2",
-                   choices=("forceatlas2", "spring", "kamada_kawai"))
+    p.add_argument(
+        "--layout", default="forceatlas2", choices=("forceatlas2", "spring", "kamada_kawai")
+    )
     p.add_argument("--layout-iterations", type=int, default=200)
     p.add_argument("--out-dir", default="pipeline_output")
     args = p.parse_args(argv)
@@ -73,36 +76,35 @@ def main(argv: list[str]) -> int:
 
     graph_path = layout_dirs.kg / "graph" / "graph.json"
     if not graph_path.exists():
-        print(f"[d3-viz] no graph at {graph_path}; "
-              "run `nuthatch graph` first.")
+        print(f"[d3-viz] no graph at {graph_path}; run `nuthatch graph` first.")
         return 2
     print(f"[d3-viz] loading graph: {graph_path}")
     g = load_graph(graph_path)
-    print(f"[d3-viz] {g.number_of_nodes()} nodes, "
-          f"{g.number_of_edges()} edges")
+    print(f"[d3-viz] {g.number_of_nodes()} nodes, {g.number_of_edges()} edges")
 
     if args.filter_types:
         keep_types = {t.strip().lower() for t in args.filter_types.split(",")}
         keep_nodes = [
-            n for n, d in g.nodes(data=True)
-            if (d.get("entity_type") or d.get("node_type", "")).lower()
-            in keep_types
+            n
+            for n, d in g.nodes(data=True)
+            if (d.get("entity_type") or d.get("node_type", "")).lower() in keep_types
         ]
         g = g.subgraph(keep_nodes).copy()
         print(f"[d3-viz] after type-filter: {g.number_of_nodes()} nodes")
 
     if g.number_of_nodes() > args.max_nodes:
         degrees = sorted(g.degree(), key=lambda kv: kv[1], reverse=True)
-        keep = {n for n, _ in degrees[:args.max_nodes]}
+        keep = {n for n, _ in degrees[: args.max_nodes]}
         g = g.subgraph(keep).copy()
-        print(f"[d3-viz] pruned to top-{args.max_nodes}: "
-              f"{g.number_of_nodes()} nodes, {g.number_of_edges()} edges")
+        print(
+            f"[d3-viz] pruned to top-{args.max_nodes}: "
+            f"{g.number_of_nodes()} nodes, {g.number_of_edges()} edges"
+        )
 
     # Layout is the expensive step (~30s for 3k nodes); compute once,
     # reuse across every community overlay so --communities all is
     # cheap-per-extra-render.
-    print(f"[d3-viz] computing {args.layout} layout (slow step, shared "
-          "across overlays)...")
+    print(f"[d3-viz] computing {args.layout} layout (slow step, shared across overlays)...")
     coords = _compute_layout(g, args.layout, args.layout_iterations)
 
     out_dir = Path(args.out_dir)
@@ -116,8 +118,10 @@ def main(argv: list[str]) -> int:
     if args.communities == "all":
         overlays = _discover_overlay_suffixes(layout_dirs)
         if not overlays:
-            print("[d3-viz] --communities all: no communities_*.json found; "
-                  "rendering single no-overlay HTML.")
+            print(
+                "[d3-viz] --communities all: no communities_*.json found; "
+                "rendering single no-overlay HTML."
+            )
             overlays = [None]
     elif args.communities:
         overlays = [args.communities]
@@ -138,28 +142,38 @@ def main(argv: list[str]) -> int:
                 (len(chain) for chain in hierarchy_by_node.values()),
                 default=1,
             )
-            print(f"[d3-viz] overlay {comm_suffix}: {n_comms} leaf-level "
-                  f"communities, {n_levels} hierarchy level(s)")
+            print(
+                f"[d3-viz] overlay {comm_suffix}: {n_comms} leaf-level "
+                f"communities, {n_levels} hierarchy level(s)"
+            )
         elif overlay is not None:
-            print(f"[d3-viz] overlay {overlay!r}: no communities file; "
-                  "skipping.")
+            print(f"[d3-viz] overlay {overlay!r}: no communities file; skipping.")
             continue
 
         payload = _build_payload(
-            g, coords,
+            g,
+            coords,
             community_by_node=community_by_node,
             hierarchy_by_node=hierarchy_by_node,
             community_labels_raw=community_labels_raw,
         )
         label = comm_suffix or "nocomm"
         out_path = out_dir / f"graph_topology_d3_{label}_{tag}.html"
-        out_path.write_text(_HTML_TEMPLATE.replace(
-            "__PAYLOAD__", json.dumps(payload),
-        ).replace(
-            "__TITLE__", f"nuthatch graph ({label})",
-        ).replace(
-            "__ICON_B64__", _load_icon_base64(),
-        ), encoding="utf-8")
+        out_path.write_text(
+            _HTML_TEMPLATE.replace(
+                "__PAYLOAD__",
+                json.dumps(payload),
+            )
+            .replace(
+                "__TITLE__",
+                f"nuthatch graph ({label})",
+            )
+            .replace(
+                "__ICON_B64__",
+                _load_icon_base64(),
+            ),
+            encoding="utf-8",
+        )
         print(f"[d3-viz] wrote: {out_path}")
         written.append(out_path)
 
@@ -181,9 +195,7 @@ def _load_icon_base64() -> str:
     import base64
 
     # Walk up from this module to the repo root, then into assets/.
-    asset_path = (
-        Path(__file__).resolve().parents[3] / "assets" / "Nuthatch_bgrm.png"
-    )
+    asset_path = Path(__file__).resolve().parents[3] / "assets" / "Nuthatch_bgrm.png"
     if not asset_path.is_file():
         return ""
     data = asset_path.read_bytes()
@@ -205,8 +217,10 @@ def _discover_overlay_suffixes(layout) -> list[str]:
             suffixes.append(stem.removeprefix("communities_"))
     return suffixes
 
+
 def _load_communities(
-    layout, suffix: str | None,
+    layout,
+    suffix: str | None,
 ) -> tuple[dict[str, int], dict[str, list[int]], dict[int, str], str]:
     """Load community membership + labels for the chosen backend's output.
 
@@ -221,10 +235,7 @@ def _load_communities(
         placeholders to titles using graph node data).
       - suffix_label is the backend label ('sbm', 'leiden', ...).
     """
-    fname = (
-        f"communities_{suffix}.json"
-        if suffix else "communities.json"
-    )
+    fname = f"communities_{suffix}.json" if suffix else "communities.json"
     path = layout.kg / fname
     if not path.exists():
         return {}, {}, {}, ""
@@ -274,8 +285,7 @@ def _compute_layout(g, algorithm: str, iterations: int) -> dict:
             pos = nx.forceatlas2_layout(g, max_iter=iterations)
             return {str(k): (float(v[0]), float(v[1])) for k, v in pos.items()}
         except Exception as exc:
-            print(f"[d3-viz] forceatlas2 failed ({exc!s}); "
-                  "falling back to spring_layout")
+            print(f"[d3-viz] forceatlas2 failed ({exc!s}); falling back to spring_layout")
 
     if algorithm == "kamada_kawai":
         pos = nx.kamada_kawai_layout(g)
@@ -285,7 +295,9 @@ def _compute_layout(g, algorithm: str, iterations: int) -> dict:
 
 
 def _build_payload(
-    g, coords, *,
+    g,
+    coords,
+    *,
     community_by_node: dict[str, int] | None = None,
     hierarchy_by_node: dict[str, list[int]] | None = None,
     community_labels_raw: dict[int, str] | None = None,
@@ -326,36 +338,38 @@ def _build_payload(
     n_levels_observed = 0
     for node, data in g.nodes(data=True):
         x, y = coords.get(str(node), (0.0, 0.0))
-        ntype = (
-            data.get("entity_type") or data.get("node_type") or "unknown"
-        ).lower()
+        ntype = (data.get("entity_type") or data.get("node_type") or "unknown").lower()
         label = str(data.get("title") or data.get("name") or node)[:80]
         node_id = str(node)
         hierarchy = hierarchy_by_node.get(node_id)
         if hierarchy:
             n_levels_observed = max(n_levels_observed, len(hierarchy))
-        nodes_out.append({
-            "id": node_id,
-            "x": _norm(x, xmin, xmax),
-            "y": _norm(y, ymin, ymax),
-            "type": ntype,
-            "type_color": TYPE_COLORS.get(ntype, TYPE_COLORS["unknown"]),
-            "label": label,
-            "degree": int(g.degree(node)),
-            "community": community_by_node.get(node_id),
-            "hierarchy": hierarchy,
-            "summary": data.get("summary"),
-        })
+        nodes_out.append(
+            {
+                "id": node_id,
+                "x": _norm(x, xmin, xmax),
+                "y": _norm(y, ymin, ymax),
+                "type": ntype,
+                "type_color": TYPE_COLORS.get(ntype, TYPE_COLORS["unknown"]),
+                "label": label,
+                "degree": int(g.degree(node)),
+                "community": community_by_node.get(node_id),
+                "hierarchy": hierarchy,
+                "summary": data.get("summary"),
+            }
+        )
 
     edges_out = []
     for u, v, data in g.edges(data=True):
         relation = data.get("relation", "related")
-        edges_out.append({
-            "source": str(u),
-            "target": str(v),
-            "relation": relation,
-            "color": RELATION_COLORS.get(relation, "rgba(255,255,255,0.05)"),
-        })
+        edges_out.append(
+            {
+                "source": str(u),
+                "target": str(v),
+                "relation": relation,
+                "color": RELATION_COLORS.get(relation, "rgba(255,255,255,0.05)"),
+            }
+        )
 
     type_counts: dict[str, int] = {}
     for n in nodes_out:
@@ -363,9 +377,13 @@ def _build_payload(
 
     relation_counts: dict[str, int] = {}
     for e in edges_out:
-        relation_counts[e["relation"]] = relation_counts.get(
-            e["relation"], 0,
-        ) + 1
+        relation_counts[e["relation"]] = (
+            relation_counts.get(
+                e["relation"],
+                0,
+            )
+            + 1
+        )
 
     community_counts: dict[int, int] = {}
     for n in nodes_out:
@@ -382,7 +400,7 @@ def _build_payload(
         raw = community_labels_raw.get(cid)
         if isinstance(raw, str) and raw.startswith("doc::"):
             node_data = g.nodes.get(raw, {})
-            title = node_data.get("title") or raw[len("doc::"):]
+            title = node_data.get("title") or raw[len("doc::") :]
             community_labels[cid] = str(title)
         elif raw:
             community_labels[cid] = str(raw)

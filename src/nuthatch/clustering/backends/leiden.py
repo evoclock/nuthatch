@@ -99,9 +99,7 @@ def _nx_to_igraph(nx_graph: Any, igraph_module: Any) -> Any:
     """Convert a networkx graph to igraph, preserving node IDs in `name`."""
     nodes = list(nx_graph.nodes())
     node_index = {node: i for i, node in enumerate(nodes)}
-    edges = [
-        (node_index[u], node_index[v]) for u, v in nx_graph.edges()
-    ]
+    edges = [(node_index[u], node_index[v]) for u, v in nx_graph.edges()]
     ig = igraph_module.Graph(n=len(nodes), edges=edges, directed=False)
     ig.vs["name"] = [str(n) for n in nodes]
     return ig

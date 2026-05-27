@@ -148,10 +148,15 @@ def _rel_src(src: Path, corpus_root: Path) -> str:
         return src.name
 
 
-def _copy_tree(src_dir: Path, dest_dir: Path, role: str,
-               manifest: list[dict[str, Any]], root: Path,
-               corpus_root: Path,
-               include_glob: str = "*") -> tuple[int, int]:
+def _copy_tree(
+    src_dir: Path,
+    dest_dir: Path,
+    role: str,
+    manifest: list[dict[str, Any]],
+    root: Path,
+    corpus_root: Path,
+    include_glob: str = "*",
+) -> tuple[int, int]:
     """Mirror a directory tree into the destination. Returns
     (n_files, bytes_total). Manifest stores src as a corpus-relative
     path (or basename if outside the corpus)."""
@@ -167,45 +172,50 @@ def _copy_tree(src_dir: Path, dest_dir: Path, role: str,
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
         size = dest.stat().st_size
-        manifest.append({
-            "dest": str(dest.relative_to(root)),
-            "src": _rel_src(src, corpus_root),
-            "role": role,
-            "size": size,
-            "sha256": _file_sha256(dest),
-            "promoted_at": _now_utc_iso(),
-        })
+        manifest.append(
+            {
+                "dest": str(dest.relative_to(root)),
+                "src": _rel_src(src, corpus_root),
+                "role": role,
+                "size": size,
+                "sha256": _file_sha256(dest),
+                "promoted_at": _now_utc_iso(),
+            }
+        )
         n_files += 1
         total_bytes += size
     return n_files, total_bytes
 
 
-def _write_text(dest: Path, content: str, role: str,
-                manifest: list[dict[str, Any]], root: Path) -> int:
+def _write_text(
+    dest: Path, content: str, role: str, manifest: list[dict[str, Any]], root: Path
+) -> int:
     """Write a generated text file and record it."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(content, encoding="utf-8")
     size = dest.stat().st_size
-    manifest.append({
-        "dest": str(dest.relative_to(root)),
-        "src": "<generated>",
-        "role": role,
-        "size": size,
-        "sha256": _file_sha256(dest),
-        "promoted_at": _now_utc_iso(),
-    })
+    manifest.append(
+        {
+            "dest": str(dest.relative_to(root)),
+            "src": "<generated>",
+            "role": role,
+            "size": size,
+            "sha256": _file_sha256(dest),
+            "promoted_at": _now_utc_iso(),
+        }
+    )
     return size
 
 
 # ---------- Generated content ---------------------------------------
 
 
-def _readme(kb_name: str, n_cards: int, n_communities: int,
-            community_labels: dict[int, str]) -> str:
+def _readme(
+    kb_name: str, n_cards: int, n_communities: int, community_labels: dict[int, str]
+) -> str:
     """Top-level vault README. The first thing a human sees on clone."""
     top_communities = "\n".join(
-        f"- **{label}** (`communities/`)"
-        for _, label in sorted(community_labels.items())
+        f"- **{label}** (`communities/`)" for _, label in sorted(community_labels.items())
     )
     return f"""# {kb_name}
 
@@ -299,13 +309,13 @@ See `LICENSE`.
 """
 
 
-def _agents_md(kb_name: str, n_cards: int, n_communities: int,
-               community_labels: dict[int, str]) -> str:
+def _agents_md(
+    kb_name: str, n_cards: int, n_communities: int, community_labels: dict[int, str]
+) -> str:
     """KB-root AGENTS.md. Tells an agent what's available, the card
     schema, and how to register the MCP server."""
     community_list = "\n".join(
-        f"- `{cid}` — {label}"
-        for cid, label in sorted(community_labels.items())
+        f"- `{cid}` — {label}" for cid, label in sorted(community_labels.items())
     )
     return f"""---
 name: {kb_name}
@@ -420,13 +430,18 @@ Inspect `CAPABILITIES.json` for a machine-readable list. At a glance:
 """
 
 
-def _overview(kb_name: str, n_cards: int, n_communities: int,
-              community_labels: dict[int, str],
-              graph_stats: dict[str, int],
-              backends_present: list[str]) -> str:
+def _overview(
+    kb_name: str,
+    n_cards: int,
+    n_communities: int,
+    community_labels: dict[int, str],
+    graph_stats: dict[str, int],
+    backends_present: list[str],
+) -> str:
     """Auto-generated stats overview."""
     backends = ", ".join(f"`{b}`" for b in backends_present) or "(none)"
-    return f"""# {kb_name} — overview
+    return (
+        f"""# {kb_name} — overview
 
 Auto-generated at publish time. For a navigable view see `README.md`;
 for an agent contract see `AGENTS.md`.
@@ -450,17 +465,20 @@ for an agent contract see `AGENTS.md`.
 
 | id | label |
 | ---: | --- |
-""" + "\n".join(
-        f"| {cid} | {label} |"
-        for cid, label in sorted(community_labels.items())
-    ) + "\n"
+"""
+        + "\n".join(f"| {cid} | {label} |" for cid, label in sorted(community_labels.items()))
+        + "\n"
+    )
 
 
-def _capabilities_json(n_cards: int, n_communities: int,
-                       graph_stats: dict[str, int],
-                       backends_present: list[str],
-                       has_centroids: bool,
-                       has_chroma: bool) -> str:
+def _capabilities_json(
+    n_cards: int,
+    n_communities: int,
+    graph_stats: dict[str, int],
+    backends_present: list[str],
+    has_centroids: bool,
+    has_chroma: bool,
+) -> str:
     """Machine-readable feature inventory."""
     payload = {
         "schema_version": 1,
@@ -527,30 +545,42 @@ def _mcp_config_example(kb_name: str) -> str:
 
 
 def _obsidian_app_json() -> str:
-    return json.dumps({
-        "useTab": False,
-        "tabSize": 2,
-        "showLineNumber": False,
-        "showInlineTitle": True,
-        "showViewHeader": True,
-        "livePreview": True,
-        "readableLineLength": True,
-        "defaultViewMode": "preview",
-        "newLinkFormat": "shortest",
-    }, indent=2) + "\n"
+    return (
+        json.dumps(
+            {
+                "useTab": False,
+                "tabSize": 2,
+                "showLineNumber": False,
+                "showInlineTitle": True,
+                "showViewHeader": True,
+                "livePreview": True,
+                "readableLineLength": True,
+                "defaultViewMode": "preview",
+                "newLinkFormat": "shortest",
+            },
+            indent=2,
+        )
+        + "\n"
+    )
 
 
 def _obsidian_appearance_json() -> str:
     """Power Station palette accents on Obsidian's default dark theme.
     Enables the nuthatch-graph-colors CSS snippet so tag pseudo-nodes
     in the graph view paint orange instead of the default lime-green."""
-    return json.dumps({
-        "accentColor": "#e77843",
-        "theme": "obsidian",
-        "baseFontSize": 16,
-        "showInlineTitle": True,
-        "enabledCssSnippets": ["nuthatch-graph-colors"],
-    }, indent=2) + "\n"
+    return (
+        json.dumps(
+            {
+                "accentColor": "#e77843",
+                "theme": "obsidian",
+                "baseFontSize": 16,
+                "showInlineTitle": True,
+                "enabledCssSnippets": ["nuthatch-graph-colors"],
+            },
+            indent=2,
+        )
+        + "\n"
+    )
 
 
 def _nuthatch_graph_colors_css() -> str:
@@ -592,22 +622,28 @@ body {
 def _obsidian_core_plugins_json() -> str:
     """Enable Obsidian's built-in graph + tag-pane plugins so the
     vault is immediately useful on first open."""
-    return json.dumps([
-        "file-explorer",
-        "global-search",
-        "switcher",
-        "graph",
-        "backlink",
-        "outgoing-link",
-        "tag-pane",
-        "page-preview",
-        "templates",
-        "note-composer",
-        "command-palette",
-        "outline",
-        "word-count",
-        "starred",
-    ], indent=2) + "\n"
+    return (
+        json.dumps(
+            [
+                "file-explorer",
+                "global-search",
+                "switcher",
+                "graph",
+                "backlink",
+                "outgoing-link",
+                "tag-pane",
+                "page-preview",
+                "templates",
+                "note-composer",
+                "command-palette",
+                "outline",
+                "word-count",
+                "starred",
+            ],
+            indent=2,
+        )
+        + "\n"
+    )
 
 
 def _obsidian_community_plugins_json() -> str:
@@ -656,17 +692,16 @@ def publish_corpus(
     n_cards = 0
     cards_src = corpus_root / "cards"
     if cards_src.is_dir():
-        n, b = _copy_tree(cards_src, dest / "cards", "card",
-                          manifest, dest, corpus_root, "*.md")
+        n, b = _copy_tree(cards_src, dest / "cards", "card", manifest, dest, corpus_root, "*.md")
         n_cards = n
         total_bytes += b
 
     n_community_pages = 0
     comm_src = corpus_root / "communities"
     if comm_src.is_dir():
-        n, b = _copy_tree(comm_src, dest / "communities",
-                          "community-page", manifest, dest, corpus_root,
-                          "*.md")
+        n, b = _copy_tree(
+            comm_src, dest / "communities", "community-page", manifest, dest, corpus_root, "*.md"
+        )
         n_community_pages = n
         total_bytes += b
 
@@ -674,7 +709,12 @@ def publish_corpus(
         src = corpus_root / top
         if src.is_file():
             total_bytes += _copy_file_recorded(
-                src, dest / top, "navigation", manifest, dest, corpus_root,
+                src,
+                dest / top,
+                "navigation",
+                manifest,
+                dest,
+                corpus_root,
             )
 
     # ----- Obsidian config --------------------------------------------
@@ -687,32 +727,48 @@ def publish_corpus(
     obsidian_src = corpus_root / ".obsidian" / "graph.json"
     if obsidian_src.is_file():
         total_bytes += _copy_file_recorded(
-            obsidian_src, obsidian_dest / "graph.json",
-            "obsidian-config", manifest, dest, corpus_root,
+            obsidian_src,
+            obsidian_dest / "graph.json",
+            "obsidian-config",
+            manifest,
+            dest,
+            corpus_root,
         )
 
     total_bytes += _write_text(
-        obsidian_dest / "app.json", _obsidian_app_json(),
-        "obsidian-config", manifest, dest,
+        obsidian_dest / "app.json",
+        _obsidian_app_json(),
+        "obsidian-config",
+        manifest,
+        dest,
     )
     total_bytes += _write_text(
-        obsidian_dest / "appearance.json", _obsidian_appearance_json(),
-        "obsidian-config", manifest, dest,
+        obsidian_dest / "appearance.json",
+        _obsidian_appearance_json(),
+        "obsidian-config",
+        manifest,
+        dest,
     )
     total_bytes += _write_text(
         obsidian_dest / "core-plugins.json",
         _obsidian_core_plugins_json(),
-        "obsidian-config", manifest, dest,
+        "obsidian-config",
+        manifest,
+        dest,
     )
     total_bytes += _write_text(
         obsidian_dest / "community-plugins.json",
         _obsidian_community_plugins_json(),
-        "obsidian-config", manifest, dest,
+        "obsidian-config",
+        manifest,
+        dest,
     )
     total_bytes += _write_text(
         obsidian_dest / "snippets" / "nuthatch-graph-colors.css",
         _nuthatch_graph_colors_css(),
-        "obsidian-snippet", manifest, dest,
+        "obsidian-snippet",
+        manifest,
+        dest,
     )
 
     # ----- Agent-readable indexes -------------------------------------
@@ -731,15 +787,23 @@ def publish_corpus(
         canonical_src = kg_src / "communities.json"
         if canonical_src.is_file():
             total_bytes += _copy_file_recorded(
-                canonical_src, kg_dest / canonical_src.name,
-                "community-index-canonical", manifest, dest, corpus_root,
+                canonical_src,
+                kg_dest / canonical_src.name,
+                "community-index-canonical",
+                manifest,
+                dest,
+                corpus_root,
             )
         for cj in sorted(kg_src.glob("communities_*.json")):
             backend = cj.stem.removeprefix("communities_")
             backends_present.append(backend)
             total_bytes += _copy_file_recorded(
-                cj, kg_dest / cj.name,
-                "community-index", manifest, dest, corpus_root,
+                cj,
+                kg_dest / cj.name,
+                "community-index",
+                manifest,
+                dest,
+                corpus_root,
             )
 
         # Graph — merge community per node from the SBM partition so
@@ -757,39 +821,52 @@ def publish_corpus(
             try:
                 merged = _merge_community_into_graph(graph_src, sbm_src)
                 graph_dest_path.write_text(
-                    json.dumps(merged, indent=2), encoding="utf-8",
+                    json.dumps(merged, indent=2),
+                    encoding="utf-8",
                 )
                 size = graph_dest_path.stat().st_size
-                manifest.append({
-                    "dest": str(graph_dest_path.relative_to(dest)),
-                    "src": _rel_src(graph_src, corpus_root),
-                    "role": "graph-index-merged",
-                    "size": size,
-                    "sha256": _file_sha256(graph_dest_path),
-                    "promoted_at": _now_utc_iso(),
-                })
+                manifest.append(
+                    {
+                        "dest": str(graph_dest_path.relative_to(dest)),
+                        "src": _rel_src(graph_src, corpus_root),
+                        "role": "graph-index-merged",
+                        "size": size,
+                        "sha256": _file_sha256(graph_dest_path),
+                        "promoted_at": _now_utc_iso(),
+                    }
+                )
                 total_bytes += size
             except (json.JSONDecodeError, OSError):
                 # Fall back to a plain copy if merging fails for any
                 # reason; never break publish over a graph-shape edge case.
                 total_bytes += _copy_file_recorded(
-                    graph_src, graph_dest_path,
-                    "graph-index", manifest, dest, corpus_root,
+                    graph_src,
+                    graph_dest_path,
+                    "graph-index",
+                    manifest,
+                    dest,
+                    corpus_root,
                 )
         # Centroids: canonical name first, then any suffixed copies.
         cent_src = kg_src / "community_centroids.npy"
         if cent_src.is_file():
             has_centroids = True
             total_bytes += _copy_file_recorded(
-                cent_src, kg_dest / "community_centroids.npy",
-                "centroids", manifest, dest, corpus_root,
+                cent_src,
+                kg_dest / "community_centroids.npy",
+                "centroids",
+                manifest,
+                dest,
+                corpus_root,
             )
-        for cent_suffixed in sorted(
-            kg_src.glob("community_centroids_*.npy")
-        ):
+        for cent_suffixed in sorted(kg_src.glob("community_centroids_*.npy")):
             total_bytes += _copy_file_recorded(
-                cent_suffixed, kg_dest / cent_suffixed.name,
-                "centroids", manifest, dest, corpus_root,
+                cent_suffixed,
+                kg_dest / cent_suffixed.name,
+                "centroids",
+                manifest,
+                dest,
+                corpus_root,
             )
 
         # Defensive canonical promotion: the MCP server's community_*
@@ -809,16 +886,16 @@ def publish_corpus(
                 if cand.is_file():
                     shutil.copy2(cand, canonical_index_dest)
                     size = canonical_index_dest.stat().st_size
-                    manifest.append({
-                        "dest": str(
-                            canonical_index_dest.relative_to(dest)
-                        ),
-                        "src": f"(promoted from communities_{backend}.json)",
-                        "role": "community-index-canonical",
-                        "size": size,
-                        "sha256": _file_sha256(canonical_index_dest),
-                        "promoted_at": _now_utc_iso(),
-                    })
+                    manifest.append(
+                        {
+                            "dest": str(canonical_index_dest.relative_to(dest)),
+                            "src": f"(promoted from communities_{backend}.json)",
+                            "role": "community-index-canonical",
+                            "size": size,
+                            "sha256": _file_sha256(canonical_index_dest),
+                            "promoted_at": _now_utc_iso(),
+                        }
+                    )
                     total_bytes += size
                     break
 
@@ -830,16 +907,16 @@ def publish_corpus(
                     shutil.copy2(cand, canonical_cent_dest)
                     has_centroids = True
                     size = canonical_cent_dest.stat().st_size
-                    manifest.append({
-                        "dest": str(
-                            canonical_cent_dest.relative_to(dest)
-                        ),
-                        "src": f"(promoted from community_centroids_{backend}.npy)",
-                        "role": "centroids-canonical",
-                        "size": size,
-                        "sha256": _file_sha256(canonical_cent_dest),
-                        "promoted_at": _now_utc_iso(),
-                    })
+                    manifest.append(
+                        {
+                            "dest": str(canonical_cent_dest.relative_to(dest)),
+                            "src": f"(promoted from community_centroids_{backend}.npy)",
+                            "role": "centroids-canonical",
+                            "size": size,
+                            "sha256": _file_sha256(canonical_cent_dest),
+                            "promoted_at": _now_utc_iso(),
+                        }
+                    )
                     total_bytes += size
                     break
 
@@ -860,14 +937,16 @@ def publish_corpus(
             with tarfile.open(archive_path, "w:gz") as tar:
                 tar.add(chroma_src, arcname="embeddings")
             size = archive_path.stat().st_size
-            manifest.append({
-                "dest": str(archive_path.relative_to(dest)),
-                "src": _rel_src(chroma_src, corpus_root),
-                "role": "chroma-archive",
-                "size": size,
-                "sha256": _file_sha256(archive_path),
-                "promoted_at": _now_utc_iso(),
-            })
+            manifest.append(
+                {
+                    "dest": str(archive_path.relative_to(dest)),
+                    "src": _rel_src(chroma_src, corpus_root),
+                    "role": "chroma-archive",
+                    "size": size,
+                    "sha256": _file_sha256(archive_path),
+                    "promoted_at": _now_utc_iso(),
+                }
+            )
             total_bytes += size
             has_chroma = True
 
@@ -875,14 +954,23 @@ def publish_corpus(
         ext_src = kg_src / "extracted"
         if ext_src.is_dir():
             n, b = _copy_tree(
-                ext_src, kg_dest / "extracted",
-                "extracted-body", manifest, dest, corpus_root, "*.md",
+                ext_src,
+                kg_dest / "extracted",
+                "extracted-body",
+                manifest,
+                dest,
+                corpus_root,
+                "*.md",
             )
             total_bytes += b
             # Also copy the per-doc .meta.json sidecars
             n, b = _copy_tree(
-                ext_src, kg_dest / "extracted",
-                "extracted-meta", manifest, dest, corpus_root,
+                ext_src,
+                kg_dest / "extracted",
+                "extracted-meta",
+                manifest,
+                dest,
+                corpus_root,
                 "*.meta.json",
             )
             total_bytes += b
@@ -900,8 +988,12 @@ def publish_corpus(
             )
             if latest is not None:
                 total_bytes += _copy_file_recorded(
-                    latest, dest / "docs" / "graph.html",
-                    "graph-viz", manifest, dest, corpus_root,
+                    latest,
+                    dest / "docs" / "graph.html",
+                    "graph-viz",
+                    manifest,
+                    dest,
+                    corpus_root,
                 )
 
     # ----- Eval reports (if available) --------------------------------
@@ -910,8 +1002,12 @@ def publish_corpus(
         if eval_src_dir.is_dir():
             for eval_md in sorted(eval_src_dir.glob("eval-*.md")):
                 total_bytes += _copy_file_recorded(
-                    eval_md, dest / "docs" / eval_md.name,
-                    "eval-report", manifest, dest, corpus_root,
+                    eval_md,
+                    dest / "docs" / eval_md.name,
+                    "eval-report",
+                    manifest,
+                    dest,
+                    corpus_root,
                 )
 
     # ----- Community labels (for generated content) -------------------
@@ -937,9 +1033,7 @@ def publish_corpus(
             g = json.loads(graph_path.read_text(encoding="utf-8"))
             payload = g.get("data") if isinstance(g.get("data"), dict) else g
             graph_stats["nodes"] = len(payload.get("nodes", []))
-            graph_stats["edges"] = len(
-                payload.get("links", payload.get("edges", []))
-            )
+            graph_stats["edges"] = len(payload.get("links", payload.get("edges", [])))
         except json.JSONDecodeError:
             pass
 
@@ -947,35 +1041,48 @@ def publish_corpus(
     total_bytes += _write_text(
         dest / "README.md",
         _readme(kb_name, n_cards, n_community_pages, community_labels),
-        "generated", manifest, dest,
+        "generated",
+        manifest,
+        dest,
     )
     total_bytes += _write_text(
         dest / "AGENTS.md",
         _agents_md(kb_name, n_cards, n_community_pages, community_labels),
-        "generated", manifest, dest,
+        "generated",
+        manifest,
+        dest,
     )
     total_bytes += _write_text(
         dest / "OVERVIEW.md",
-        _overview(kb_name, n_cards, n_community_pages, community_labels,
-                  graph_stats, backends_present),
-        "generated", manifest, dest,
+        _overview(
+            kb_name, n_cards, n_community_pages, community_labels, graph_stats, backends_present
+        ),
+        "generated",
+        manifest,
+        dest,
     )
     total_bytes += _write_text(
         dest / "CAPABILITIES.json",
-        _capabilities_json(n_cards, n_community_pages, graph_stats,
-                           backends_present, has_centroids, has_chroma),
-        "generated", manifest, dest,
+        _capabilities_json(
+            n_cards, n_community_pages, graph_stats, backends_present, has_centroids, has_chroma
+        ),
+        "generated",
+        manifest,
+        dest,
     )
     total_bytes += _write_text(
         dest / "mcp_config.example.json",
         _mcp_config_example(kb_name),
-        "generated", manifest, dest,
+        "generated",
+        manifest,
+        dest,
     )
     total_bytes += _write_text(
         dest / "LICENSE",
-        _LICENSE_TEMPLATES.get(license_spdx,
-                               _LICENSE_TEMPLATES[_DEFAULT_LICENSE_SPDX]),
-        "license", manifest, dest,
+        _LICENSE_TEMPLATES.get(license_spdx, _LICENSE_TEMPLATES[_DEFAULT_LICENSE_SPDX]),
+        "license",
+        manifest,
+        dest,
     )
 
     # ----- Publish manifest -------------------------------------------
@@ -998,28 +1105,31 @@ def publish_corpus(
     )
 
 
-def _copy_file_recorded(src: Path, dest: Path, role: str,
-                        manifest: list[dict[str, Any]],
-                        root: Path, corpus_root: Path) -> int:
+def _copy_file_recorded(
+    src: Path, dest: Path, role: str, manifest: list[dict[str, Any]], root: Path, corpus_root: Path
+) -> int:
     """Single-file copy that records into the publish manifest. `src`
     is stored as corpus-relative so the published manifest doesn't
     leak the operator's absolute filesystem layout."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dest)
     size = dest.stat().st_size
-    manifest.append({
-        "dest": str(dest.relative_to(root)),
-        "src": _rel_src(src, corpus_root),
-        "role": role,
-        "size": size,
-        "sha256": _file_sha256(dest),
-        "promoted_at": _now_utc_iso(),
-    })
+    manifest.append(
+        {
+            "dest": str(dest.relative_to(root)),
+            "src": _rel_src(src, corpus_root),
+            "role": role,
+            "size": size,
+            "sha256": _file_sha256(dest),
+            "promoted_at": _now_utc_iso(),
+        }
+    )
     return size
 
 
 def _merge_community_into_graph(
-    graph_path: Path, sbm_index_path: Path,
+    graph_path: Path,
+    sbm_index_path: Path,
 ) -> dict[str, Any]:
     """Read `graph.json`, merge `community` + `community_label` onto
     each document node from the SBM partition, return the merged dict
@@ -1042,7 +1152,7 @@ def _merge_community_into_graph(
             sbm = json.loads(sbm_index_path.read_text(encoding="utf-8"))
             for k, v in (sbm.get("flat") or {}).items():
                 # Persisted keys may carry `doc::` prefix or be bare.
-                bare = k[len("doc::"):] if k.startswith("doc::") else k
+                bare = k[len("doc::") :] if k.startswith("doc::") else k
                 cid_by_doc[bare] = int(v)
                 # Also accept lookups by the full prefixed form.
                 cid_by_doc[f"doc::{bare}"] = int(v)
@@ -1057,8 +1167,7 @@ def _merge_community_into_graph(
             continue
         # Only doc nodes get a community assignment (entity nodes
         # don't participate in the document-level partition).
-        if not (str(nid).startswith("doc::")
-                or node.get("node_type") == "document"):
+        if not (str(nid).startswith("doc::") or node.get("node_type") == "document"):
             continue
         cid = cid_by_doc.get(str(nid))
         if cid is None:

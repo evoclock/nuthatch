@@ -80,15 +80,16 @@ EQUATION_CHECKLISTS: dict[str, list[tuple[str, str]]] = {
         ("rate of loss 1/2N", r"1\s*/\s*2\s*\$?\s*N\s*\$?"),
         ("selection ratio (1-s):1", r"\(\s*1\s*[-−]\s*s\s*\)\s*:\s*1"),  # noqa: RUF001
         ("change in q (Δq formula)", r"\\Delta\s*q|Δ\s*q"),
-        ("gene-array expression with q and A",
-         r"q\s*A|\(\s*1\s*[-−]\s*q\s*\)\s*a"),  # noqa: RUF001
+        ("gene-array expression with q and A", r"q\s*A|\(\s*1\s*[-−]\s*q\s*\)\s*a"),  # noqa: RUF001
         ("subscript N_m (male population size)", r"N\s*[_]?\s*m\b|N\$?_\{?m\}?"),
         ("squared term q^2 / q\\^2", r"q\s*\^?\s*2|q\^2|q\$\^2"),
     ],
     "mendel": [
         ("3:1 ratio (numeric form)", r"\b3\s*:\s*1\b"),
-        ("phenotype expression 1A:2Aa:1a-ish",
-         r"\b1\s*[A-Za-z]?\s*:\s*2\s*[A-Za-z]{1,3}\s*:\s*1\s*[A-Za-z]?\b"),
+        (
+            "phenotype expression 1A:2Aa:1a-ish",
+            r"\b1\s*[A-Za-z]?\s*:\s*2\s*[A-Za-z]{1,3}\s*:\s*1\s*[A-Za-z]?\b",
+        ),
     ],
 }
 
@@ -142,9 +143,7 @@ def score(text: str, paper: str | None = None) -> dict[str, object]:
     }
     if paper:
         if paper not in EQUATION_CHECKLISTS:
-            raise ValueError(
-                f"unknown paper: {paper}; choices: {list(EQUATION_CHECKLISTS)}"
-            )
+            raise ValueError(f"unknown paper: {paper}; choices: {list(EQUATION_CHECKLISTS)}")
         normalised = _normalise_for_equations(text)
         results: list[tuple[str, bool]] = []
         for label, pattern in EQUATION_CHECKLISTS[paper]:

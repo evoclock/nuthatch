@@ -88,9 +88,7 @@ class TestCoMentionEdges:
         )
         g = build_graph([contrib])
         co_edges = [
-            (u, v, d)
-            for u, v, d in g.edges(data=True)
-            if d.get("relation") == "co_mentioned_in"
+            (u, v, d) for u, v, d in g.edges(data=True) if d.get("relation") == "co_mentioned_in"
         ]
         # 3 entities → C(3,2) = 3 co-mention pairs.
         assert len(co_edges) == 3

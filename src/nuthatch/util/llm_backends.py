@@ -59,8 +59,7 @@ def build_llm(
     builder = _BACKEND_BUILDERS.get(backend)
     if builder is None:
         raise ValueError(
-            f"unknown LLM backend: {backend!r}; supported: "
-            f"{sorted(_BACKEND_BUILDERS)}"
+            f"unknown LLM backend: {backend!r}; supported: {sorted(_BACKEND_BUILDERS)}"
         )
     return builder(
         model=model or _DEFAULT_MODEL_PER_BACKEND[backend],
@@ -85,9 +84,7 @@ def _build_openai(*, model: str, num_predict: int, temperature: float) -> Any:
     from langchain_openai import ChatOpenAI
 
     if not os.environ.get("OPENAI_API_KEY"):
-        raise RuntimeError(
-            "OPENAI_API_KEY not set; required for the openai backend"
-        )
+        raise RuntimeError("OPENAI_API_KEY not set; required for the openai backend")
     return ChatOpenAI(
         model=model,
         max_tokens=num_predict,
@@ -105,9 +102,7 @@ def _build_anthropic(*, model: str, num_predict: int, temperature: float) -> Any
         ) from exc
 
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise RuntimeError(
-            "ANTHROPIC_API_KEY not set; required for the anthropic backend"
-        )
+        raise RuntimeError("ANTHROPIC_API_KEY not set; required for the anthropic backend")
     return ChatAnthropic(
         model=model,
         max_tokens=num_predict,

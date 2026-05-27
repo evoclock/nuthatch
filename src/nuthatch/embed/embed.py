@@ -80,18 +80,17 @@ class Embedder:
         # so embed uses the GPU without extra flags when present.
         if device == "auto":
             import os
+
             env_override = os.environ.get("NUTHATCH_ACCELERATOR", "").strip().lower()
             if env_override in ("cpu", "cuda", "mps", "xpu"):
                 device = env_override
             else:
                 try:
                     import torch
+
                     if torch.cuda.is_available():
                         device = "cuda"
-                    elif (
-                        getattr(torch.backends, "mps", None)
-                        and torch.backends.mps.is_available()
-                    ):
+                    elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
                         device = "mps"
                     else:
                         device = "cpu"
@@ -149,9 +148,7 @@ def embed_document(
     else:
         full_text = markdown
 
-    chunks: list[Chunk] = chunk_text(
-        full_text, max_chars=max_chars, overlap_chars=overlap_chars
-    )
+    chunks: list[Chunk] = chunk_text(full_text, max_chars=max_chars, overlap_chars=overlap_chars)
 
     coverage = check_coverage(full_text, chunks)
     if not coverage.passed:

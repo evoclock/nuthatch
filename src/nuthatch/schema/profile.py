@@ -63,9 +63,7 @@ class ValidationResult:
         if self.missing_required:
             parts.append("missing:" + ",".join(self.missing_required))
         if self.type_mismatches:
-            parts.append(
-                "bad_type:" + ",".join(f"{n}({t})" for n, t in self.type_mismatches)
-            )
+            parts.append("bad_type:" + ",".join(f"{n}({t})" for n, t in self.type_mismatches))
         return ";".join(parts)
 
 
@@ -131,9 +129,7 @@ class SchemaProfile:
                 if spec.required:
                     missing.append(spec.name)
                 continue
-            if spec.expected_type is not None and not isinstance(
-                value, spec.expected_type
-            ):
+            if spec.expected_type is not None and not isinstance(value, spec.expected_type):
                 bad_types.append((spec.name, type(value).__name__))
         passed = not missing and not bad_types
         return ValidationResult(

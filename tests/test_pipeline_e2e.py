@@ -118,8 +118,7 @@ class _InMemoryStore:
 
     def delete_by_doc(self, doc_id: str) -> int:
         to_drop = [
-            cid for cid, row in self._rows.items()
-            if row["metadata"].get("doc_id") == doc_id
+            cid for cid, row in self._rows.items() if row["metadata"].get("doc_id") == doc_id
         ]
         for cid in to_drop:
             del self._rows[cid]
@@ -200,9 +199,7 @@ class TestPipelineE2E:
         # ---- Stage 2: EMBED ------------------------------------------
         store = _InMemoryStore()
         embedder = _FakeEmbedder()
-        embed_result = embed_corpus(
-            layout, embedder=embedder, store=store, force=False
-        )
+        embed_result = embed_corpus(layout, embedder=embedder, store=store, force=False)
         assert embed_result.n_docs_scanned == 3
         assert embed_result.n_docs_embedded == 3
         assert embed_result.n_docs_skipped == 0
@@ -214,7 +211,14 @@ class TestPipelineE2E:
         assert all_metas, "store has no chunks"
         sample = all_metas[0]
         # PhD-KB-parity fields:
-        for required_field in ("doc_id", "filename", "path", "title", "chunk_index", "total_chunks"):
+        for required_field in (
+            "doc_id",
+            "filename",
+            "path",
+            "title",
+            "chunk_index",
+            "total_chunks",
+        ):
             assert required_field in sample, f"missing meta field {required_field!r}"
         # Nuthatch-specific extras:
         assert "source_filename" in sample
@@ -268,10 +272,7 @@ class TestPipelineE2E:
         cluster_response = backend.cluster(request)
         assert len(cluster_response.partition) > 0
         # CONTRACT: the doc nodes are partitioned.
-        partitioned_doc_nodes = {
-            n for n in cluster_response.partition
-            if n.startswith("doc::")
-        }
+        partitioned_doc_nodes = {n for n in cluster_response.partition if n.startswith("doc::")}
         assert partitioned_doc_nodes  # at least some doc nodes got a community
 
         # Write community membership back onto graph (mirrors cli._cmd_cluster).
@@ -289,6 +290,7 @@ class TestPipelineE2E:
 
         # Build community_membership from the graph.
         from collections import defaultdict
+
         community_membership: dict[str, list[str]] = defaultdict(list)
         for node_id, attrs in g.nodes(data=True):
             if not isinstance(node_id, str) or not node_id.startswith("doc::"):

@@ -120,15 +120,14 @@ class SBMBackend:
 
         fit_n_levels = len(hierarchy) if hierarchy is not None else 1
         gt_metrics = _extract_gt_metrics(
-            state, gtg, gt,
+            state,
+            gtg,
+            gt,
             n_levels=fit_n_levels,
         )
         mdl_nats = gt_metrics.get("mdl_nats")
 
-        partition = {
-            node_id_by_index[i]: int(b)
-            for i, b in enumerate(partition_array)
-        }
+        partition = {node_id_by_index[i]: int(b) for i, b in enumerate(partition_array)}
 
         return ClusteringResponse(
             partition=partition,
@@ -220,16 +219,12 @@ def _extract_gt_metrics(
         m["mdl_encoding_overhead"] = None
 
     try:
-        m["mdl_per_level"] = [
-            float(state.levels[i].entropy()) for i in range(n_levels)
-        ]
+        m["mdl_per_level"] = [float(state.levels[i].entropy()) for i in range(n_levels)]
     except Exception:
         m["mdl_per_level"] = None
 
     try:
-        m["blocks_per_level"] = [
-            int(state.levels[i].get_nonempty_B()) for i in range(n_levels)
-        ]
+        m["blocks_per_level"] = [int(state.levels[i].get_nonempty_B()) for i in range(n_levels)]
     except Exception:
         m["blocks_per_level"] = None
 

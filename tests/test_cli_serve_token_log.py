@@ -37,14 +37,19 @@ def fake_corpus(tmp_path: Path) -> Path:
     graph_dir = layout.kg / "graph"
     graph_dir.mkdir(parents=True, exist_ok=True)
     (graph_dir / "graph.json").write_text(
-        json.dumps({
-            "schema_version": 1,
-            "graph_type": "MultiDiGraph",
-            "data": {
-                "directed": True, "multigraph": True, "graph": {},
-                "nodes": [], "edges": [],
-            },
-        }),
+        json.dumps(
+            {
+                "schema_version": 1,
+                "graph_type": "MultiDiGraph",
+                "data": {
+                    "directed": True,
+                    "multigraph": True,
+                    "graph": {},
+                    "nodes": [],
+                    "edges": [],
+                },
+            }
+        ),
         encoding="utf-8",
     )
     return layout.root
@@ -52,7 +57,9 @@ def fake_corpus(tmp_path: Path) -> Path:
 
 class TestServeTokenLogWiring:
     def test_passes_token_log_to_server(
-        self, fake_corpus: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        fake_corpus: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """`_cmd_serve` must construct a TokenLog and pass it to
         NuthatchMCPServer. We intercept the server constructor and
@@ -109,13 +116,10 @@ class TestServeTokenLogWiring:
         assert rc == 0
 
         # Spy fired.
-        assert "kwargs" in captured, \
-            "NuthatchMCPServer was not constructed"
+        assert "kwargs" in captured, "NuthatchMCPServer was not constructed"
         kwargs = captured["kwargs"]
-        assert "token_log" in kwargs, \
-            "serve must pass token_log= to the MCP server"
-        assert kwargs["token_log"] is not None, \
-            "serve must bind a real TokenLog (not None)"
+        assert "token_log" in kwargs, "serve must pass token_log= to the MCP server"
+        assert kwargs["token_log"] is not None, "serve must bind a real TokenLog (not None)"
 
         # And the log path is canonical: <layout.kg>/token_log.jsonl
         token_log = kwargs["token_log"]

@@ -138,8 +138,7 @@ def add_semantic_edges(
     `None` and a fresh `Embedder()` is constructed.
     """
     summaries: list[tuple[str, str]] = [
-        (doc_id, c["summary"]) for doc_id, c in concepts_by_doc.items()
-        if c.get("summary")
+        (doc_id, c["summary"]) for doc_id, c in concepts_by_doc.items() if c.get("summary")
     ]
     if len(summaries) < 2:
         return 0
@@ -176,7 +175,8 @@ def add_semantic_edges(
             if v is None:
                 continue
             g.add_edge(
-                u, v,
+                u,
+                v,
                 relation="shares_summary_with",
                 similarity=float(sim[i, j]),
             )

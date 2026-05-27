@@ -76,9 +76,7 @@ def write_card(
     is written verbatim; if it had leading whitespace before this
     rewrite, it still does after.
     """
-    yaml_text = yaml.dump(
-        dict(frontmatter), default_flow_style=False, sort_keys=False
-    ).rstrip()
+    yaml_text = yaml.dump(dict(frontmatter), default_flow_style=False, sort_keys=False).rstrip()
     path.write_text(
         f"{_FENCE}\n{yaml_text}\n{_FENCE}\n{body}",
         encoding="utf-8",

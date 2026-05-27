@@ -162,9 +162,7 @@ def run_decay_pass(
     pairs = find_supersession_pairs(cards)
     super_result = apply_supersession(g, cards, pairs)
     supersession_events = [
-        SupersessionEvent(
-            new_doc_id=p.new_doc_id, old_doc_id=p.old_doc_id, applied=True
-        )
+        SupersessionEvent(new_doc_id=p.new_doc_id, old_doc_id=p.old_doc_id, applied=True)
         for p in super_result.pairs_applied
     ] + [
         SupersessionEvent(
@@ -255,8 +253,7 @@ def render_report(result: DecayResult, *, corpus_name: str | None = None) -> str
         lines.append("| --- | ---: | ---: | --- |")
         for c in result.archive_candidates:
             lines.append(
-                f"| {c.doc_id} | {c.relevance} | {c.backlinks} | "
-                f"{c.last_touched or '-'} |"
+                f"| {c.doc_id} | {c.relevance} | {c.backlinks} | {c.last_touched or '-'} |"
             )
     lines.append("")
     lines.append("## Supersession events")
@@ -268,9 +265,6 @@ def render_report(result: DecayResult, *, corpus_name: str | None = None) -> str
             if ev.applied:
                 lines.append(f"- {ev.new_doc_id} supersedes {ev.old_doc_id}")
             else:
-                lines.append(
-                    f"- skipped: {ev.new_doc_id} supersedes {ev.old_doc_id} "
-                    f"({ev.reason})"
-                )
+                lines.append(f"- skipped: {ev.new_doc_id} supersedes {ev.old_doc_id} ({ev.reason})")
     lines.append("")
     return "\n".join(lines).rstrip() + "\n"

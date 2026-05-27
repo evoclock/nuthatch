@@ -56,13 +56,10 @@ def load_graph(path: Path) -> nx.MultiDiGraph:
     schema_version = int(payload.get("schema_version", 0))
     if schema_version != _SCHEMA_VERSION:
         raise ValueError(
-            f"unsupported graph schema_version: {schema_version} "
-            f"(expected {_SCHEMA_VERSION})"
+            f"unsupported graph schema_version: {schema_version} (expected {_SCHEMA_VERSION})"
         )
     graph_type = payload.get("graph_type", "MultiDiGraph")
     if graph_type != "MultiDiGraph":
         raise ValueError(f"unsupported graph_type: {graph_type}")
-    g = nx.node_link_graph(
-        payload["data"], directed=True, multigraph=True, edges="edges"
-    )
+    g = nx.node_link_graph(payload["data"], directed=True, multigraph=True, edges="edges")
     return g  # type: ignore[no-any-return]

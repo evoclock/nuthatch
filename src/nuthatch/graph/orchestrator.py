@@ -143,7 +143,9 @@ def build_graph_for_corpus(
         threshold = cfg.semantic_extract.semantic_edge_threshold
         if threshold is not None:
             n_semantic_edges = add_semantic_edges(
-                g, concepts, threshold=threshold,
+                g,
+                concepts,
+                threshold=threshold,
             )
         else:
             # Fall through to the default threshold baked into the

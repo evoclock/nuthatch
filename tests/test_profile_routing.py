@@ -25,29 +25,18 @@ class TestSelectProfileForFilename:
         assert select_profile_for_filename("2605.15308.pdf") is ArxivPaperProfile
 
     def test_biorxiv_filename_routes_to_biorxiv(self) -> None:
-        assert (
-            select_profile_for_filename("2026.05.14.725010v1.full.pdf")
-            is BiorxivPaperProfile
-        )
-        assert (
-            select_profile_for_filename("2021.12.06.471493v2.full.pdf")
-            is BiorxivPaperProfile
-        )
+        assert select_profile_for_filename("2026.05.14.725010v1.full.pdf") is BiorxivPaperProfile
+        assert select_profile_for_filename("2021.12.06.471493v2.full.pdf") is BiorxivPaperProfile
 
     def test_unknown_filename_uses_default_fallback(self) -> None:
+        assert select_profile_for_filename("internal_memo.pdf") is InternalDocProfile
         assert (
-            select_profile_for_filename("internal_memo.pdf") is InternalDocProfile
-        )
-        assert (
-            select_profile_for_filename("Mendel_1866_Bateson_translation.pdf")
-            is InternalDocProfile
+            select_profile_for_filename("Mendel_1866_Bateson_translation.pdf") is InternalDocProfile
         )
 
     def test_fallback_is_overridable(self) -> None:
         assert (
-            select_profile_for_filename(
-                "Mendel_1866.pdf", fallback=_FallbackProfile
-            )
+            select_profile_for_filename("Mendel_1866.pdf", fallback=_FallbackProfile)
             is _FallbackProfile
         )
 
@@ -55,8 +44,6 @@ class TestSelectProfileForFilename:
         # An arxiv filename should always pick ArxivPaperProfile, even
         # when the caller supplied a custom fallback.
         assert (
-            select_profile_for_filename(
-                "2605.15308v1.pdf", fallback=_FallbackProfile
-            )
+            select_profile_for_filename("2605.15308v1.pdf", fallback=_FallbackProfile)
             is ArxivPaperProfile
         )

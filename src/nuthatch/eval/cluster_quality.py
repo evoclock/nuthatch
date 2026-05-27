@@ -52,26 +52,42 @@ def main(argv: list[str]) -> int:
         description=(__doc__ or "").split("\n\n", 1)[0],
     )
     p.add_argument("--corpus", required=True, help="corpus name or path")
-    p.add_argument("--communities", default=None,
-                   help="suffix of the communities file to evaluate "
-                        "(e.g. 'sbm' loads communities_sbm.json). "
-                        "Omit for the default communities.json.")
-    p.add_argument("--sample-communities", type=int, default=100,
-                   help="how many communities to sample for LLM-judged "
-                        "coherence scoring")
-    p.add_argument("--docs-per-community", type=int, default=5,
-                   help="how many member docs to show the judge per community")
+    p.add_argument(
+        "--communities",
+        default=None,
+        help="suffix of the communities file to evaluate "
+        "(e.g. 'sbm' loads communities_sbm.json). "
+        "Omit for the default communities.json.",
+    )
+    p.add_argument(
+        "--sample-communities",
+        type=int,
+        default=100,
+        help="how many communities to sample for LLM-judged coherence scoring",
+    )
+    p.add_argument(
+        "--docs-per-community",
+        type=int,
+        default=5,
+        help="how many member docs to show the judge per community",
+    )
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--judge-backend", default="ollama")
-    p.add_argument("--judge-model", default="granite3-dense:8b",
-                   help="LLM judge for community coherence; structured-output "
-                        "models (IBM Granite 3 etc.) follow the per-community "
-                        "JSON scoring rubric reliably without burning the token "
-                        "budget on a reasoning trace")
+    p.add_argument(
+        "--judge-model",
+        default="granite3-dense:8b",
+        help="LLM judge for community coherence; structured-output "
+        "models (IBM Granite 3 etc.) follow the per-community "
+        "JSON scoring rubric reliably without burning the token "
+        "budget on a reasoning trace",
+    )
     p.add_argument("--judge-num-predict", type=int, default=1024)
-    p.add_argument("--skip-judge", action="store_true",
-                   help="run only intrinsic metrics; skip LLM-judged "
-                        "coherence scoring. Useful for fast smoke tests.")
+    p.add_argument(
+        "--skip-judge",
+        action="store_true",
+        help="run only intrinsic metrics; skip LLM-judged "
+        "coherence scoring. Useful for fast smoke tests.",
+    )
     p.add_argument("--out-dir", default="pipeline_output")
     args = p.parse_args(argv)
 
@@ -83,33 +99,30 @@ def main(argv: list[str]) -> int:
     layout = CorpusLayout(root=corpus_root)
     print(f"[cluster-eval] corpus: {layout.root}")
 
-    index_filename = (
-        f"communities_{args.communities}.json"
-        if args.communities else None
-    )
+    index_filename = f"communities_{args.communities}.json" if args.communities else None
     cidx = load_community_index(layout, index_filename=index_filename)
     if cidx is None:
-        looked_at = (
-            layout.kg / (index_filename or "communities.json")
+        looked_at = layout.kg / (index_filename or "communities.json")
+        print(
+            f"[cluster-eval] no communities at {looked_at}; "
+            "run `nuthatch cluster` first "
+            "(or pass --communities <suffix> to pick a specific backend's output)."
         )
-        print(f"[cluster-eval] no communities at {looked_at}; "
-              "run `nuthatch cluster` first "
-              "(or pass --communities <suffix> to pick a specific backend's output).")
         return 2
-    print(f"[cluster-eval] backend: {cidx.backend} (rigor: {cidx.rigor}); "
-          f"{len(cidx.members)} communities; {len(cidx.flat)} doc "
-          "assignments")
+    print(
+        f"[cluster-eval] backend: {cidx.backend} (rigor: {cidx.rigor}); "
+        f"{len(cidx.members)} communities; {len(cidx.flat)} doc "
+        "assignments"
+    )
 
     graph_path = layout.kg / "graph" / "graph.json"
     g = None
     if graph_path.exists():
         print(f"[cluster-eval] loading graph for modularity: {graph_path}")
         g = load_graph(graph_path)
-        print(f"[cluster-eval] graph: {g.number_of_nodes()} nodes, "
-              f"{g.number_of_edges()} edges")
+        print(f"[cluster-eval] graph: {g.number_of_nodes()} nodes, {g.number_of_edges()} edges")
     else:
-        print(f"[cluster-eval] WARNING: no graph at {graph_path}; "
-              "modularity skipped")
+        print(f"[cluster-eval] WARNING: no graph at {graph_path}; modularity skipped")
 
     print("[cluster-eval] computing intrinsic metrics...")
     intrinsic = _compute_intrinsic(cidx, g)
@@ -123,26 +136,27 @@ def main(argv: list[str]) -> int:
 
     judge_results: list[dict] = []
     if not args.skip_judge:
-        print(f"[cluster-eval] LLM judge: "
-              f"{args.judge_backend}::{args.judge_model}")
+        print(f"[cluster-eval] LLM judge: {args.judge_backend}::{args.judge_model}")
         judge_llm = build_llm(
             backend=args.judge_backend,
             model=args.judge_model,
             num_predict=args.judge_num_predict,
             temperature=0.0,
         )
-        print(f"[cluster-eval] sampling {args.sample_communities} "
-              "communities for coherence judging...")
+        print(
+            f"[cluster-eval] sampling {args.sample_communities} "
+            "communities for coherence judging..."
+        )
         judge_results = _judge_community_coherence(
-            cidx, layout, judge_llm,
+            cidx,
+            layout,
+            judge_llm,
             sample_communities=args.sample_communities,
             docs_per_community=args.docs_per_community,
             seed=args.seed,
         )
         if judge_results:
-            mean_c = sum(
-                r["coherence_score"] for r in judge_results
-            ) / len(judge_results)
+            mean_c = sum(r["coherence_score"] for r in judge_results) / len(judge_results)
             print(f"  mean community coherence: {mean_c:.3f}")
 
     tag = utc_tag()
@@ -153,9 +167,7 @@ def main(argv: list[str]) -> int:
     # plus judge state (judge / skipjudge) to flag smoke runs.
     backend_marker = args.communities or cidx.backend or "default"
     judge_marker = "skipjudge" if args.skip_judge else "judge"
-    report_path = out_dir / (
-        f"cluster_eval_report_{backend_marker}_{judge_marker}_{tag}.md"
-    )
+    report_path = out_dir / (f"cluster_eval_report_{backend_marker}_{judge_marker}_{tag}.md")
     _write_report(
         report_path=report_path,
         layout=layout,
@@ -166,6 +178,7 @@ def main(argv: list[str]) -> int:
     )
     print(f"[cluster-eval] report: {report_path}")
     return 0
+
 
 def _compute_intrinsic(cidx, g) -> dict:
     """Structural-quality metrics from the partition + graph."""
@@ -204,9 +217,7 @@ def _compute_intrinsic(cidx, g) -> dict:
 
     n_nodes = n_assigned or 1
     mdl_nats = cidx.mdl_nats if hasattr(cidx, "mdl_nats") else None
-    mdl_nats_per_node = (
-        round(mdl_nats / n_nodes, 4) if mdl_nats is not None else None
-    )
+    mdl_nats_per_node = round(mdl_nats / n_nodes, 4) if mdl_nats is not None else None
 
     return {
         "n_communities": n_communities,
@@ -220,15 +231,9 @@ def _compute_intrinsic(cidx, g) -> dict:
         "median_community_size": median_size,
         "size_q1": q1,
         "size_q3": q3,
-        "modularity_Q": (
-            round(modularity, 4) if modularity is not None else None
-        ),
-        "surprise": (
-            round(surprise, 4) if surprise is not None else None
-        ),
-        "mdl_nats": (
-            round(mdl_nats, 2) if mdl_nats is not None else None
-        ),
+        "modularity_Q": (round(modularity, 4) if modularity is not None else None),
+        "surprise": (round(surprise, 4) if surprise is not None else None),
+        "mdl_nats": (round(mdl_nats, 2) if mdl_nats is not None else None),
         "mdl_nats_per_node": mdl_nats_per_node,
         "backend": cidx.backend,
         "rigor": cidx.rigor,
@@ -297,10 +302,7 @@ def _surprise(cidx, g) -> float | None:
         return None
 
     # m_P = total intra-community edges observed.
-    m_P = sum(
-        1 for u, v in proj.edges()
-        if node_to_comm.get(u) == node_to_comm.get(v)
-    )
+    m_P = sum(1 for u, v in proj.edges() if node_to_comm.get(u) == node_to_comm.get(v))
     if m_P == 0:
         return 0.0
 
@@ -308,6 +310,7 @@ def _surprise(cidx, g) -> float | None:
         # logsf returns log(P(X >= m_P)); flip sign for Surprise.
         # Convert from nats to log10 for a readable positive number.
         import math
+
         log_p = hypergeom.logsf(m_P - 1, M, F, m)
         return float(-log_p / math.log(10))
     except Exception:
@@ -351,9 +354,7 @@ def _modularity(cidx, g) -> float | None:
     if not communities:
         return None
     try:
-        return float(
-            nx.community.modularity(proj, communities, weight="weight")
-        )
+        return float(nx.community.modularity(proj, communities, weight="weight"))
     except Exception:
         return None
 
@@ -391,8 +392,13 @@ Do not include code fences, prefix, or any text outside the JSON.
 
 
 def _judge_community_coherence(
-    cidx, layout, judge_llm, *,
-    sample_communities: int, docs_per_community: int, seed: int,
+    cidx,
+    layout,
+    judge_llm,
+    *,
+    sample_communities: int,
+    docs_per_community: int,
+    seed: int,
 ) -> list[dict]:
     """Sample communities, ask the judge LLM to score coherence."""
     import random
@@ -400,12 +406,9 @@ def _judge_community_coherence(
     rng = random.Random(seed)
 
     # Score every community that has >=2 members; sample if too many.
-    candidate_cids = [
-        cid for cid, members in cidx.members.items() if len(members) >= 2
-    ]
+    candidate_cids = [cid for cid, members in cidx.members.items() if len(members) >= 2]
     if not candidate_cids:
-        print("[cluster-eval] no communities with >=2 members; "
-              "skipping coherence judging")
+        print("[cluster-eval] no communities with >=2 members; skipping coherence judging")
         return []
 
     rng.shuffle(candidate_cids)
@@ -428,10 +431,7 @@ def _judge_community_coherence(
         # Filter is by `doc::` prefix; bare ids (no prefix) are
         # treated as documents for backwards compat with backends
         # that don't namespace.
-        doc_members = [
-            m for m in members
-            if str(m).startswith("doc::") or "::" not in str(m)
-        ]
+        doc_members = [m for m in members if str(m).startswith("doc::") or "::" not in str(m)]
         n_doc_members = len(doc_members)
         sample_members = doc_members[:docs_per_community]
 
@@ -469,20 +469,23 @@ def _judge_community_coherence(
             score = float(parsed["coherence_score"])
         except (TypeError, ValueError):
             continue
-        results.append({
-            "community_id": int(cid),
-            "n_members": len(members),
-            "n_doc_members": n_doc_members,
-            "n_judged": len(sample_members),
-            "coherence_score": score,
-            "theme_label": str(parsed.get("theme_label", "")).strip(),
-            "rationale": str(parsed.get("rationale", "")).strip(),
-        })
+        results.append(
+            {
+                "community_id": int(cid),
+                "n_members": len(members),
+                "n_doc_members": n_doc_members,
+                "n_judged": len(sample_members),
+                "coherence_score": score,
+                "theme_label": str(parsed.get("theme_label", "")).strip(),
+                "rationale": str(parsed.get("rationale", "")).strip(),
+            }
+        )
     return results
 
 
 def _load_doc_title_and_summary(
-    extracted_dir: Path, doc_id: str,
+    extracted_dir: Path,
+    doc_id: str,
 ) -> tuple[str, str]:
     """Best-effort load of (title, summary) from the extracted body.
 
@@ -503,9 +506,7 @@ def _load_doc_title_and_summary(
             fm, _, body = rest.partition("\n---")
             for line in fm.splitlines():
                 if line.strip().startswith("title:"):
-                    title = (
-                        line.split(":", 1)[1].strip().strip('"').strip("'")
-                    )
+                    title = line.split(":", 1)[1].strip().strip('"').strip("'")
                     break
             summary = body.strip()[:500]
         else:
@@ -563,8 +564,7 @@ def _write_report(
     if not args.skip_judge:
         lines.append(f"- Judge: `{args.judge_backend}::{args.judge_model}`")
         lines.append(f"- Communities sampled: {args.sample_communities}")
-        lines.append(f"- Docs per community shown to judge: "
-                     f"{args.docs_per_community}")
+        lines.append(f"- Docs per community shown to judge: {args.docs_per_community}")
     lines.append("")
 
     lines.append("## Tier 1: structural sanity")
@@ -572,11 +572,20 @@ def _write_report(
     lines.append("### Partition shape")
     lines.append("")
     shape_keys = {
-        "n_communities", "n_assigned", "n_singletons", "singleton_fraction",
-        "biggest_community_size", "biggest_community_fraction",
-        "smallest_community_size", "mean_community_size",
-        "median_community_size", "size_q1", "size_q3",
-        "backend", "rigor", "n_levels",
+        "n_communities",
+        "n_assigned",
+        "n_singletons",
+        "singleton_fraction",
+        "biggest_community_size",
+        "biggest_community_fraction",
+        "smallest_community_size",
+        "mean_community_size",
+        "median_community_size",
+        "size_q1",
+        "size_q3",
+        "backend",
+        "rigor",
+        "n_levels",
     }
     lines.append("| metric | value |")
     lines.append("| --- | ---: |")
@@ -749,7 +758,9 @@ def _write_report(
                 len(blocks_per_level) if blocks_per_level else 0,
             )
             for i in range(n_lv):
-                blk = blocks_per_level[i] if blocks_per_level and i < len(blocks_per_level) else "n/a"
+                blk = (
+                    blocks_per_level[i] if blocks_per_level and i < len(blocks_per_level) else "n/a"
+                )
                 ent = (
                     round(mdl_per_level[i], 2)
                     if mdl_per_level and i < len(mdl_per_level)
@@ -797,19 +808,15 @@ def _write_report(
             lines.append("| metric | value |")
             lines.append("| --- | ---: |")
             lines.append(
-                f"| `posterior_entropy_mean` | "
-                f"{_pe_mean if _pe_mean is not None else 'n/a'} |",
+                f"| `posterior_entropy_mean` | {_pe_mean if _pe_mean is not None else 'n/a'} |",
             )
             lines.append(
-                f"| `posterior_entropy_std` | "
-                f"{_pe_std if _pe_std is not None else 'n/a'} |",
+                f"| `posterior_entropy_std` | {_pe_std if _pe_std is not None else 'n/a'} |",
             )
             lines.append("")
 
     if judge_results:
-        mean_c = sum(
-            r["coherence_score"] for r in judge_results
-        ) / len(judge_results)
+        mean_c = sum(r["coherence_score"] for r in judge_results) / len(judge_results)
         lines.append("## Tier 2: LLM-judged domain coherence")
         lines.append("")
         lines.append(

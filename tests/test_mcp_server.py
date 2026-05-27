@@ -65,9 +65,7 @@ class TestInitialize:
 
     def test_handle_request_wraps_in_jsonrpc(self, tmp_path: Path) -> None:
         server = _make_server(tmp_path)
-        response = server.handle_request(
-            {"jsonrpc": "2.0", "id": 7, "method": "initialize"}
-        )
+        response = server.handle_request({"jsonrpc": "2.0", "id": 7, "method": "initialize"})
         assert response["jsonrpc"] == "2.0"
         assert response["id"] == 7
         assert "result" in response
@@ -100,9 +98,7 @@ class TestListTools:
 class TestCorpusSearch:
     def test_returns_hits(self, tmp_path: Path) -> None:
         server = _make_server(tmp_path)
-        result = server.call_tool(
-            "corpus_search", {"query": "anything", "k": 1}
-        )
+        result = server.call_tool("corpus_search", {"query": "anything", "k": 1})
         assert "content" in result
         text = result["content"][0]["text"]
         assert "paper::p1" in text
@@ -116,9 +112,7 @@ class TestCorpusSearch:
 class TestSubgraphExtract:
     def test_bfs_from_seed(self, tmp_path: Path) -> None:
         server = _make_server(tmp_path)
-        result = server.call_tool(
-            "subgraph_extract", {"seed_nodes": ["paper::p1"], "depth": 1}
-        )
+        result = server.call_tool("subgraph_extract", {"seed_nodes": ["paper::p1"], "depth": 1})
         assert "isError" not in result or not result.get("isError")
         text = result["content"][0]["text"]
         assert "author::wright" in text

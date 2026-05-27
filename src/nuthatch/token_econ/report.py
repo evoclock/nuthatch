@@ -63,9 +63,7 @@ def _group_key(record: TokenRecord, group_by: GroupBy) -> str:
     return (record.timestamp_utc or "")[:10] or "unknown"
 
 
-def aggregate(
-    records: Iterable[TokenRecord], *, group_by: GroupBy = "tool"
-) -> ReportSummary:
+def aggregate(records: Iterable[TokenRecord], *, group_by: GroupBy = "tool") -> ReportSummary:
     """Aggregate `records` into a `ReportSummary` grouped by `group_by`."""
     by_group: dict[str, list[TokenRecord]] = defaultdict(list)
     for r in records:
@@ -97,13 +95,9 @@ def aggregate(
         ratio_weighted_sum += ratio_avg * n
 
     if tokens_served_total > 0:
-        reduction_ratio_overall = round(
-            tokens_counterfactual_total / tokens_served_total, 2
-        )
+        reduction_ratio_overall = round(tokens_counterfactual_total / tokens_served_total, 2)
         tokens_saved_total = tokens_counterfactual_total - tokens_served_total
-        pct_saved = round(
-            100.0 * tokens_saved_total / max(tokens_counterfactual_total, 1), 1
-        )
+        pct_saved = round(100.0 * tokens_saved_total / max(tokens_counterfactual_total, 1), 1)
     else:
         reduction_ratio_overall = 1.0
         tokens_saved_total = 0
@@ -197,9 +191,7 @@ def render_markdown_report(
         lines.append("_no records in range_")
         lines.append("")
     else:
-        lines.append(
-            "| key | queries | served | counterfactual | reductionx |"
-        )
+        lines.append("| key | queries | served | counterfactual | reductionx |")
         lines.append("| --- | ---: | ---: | ---: | ---: |")
         for g in summary.groups:
             lines.append(

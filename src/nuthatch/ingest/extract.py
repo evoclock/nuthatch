@@ -203,9 +203,7 @@ def _extract_granite(pdf_path: Path) -> str:
     )
     conv = DocumentConverter(
         format_options={
-            InputFormat.PDF: PdfFormatOption(
-                pipeline_cls=VlmPipeline, pipeline_options=vlm_opts
-            )
+            InputFormat.PDF: PdfFormatOption(pipeline_cls=VlmPipeline, pipeline_options=vlm_opts)
         }
     )
     return conv.convert(str(pdf_path)).document.export_to_markdown()
@@ -215,9 +213,7 @@ def _extract_chandra(pdf_path: Path) -> str:
     """Chandra-OCR-2 CLI wrapper. Writes to a temp dir, reads the .md."""
     chandra = shutil.which("chandra")
     if chandra is None:
-        raise RuntimeError(
-            "chandra CLI not on PATH; install with `sfw uv add chandra-ocr[hf]`"
-        )
+        raise RuntimeError("chandra CLI not on PATH; install with `sfw uv add chandra-ocr[hf]`")
     with tempfile.TemporaryDirectory() as tmp:
         out_dir = Path(tmp)
         subprocess.run(

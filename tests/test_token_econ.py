@@ -135,9 +135,7 @@ class TestTokenLog:
             )
         assert len(list(log.iter_records(tool="corpus_search"))) == 2
         assert len(list(log.iter_records(surface_id="mcp"))) == 2
-        assert len(
-            list(log.iter_records(tool="corpus_search", surface_id="cli"))
-        ) == 1
+        assert len(list(log.iter_records(tool="corpus_search", surface_id="cli"))) == 1
 
     def test_filter_by_date_string(self, tmp_path: Path) -> None:
         log_path = tmp_path / "token_log.jsonl"
@@ -269,9 +267,7 @@ def mcp_server_with_log(tmp_path: Path):
         ("doc-b::0", "unrelated text about migratory birds and lakes"),
         ("doc-c::0", "more filler so the BM25 index has variety to score against"),
     ]
-    estimator = build_default_estimator(
-        layout, chunks_provider=_chunks_provider_factory(chunks)
-    )
+    estimator = build_default_estimator(layout, chunks_provider=_chunks_provider_factory(chunks))
     server = NuthatchMCPServer(
         layout,
         retriever=_StubRetriever(),
@@ -341,9 +337,7 @@ class TestMCPInstrumentation:
     def test_error_responses_do_not_log(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "corpus")
         token_log = TokenLog(layout.kg / "token_log.jsonl")
-        estimator = build_default_estimator(
-            layout, chunks_provider=_chunks_provider_factory([])
-        )
+        estimator = build_default_estimator(layout, chunks_provider=_chunks_provider_factory([]))
         server = NuthatchMCPServer(
             layout,
             retriever=None,
@@ -457,11 +451,7 @@ class TestPerToolEstimatorSubgraphCommunity:
     def test_community_counterfactual_sums_member_cards(self, tmp_path: Path) -> None:
         layout = self._layout_with_cards(tmp_path)
         estimator = build_default_estimator(layout)
-        served = (
-            "## Members\n"
-            "- [[p1|Paper One (2024)]]\n"
-            "- [[p2|Paper Two (2025)]]\n"
-        )
+        served = "## Members\n- [[p1|Paper One (2024)]]\n- [[p2|Paper Two (2025)]]\n"
         n = estimator.estimate_from_served(
             tool="community_get",
             arguments={"community_id": "0"},

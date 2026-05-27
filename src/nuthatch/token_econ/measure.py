@@ -97,21 +97,13 @@ def measure_query(
     query is wasteful). When neither is supplied the counterfactual
     is recorded as 0 and `reduction_ratio` is 1.0 (no claim).
     """
-    served_tokens, tokenizer = count_tokens(
-        served_text, encoding_name=encoding_name
-    )
+    served_tokens, tokenizer = count_tokens(served_text, encoding_name=encoding_name)
     if counterfactual_tokens is None and counterfactual_text is not None:
-        counterfactual_tokens, _ = count_tokens(
-            counterfactual_text, encoding_name=encoding_name
-        )
+        counterfactual_tokens, _ = count_tokens(counterfactual_text, encoding_name=encoding_name)
     if counterfactual_tokens is None:
         counterfactual_tokens = 0
 
-    reduction_ratio = (
-        round(counterfactual_tokens / served_tokens, 2)
-        if served_tokens > 0
-        else 1.0
-    )
+    reduction_ratio = round(counterfactual_tokens / served_tokens, 2) if served_tokens > 0 else 1.0
 
     ts = timestamp or datetime.now(UTC)
     return {

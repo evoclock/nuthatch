@@ -84,9 +84,7 @@ class MCPServer:
             self._log_path.parent.mkdir(parents=True, exist_ok=True)
             handler = logging.FileHandler(self._log_path)
             handler.setFormatter(
-                logging.Formatter(
-                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                )
+                logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             )
             logger.addHandler(handler)
         return logger
@@ -114,9 +112,7 @@ class MCPServer:
             ]
         }
 
-    def call_tool(
-        self, tool_name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]:
+    def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError("subclasses implement call_tool")
 
     def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -137,9 +133,7 @@ class MCPServer:
             else:
                 result = {
                     "isError": True,
-                    "content": [
-                        {"type": "text", "text": f"unknown method: {method}"}
-                    ],
+                    "content": [{"type": "text", "text": f"unknown method: {method}"}],
                 }
         except Exception as exc:
             self._log.exception("handler error on %s", method)
@@ -212,9 +206,7 @@ class NuthatchMCPServer(MCPServer):
         )
         self.tools = _tool_registry()
 
-    def call_tool(
-        self, tool_name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]:
+    def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if tool_name == "corpus_search":
             return self._corpus_search(arguments)
         if tool_name == "subgraph_extract":
@@ -239,10 +231,7 @@ class NuthatchMCPServer(MCPServer):
         response = super().handle_request(request)
         # Instrument only successful tool calls; do not log token_econ_report
         # itself (its own served bytes are not corpus-derived).
-        if (
-            self._token_log is None
-            or request.get("method") != "tools/call"
-        ):
+        if self._token_log is None or request.get("method") != "tools/call":
             return response
         params = request.get("params", {}) or {}
         tool_name = str(params.get("name", ""))
@@ -254,9 +243,7 @@ class NuthatchMCPServer(MCPServer):
         try:
             arguments = params.get("arguments", {}) or {}
             served_text = _extract_text(result)
-            counterfactual = self._compute_counterfactual(
-                tool_name, arguments, served_text, result
-            )
+            counterfactual = self._compute_counterfactual(tool_name, arguments, served_text, result)
             if counterfactual is None:
                 # Tool has no honest counterfactual (e.g. card_get is pure
                 # delivery). Skip logging entirely rather than recording a
@@ -374,9 +361,9 @@ class NuthatchMCPServer(MCPServer):
                 for neighbour in g.successors(n) if g.is_directed() else g.neighbors(n):
                     if neighbour not in visited:
                         next_frontier.add(neighbour)
-                    edges.append((n, neighbour, str(
-                        g.get_edge_data(n, neighbour, default={}) or {}
-                    )))
+                    edges.append(
+                        (n, neighbour, str(g.get_edge_data(n, neighbour, default={}) or {}))
+                    )
             visited.update(next_frontier)
             frontier = next_frontier
             if cap is not None and len(visited) >= cap:
@@ -489,6 +476,7 @@ class NuthatchMCPServer(MCPServer):
         import numpy as np
 
         q = np.array(q_vec, dtype=np.float32)
+
         # Normalise both sides so the dot product equals cosine sim.
         def _norm(x: np.ndarray) -> np.ndarray:
             n = np.linalg.norm(x, axis=-1, keepdims=True)
@@ -532,17 +520,29 @@ class NuthatchMCPServer(MCPServer):
             members = idx.members_of(cid)
             if not members:
                 return _error(f"community not found: {cid}")
-            return _text(json.dumps({
-                "community_id": cid,
-                "core_nodes": [],
-                "note": "community too small for core-node ranking; full members below",
-                "members": members,
-            }, indent=2, default=str))
-        return _text(json.dumps({
-            "community_id": cid,
-            "label": idx.labels.get(cid, ""),
-            "core_nodes": nodes,
-        }, indent=2, default=str))
+            return _text(
+                json.dumps(
+                    {
+                        "community_id": cid,
+                        "core_nodes": [],
+                        "note": "community too small for core-node ranking; full members below",
+                        "members": members,
+                    },
+                    indent=2,
+                    default=str,
+                )
+            )
+        return _text(
+            json.dumps(
+                {
+                    "community_id": cid,
+                    "label": idx.labels.get(cid, ""),
+                    "core_nodes": nodes,
+                },
+                indent=2,
+                default=str,
+            )
+        )
 
     def _community_hierarchy(self, args: dict[str, Any]) -> dict[str, Any]:
         """Walk the nested SBM hierarchy from a doc_id or community_id.
@@ -562,12 +562,18 @@ class NuthatchMCPServer(MCPServer):
             path = idx.hierarchy_for(str(doc_id))
             if not path:
                 return _error(f"doc_id not in any community: {doc_id}")
-            return _text(json.dumps({
-                "doc_id": doc_id,
-                "leaf_community_id": path[0],
-                "path": path,
-                "n_levels": len(path),
-            }, indent=2, default=str))
+            return _text(
+                json.dumps(
+                    {
+                        "doc_id": doc_id,
+                        "leaf_community_id": path[0],
+                        "path": path,
+                        "n_levels": len(path),
+                    },
+                    indent=2,
+                    default=str,
+                )
+            )
         return _error("doc_id is required (path-by-community_id not yet supported)")
 
     def _token_econ_report(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -606,9 +612,7 @@ def _default_token_econ_reporter(token_log: TokenLog):
         since = args.get("since")
         until = args.get("until")
         group_by_raw = str(args.get("group_by", "tool"))
-        group_by: GroupBy = (
-            group_by_raw if group_by_raw in ("tool", "day", "surface") else "tool"
-        )  # type: ignore[assignment]
+        group_by: GroupBy = group_by_raw if group_by_raw in ("tool", "day", "surface") else "tool"  # type: ignore[assignment]
         tool_filter = args.get("tool")
         surface_filter = args.get("surface_id")
         records = token_log.iter_records(
@@ -647,6 +651,7 @@ def _default_community_reader(layout: CorpusLayout):
         # slug-based filenames, e.g. "genomic-interactions-....md").
         try:
             from nuthatch.clustering.persist import load_community_index
+
             idx = load_community_index(layout)
             if idx is not None:
                 label = idx.labels.get(int(community_id), "")
@@ -665,6 +670,7 @@ def _default_community_reader(layout: CorpusLayout):
 def _slugify(text: str, max_len: int = 64) -> str:
     """Lowercase dashed slug — mirrors `render.obsidian._slugify`."""
     import re
+
     if not text:
         return "untitled"
     s = text.lower()
@@ -696,8 +702,15 @@ def _tool_registry() -> dict[str, dict[str, Any]]:
                         "items": {"type": "string"},
                         "description": "Node IDs to seed the BFS from",
                     },
-                    "depth": {"type": "integer", "default": 1, "description": "BFS hops (default 1; depth=2 squares fan-out)"},
-                    "max_nodes": {"type": "integer", "description": "Cap total visited nodes; returns truncated=true when hit"},
+                    "depth": {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "BFS hops (default 1; depth=2 squares fan-out)",
+                    },
+                    "max_nodes": {
+                        "type": "integer",
+                        "description": "Cap total visited nodes; returns truncated=true when hit",
+                    },
                 },
                 "required": ["seed_nodes"],
             },
@@ -717,7 +730,10 @@ def _tool_registry() -> dict[str, dict[str, Any]]:
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "community_id": {"type": "string", "description": "Community ID (string or int)"},
+                    "community_id": {
+                        "type": "string",
+                        "description": "Community ID (string or int)",
+                    },
                 },
                 "required": ["community_id"],
             },
@@ -733,7 +749,11 @@ def _tool_registry() -> dict[str, dict[str, Any]]:
                 "type": "object",
                 "properties": {
                     "community_id": {"type": "integer", "description": "Community ID"},
-                    "top_n": {"type": "integer", "default": 5, "description": "Representatives to return"},
+                    "top_n": {
+                        "type": "integer",
+                        "default": 5,
+                        "description": "Representatives to return",
+                    },
                 },
                 "required": ["community_id"],
             },

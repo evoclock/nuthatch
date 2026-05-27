@@ -81,52 +81,50 @@ def _bucket(entry: dict) -> str | None:
 _PACKAGE_BLURBS = {
     "_top": "Top-level entry points: CLI (`cli.py`) and the package `__init__`.",
     "ingest": "Stage 1: extract markdown from sources, validate schema, route to "
-              "`processed/<subdir>/` or `quarantine/<reason>/`. Handles arxiv / "
-              "bioRxiv metadata enrichment, math-retry flagging, dedup, "
-              "orchestrator state machine, and the `triage` pre-flight "
-              "(pdftotext-only PASS/FLAG/DEFER classification, exposed as "
-              "`nuthatch triage` CLI subcommand).",
+    "`processed/<subdir>/` or `quarantine/<reason>/`. Handles arxiv / "
+    "bioRxiv metadata enrichment, math-retry flagging, dedup, "
+    "orchestrator state machine, and the `triage` pre-flight "
+    "(pdftotext-only PASS/FLAG/DEFER classification, exposed as "
+    "`nuthatch triage` CLI subcommand).",
     "embed": "Stage 2: chunk extracted markdown and persist embeddings into "
-             "Chroma (`.kg/embeddings/`). Hybrid chunker with full-doc coverage "
-             "invariant; orchestrator handles incremental + `--force` re-embed.",
+    "Chroma (`.kg/embeddings/`). Hybrid chunker with full-doc coverage "
+    "invariant; orchestrator handles incremental + `--force` re-embed.",
     "graph": "Stage 3: build the document graph from embeddings + co-citation + "
-             "semantic similarity edges. Outputs to `graph/`.",
+    "semantic similarity edges. Outputs to `graph/`.",
     "clustering": "Stage 4: community detection. SBM via graph-tool when "
-                  "available (nested hierarchy), Leiden fallback (flat). Hub "
-                  "exclusion + reattachment by majority neighbour. Stable "
-                  "cluster IDs across re-runs. `persist.py` writes "
-                  "`.kg/communities.json` + `.kg/community_centroids.npy` so "
-                  "the MCP server's community tools can run without "
-                  "re-clustering.",
+    "available (nested hierarchy), Leiden fallback (flat). Hub "
+    "exclusion + reattachment by majority neighbour. Stable "
+    "cluster IDs across re-runs. `persist.py` writes "
+    "`.kg/communities.json` + `.kg/community_centroids.npy` so "
+    "the MCP server's community tools can run without "
+    "re-clustering.",
     "render": "Stage 5: render the corpus as an Obsidian-compatible vault. "
-              "Per-paper cards under `cards/`, community pages under "
-              "`communities/`, plus top-level `dashboard.md`, `index.md`, "
-              "`log.md`. Wikilinks between cards form the navigable graph "
-              "Obsidian's graph view picks up automatically; Dataview "
-              "queries in the dashboard filter by tag / year / community.",
+    "Per-paper cards under `cards/`, community pages under "
+    "`communities/`, plus top-level `dashboard.md`, `index.md`, "
+    "`log.md`. Wikilinks between cards form the navigable graph "
+    "Obsidian's graph view picks up automatically; Dataview "
+    "queries in the dashboard filter by tag / year / community.",
     "schema": "Per-corpus metadata contracts. Profiles for arxiv, bioRxiv, "
-              "internal docs, patents. Profile-router picks per-file by "
-              "filename pattern.",
+    "internal docs, patents. Profile-router picks per-file by "
+    "filename pattern.",
     "corpus": "Corpus discovery, layout, init, and registry. Defines the "
-              "`processed/<subdir>/` and `quarantine/<reason>/` lifecycle.",
+    "`processed/<subdir>/` and `quarantine/<reason>/` lifecycle.",
     "retrieve": "Query-side helpers used by the MCP server: BM25, Chroma vector "
-                "search, reranker invocation, hybrid result merging.",
+    "search, reranker invocation, hybrid result merging.",
     "mcp": "Read-only MCP server exposing nine tools to agents: "
-           "`corpus_search`, `subgraph_extract`, `card_get`, "
-           "`community_get`, `community_brief`, `community_search`, "
-           "`community_core_nodes`, `community_hierarchy`, "
-           "`token_econ_report`. Community-aware retrieval (4 of the 9 "
-           "tools) is the headline feature.",
+    "`corpus_search`, `subgraph_extract`, `card_get`, "
+    "`community_get`, `community_brief`, `community_search`, "
+    "`community_core_nodes`, `community_hierarchy`, "
+    "`token_econ_report`. Community-aware retrieval (4 of the 9 "
+    "tools) is the headline feature.",
     "dedup": "Semantic dedup after embed: collapse near-duplicate chunks while "
-             "respecting full-doc coverage invariant.",
+    "respecting full-doc coverage invariant.",
     "decay": "Sprint-8 relevance decay + supersession. `relevance(t) = "
-             "max(backlinks, 1) * exp(-ln2 * Δt / half_life_days)`.",
-    "token_econ": "Token-economy instrumentation. Per-tool cost / yield log + "
-                  "report generator.",
+    "max(backlinks, 1) * exp(-ln2 * Δt / half_life_days)`.",
+    "token_econ": "Token-economy instrumentation. Per-tool cost / yield log + report generator.",
     "scripts/bench": "Extraction-benchmark scripts (key-facts scoring, math "
-                     "recall, ground-truth scaffolding).",
-    "scripts/ops": "Operator scripts: stage launcher (`launch-stage.sh`), this "
-                   "summary generator.",
+    "recall, ground-truth scaffolding).",
+    "scripts/ops": "Operator scripts: stage launcher (`launch-stage.sh`), this summary generator.",
 }
 
 
@@ -144,10 +142,21 @@ def main() -> int:
             by_pkg[pkg].append(e)
 
     pkg_order = [
-        "_top", "ingest", "embed", "graph", "clustering", "render",
-        "schema", "corpus", "retrieve", "mcp",
-        "dedup", "decay", "token_econ",
-        "scripts/bench", "scripts/ops",
+        "_top",
+        "ingest",
+        "embed",
+        "graph",
+        "clustering",
+        "render",
+        "schema",
+        "corpus",
+        "retrieve",
+        "mcp",
+        "dedup",
+        "decay",
+        "token_econ",
+        "scripts/bench",
+        "scripts/ops",
     ]
 
     out: list[str] = []
@@ -155,19 +164,23 @@ def main() -> int:
     out.append('title: "Nuthatch per-script summary"')
     out.append("---")
     out.append("")
-    out.append("Generated from `pipeline_output/codebase_inventory.jsonl`. "
-               "Pairs with `nuthatch_pipeline.html` (Mermaid) and "
-               "`nuthatch_pipeline_d2.html` (D2) for the rendered diagrams. "
-               "Run `scripts/ops/generate_module_summary.py` to refresh.")
+    out.append(
+        "Generated from `pipeline_output/codebase_inventory.jsonl`. "
+        "Pairs with `nuthatch_pipeline.html` (Mermaid) and "
+        "`nuthatch_pipeline_d2.html` (D2) for the rendered diagrams. "
+        "Run `scripts/ops/generate_module_summary.py` to refresh."
+    )
     out.append("")
     out.append("## Module graph (D2 rendering)")
     out.append("")
     out.append("![Nuthatch module graph](nuthatch_module_graph.svg)")
     out.append("")
-    out.append("Source: `nuthatch_module_graph.d2`. Edges colored by "
-               "source module (CLI=apricot, ingest=rust, embed=sage, "
-               "graph=cream, clustering=ochre, render/MCP=dim sage, "
-               "decay=brick).")
+    out.append(
+        "Source: `nuthatch_module_graph.d2`. Edges colored by "
+        "source module (CLI=apricot, ingest=rust, embed=sage, "
+        "graph=cream, clustering=ochre, render/MCP=dim sage, "
+        "decay=brick)."
+    )
     out.append("")
 
     # Top-level package overview.

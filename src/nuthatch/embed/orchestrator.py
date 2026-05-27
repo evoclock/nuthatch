@@ -176,9 +176,7 @@ def _load_meta_sidecar(meta_path: Path) -> dict[str, Any]:
         return {}
 
 
-def _build_per_chunk_meta(
-    doc_id: str, sidecar: dict[str, Any]
-) -> dict[str, Any]:
+def _build_per_chunk_meta(doc_id: str, sidecar: dict[str, Any]) -> dict[str, Any]:
     """Pluck the fields per-chunk metadata wants from the sidecar.
 
     Chroma stores per-chunk metadata as a flat string-keyed dict

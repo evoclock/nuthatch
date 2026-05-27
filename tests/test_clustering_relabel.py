@@ -54,14 +54,7 @@ class TestReadCardMeta:
     def test_extracts_title_and_tags_block(self, tmp_path: Path) -> None:
         card = tmp_path / "doc.md"
         card.write_text(
-            "---\n"
-            "title: A Test Paper\n"
-            "tags:\n"
-            "- alpha\n"
-            "- beta\n"
-            "- gamma\n"
-            "---\n"
-            "body content here\n",
+            "---\ntitle: A Test Paper\ntags:\n- alpha\n- beta\n- gamma\n---\nbody content here\n",
             encoding="utf-8",
         )
         meta = _read_card_meta(card)
@@ -103,7 +96,8 @@ class TestBuildMemberBlock:
     def test_strips_doc_prefix_for_lookup(self, tmp_path: Path) -> None:
         # Card filename has no `doc::` prefix; member id does.
         (tmp_path / "raw_id.md").write_text(
-            "---\ntitle: Title One\n---\n", encoding="utf-8",
+            "---\ntitle: Title One\n---\n",
+            encoding="utf-8",
         )
         block = _build_member_block(["doc::raw_id"], tmp_path)
         assert "Title One" in block
@@ -120,7 +114,8 @@ class TestBuildMemberBlock:
         # 15 members, max 12 in prompt; overflow indicator line appended.
         for i in range(15):
             (tmp_path / f"d{i}.md").write_text(
-                f"---\ntitle: T{i}\n---\n", encoding="utf-8",
+                f"---\ntitle: T{i}\n---\n",
+                encoding="utf-8",
             )
         members = [f"doc::d{i}" for i in range(15)]
         block = _build_member_block(members, tmp_path, max_members=12)
@@ -132,7 +127,8 @@ class TestRelabelIndexFile:
         cards_dir = tmp_path / "cards"
         cards_dir.mkdir()
         (cards_dir / "doc1.md").write_text(
-            "---\ntitle: Doc One\n---\n", encoding="utf-8",
+            "---\ntitle: Doc One\n---\n",
+            encoding="utf-8",
         )
 
         index_path = tmp_path / "communities.json"
@@ -193,7 +189,9 @@ class TestRelabelIndexFile:
 
     def test_missing_file_returns_empty_diff(self, tmp_path: Path) -> None:
         diff = relabel_index_file(
-            tmp_path / "missing.json", tmp_path, lambda p: "x",
+            tmp_path / "missing.json",
+            tmp_path,
+            lambda p: "x",
         )
         assert diff == {}
 
@@ -206,10 +204,12 @@ class TestRelabelCommunities:
         for name in ("communities.json", "communities_sbm.json"):
             p = tmp_path / name
             p.write_text(
-                json.dumps({
-                    "members": {"0": ["doc::a"]},
-                    "labels": {"0": f"old-{name}"},
-                }),
+                json.dumps(
+                    {
+                        "members": {"0": ["doc::a"]},
+                        "labels": {"0": f"old-{name}"},
+                    }
+                ),
                 encoding="utf-8",
             )
             paths.append(p)
@@ -226,7 +226,8 @@ class TestRelabelCommunities:
 
 class TestDiscoverIndexPaths:
     def test_canonical_first_then_suffixed_sorted(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         kg = tmp_path / ".kg"
         kg.mkdir()

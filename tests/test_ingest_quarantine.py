@@ -23,9 +23,7 @@ class TestQuarantineFile:
     def test_moves_file_to_reason_subdir(self, tmp_path: Path) -> None:
         source = _make_source(tmp_path)
         qroot = tmp_path / "q"
-        dest = quarantine_file(
-            source, qroot, reason="unsupported_format:.pdf"
-        )
+        dest = quarantine_file(source, qroot, reason="unsupported_format:.pdf")
         assert dest.exists()
         assert not source.exists()
         # Reason got slugified into a directory name.
@@ -50,9 +48,7 @@ class TestQuarantineFile:
 
     def test_slug_sanitises_unsafe_chars(self, tmp_path: Path) -> None:
         source = _make_source(tmp_path)
-        dest = quarantine_file(
-            source, tmp_path / "q", reason="weird / reason: with spaces!"
-        )
+        dest = quarantine_file(source, tmp_path / "q", reason="weird / reason: with spaces!")
         # Slug should be filesystem-safe.
         assert "/" not in dest.parent.name
         assert " " not in dest.parent.name

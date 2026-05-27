@@ -134,9 +134,7 @@ class TestFetchArxivMetadata:
             "nuthatch.ingest.source_metadata._fetch_url",
             return_value=_FAKE_ARXIV_ATOM,
         ) as mock_fetch:
-            meta = fetch_arxiv_metadata(
-                "2605.15308", cache_dir=tmp_path, url_validator=_PERMISSIVE
-            )
+            meta = fetch_arxiv_metadata("2605.15308", cache_dir=tmp_path, url_validator=_PERMISSIVE)
             assert meta is not None
             assert meta.title.startswith("SMCEVOLVE")
             mock_fetch.assert_called_once()
@@ -155,13 +153,9 @@ class TestFetchArxivMetadata:
             assert meta2.title == meta.title
 
     def test_fetch_failure_returns_none(self, tmp_path: Path) -> None:
-        with patch(
-            "nuthatch.ingest.source_metadata._fetch_url", return_value=None
-        ):
+        with patch("nuthatch.ingest.source_metadata._fetch_url", return_value=None):
             assert (
-                fetch_arxiv_metadata(
-                    "2605.15308", cache_dir=tmp_path, url_validator=_PERMISSIVE
-                )
+                fetch_arxiv_metadata("2605.15308", cache_dir=tmp_path, url_validator=_PERMISSIVE)
                 is None
             )
 
@@ -229,9 +223,7 @@ class TestEnrichFromSource:
         # Publisher API returned nothing (e.g. rate-limit, transient).
         # We should still emit a stub carrying the arxiv_id from the
         # filename so the schema gate's identifier requirement passes.
-        with patch(
-            "nuthatch.ingest.source_metadata._fetch_url", return_value=None
-        ):
+        with patch("nuthatch.ingest.source_metadata._fetch_url", return_value=None):
             meta = enrich_from_source(
                 "2605.15308v1.pdf",
                 cache_dir=tmp_path,
@@ -246,9 +238,7 @@ class TestEnrichFromSource:
         assert meta.authors == ()
 
     def test_biorxiv_api_miss_returns_filename_fallback(self, tmp_path: Path) -> None:
-        with patch(
-            "nuthatch.ingest.source_metadata._fetch_url", return_value=None
-        ):
+        with patch("nuthatch.ingest.source_metadata._fetch_url", return_value=None):
             meta = enrich_from_source(
                 "2026.05.20.726505v1.full.pdf",
                 cache_dir=tmp_path,

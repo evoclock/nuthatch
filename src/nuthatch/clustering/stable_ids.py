@@ -62,9 +62,7 @@ def remap_to_previous(
     old_buckets = _invert(previous_partition)
 
     # Sort new communities by size (largest first) for greedy match.
-    new_communities_by_size = sorted(
-        new_buckets.items(), key=lambda kv: -len(kv[1])
-    )
+    new_communities_by_size = sorted(new_buckets.items(), key=lambda kv: -len(kv[1]))
 
     used_old_ids: set[int] = set()
     id_map: dict[int, int] = {}
@@ -87,11 +85,7 @@ def remap_to_previous(
     # Assign fresh IDs to unmapped new communities. Fresh IDs avoid
     # collision with any previous-known ID and any already-assigned
     # fresh ID.
-    reserved_ids = (
-        set(previous_partition.values())
-        | set(used_old_ids)
-        | set(id_map.values())
-    )
+    reserved_ids = set(previous_partition.values()) | set(used_old_ids) | set(id_map.values())
     next_fresh = max(reserved_ids, default=-1) + 1
     for new_id in _stable_iteration(new_buckets.keys()):
         if new_id not in id_map:

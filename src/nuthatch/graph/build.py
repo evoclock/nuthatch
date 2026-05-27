@@ -105,9 +105,7 @@ def build_graph(
     for c in contributions:
         g.add_node(c.doc_node_id, **_document_attrs(c.metadata))
 
-        entities = c.entities or extractor.extract(
-            markdown=c.body_markdown, metadata=c.metadata
-        )
+        entities = c.entities or extractor.extract(markdown=c.body_markdown, metadata=c.metadata)
         entities = deduplicate_entities(entities)
 
         for e in entities:

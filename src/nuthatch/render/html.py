@@ -24,9 +24,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
-_MATHJAX_CDN: str = (
-    "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
-)
+_MATHJAX_CDN: str = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 
 _STYLE: str = """
 body { font-family: -apple-system, system-ui, sans-serif; max-width: 80ch;
@@ -46,10 +44,7 @@ def _meta_table(metadata: dict[str, Any]) -> str:
         return ""
     rows = []
     for key, value in metadata.items():
-        rows.append(
-            f"<tr><td>{html.escape(str(key))}</td>"
-            f"<td>{html.escape(str(value))}</td></tr>"
-        )
+        rows.append(f"<tr><td>{html.escape(str(key))}</td><td>{html.escape(str(value))}</td></tr>")
     return f'<table class="meta-table">{"".join(rows)}</table>'
 
 

@@ -28,9 +28,7 @@ class _MiniProfile(SchemaProfile):
 
 class TestBaseProfile:
     def test_fully_populated_passes(self) -> None:
-        result = _MiniProfile.validate(
-            {"title": "Hello", "year": 2026, "tags": ["a", "b"]}
-        )
+        result = _MiniProfile.validate({"title": "Hello", "year": 2026, "tags": ["a", "b"]})
         assert result.passed
         assert result.reason is None
         assert result.missing_required == []
@@ -60,9 +58,7 @@ class TestBaseProfile:
         assert result.passed
 
     def test_extra_fields_ignored(self) -> None:
-        result = _MiniProfile.validate(
-            {"title": "Hello", "year": 2026, "rogue": "value"}
-        )
+        result = _MiniProfile.validate({"title": "Hello", "year": 2026, "rogue": "value"})
         assert result.passed
         assert result.extracted["rogue"] == "value"
 

@@ -68,9 +68,7 @@ class TestLeidenBackend:
 
     def test_clusters_karate(self) -> None:
         backend = LeidenBackend()
-        req = ClusteringRequest(
-            graph_snapshot=_nx_snapshot(), rigor=Rigor.HEURISTIC
-        )
+        req = ClusteringRequest(graph_snapshot=_nx_snapshot(), rigor=Rigor.HEURISTIC)
         rv = backend.cluster(req)
         assert rv.rigor_used is Rigor.HEURISTIC
         assert rv.backend_used == "leiden"

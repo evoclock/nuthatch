@@ -22,8 +22,7 @@ class _AcceptAnyProfile(SchemaProfile):
 
 
 _DEFAULT_TEST_MARKDOWN = (
-    "# Sample title\n\n"
-    + "Body paragraph with enough text to clear the qc.check_extract_yield "
+    "# Sample title\n\n" + "Body paragraph with enough text to clear the qc.check_extract_yield "
     "floor of 200 chars. Lorem ipsum dolor sit amet consectetur adipiscing "
     "elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n"
 )
@@ -64,9 +63,7 @@ class TestIngestInboxBasics:
         results = _make_orchestrator(layout).ingest_inbox()
         assert results == []
 
-    def test_single_pdf_moves_to_processed_mirroring_source_subdir(
-        self, tmp_path: Path
-    ) -> None:
+    def test_single_pdf_moves_to_processed_mirroring_source_subdir(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
         source = _seed_inbox(layout, "attention.pdf", b"fake-pdf-bytes")
 
@@ -91,9 +88,7 @@ class TestIngestInboxBasics:
         assert results[0].reason is not None
         assert "unsupported_format" in results[0].reason
         # New quarantine layout: <quarantine>/<reason-slug>/<file>
-        assert any(
-            p.name == "weird.xyz" for p in layout.quarantine.rglob("weird.xyz")
-        )
+        assert any(p.name == "weird.xyz" for p in layout.quarantine.rglob("weird.xyz"))
 
     def test_empty_file_goes_to_quarantine(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")

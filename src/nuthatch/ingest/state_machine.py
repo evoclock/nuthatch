@@ -440,9 +440,7 @@ class IngestOrchestrator:
         """
         return self.ingest_corpus()
 
-    def _maybe_flag_math_retry(
-        self, *, doc_id: str, source_filename: str, markdown: str
-    ) -> None:
+    def _maybe_flag_math_retry(self, *, doc_id: str, source_filename: str, markdown: str) -> None:
         """Append a JSONL line to `.kg/math_retry.jsonl` if Docling's
         math output is broken enough to warrant a later Chandra retry.
 
@@ -466,9 +464,7 @@ class IngestOrchestrator:
             "broken_ratio": round(result.broken_ratio, 3),
             "broken_spans_sample": result.broken_spans,
             "extracted_md_path": str(
-                (self._layout.extracted_dir / f"{doc_id}.md").relative_to(
-                    self._layout.root
-                )
+                (self._layout.extracted_dir / f"{doc_id}.md").relative_to(self._layout.root)
             ),
             "deferred_at": datetime.now(UTC).isoformat(),
         }

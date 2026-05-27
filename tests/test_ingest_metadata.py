@@ -26,10 +26,7 @@ class TestExtractMetadataHeuristic:
         # Docling emits ## for paper titles, not #. The heuristic must
         # cope with that or every Docling-converted PDF loses its title.
         md = "## FORGE: Self-Evolving Agent Memory\n\nBody text."
-        assert (
-            extract_metadata_heuristic(md)["title"]
-            == "FORGE: Self-Evolving Agent Memory"
-        )
+        assert extract_metadata_heuristic(md)["title"] == "FORGE: Self-Evolving Agent Memory"
 
     def test_pulls_authors_from_leading_orcid_links(self) -> None:
         md = (
@@ -130,11 +127,7 @@ class TestExtractMetadataHeuristic:
         # Real-world case: `## Abstract 10` from a numbered-line PDF
         # got picked as the title. The section-name filter strips
         # trailing digits / punctuation before matching.
-        md = (
-            "## Abstract 10\n\n"
-            "boilerplate\n\n"
-            "## Actual Paper Title Goes Here\n\n"
-        )
+        md = "## Abstract 10\n\nboilerplate\n\n## Actual Paper Title Goes Here\n\n"
         out = extract_metadata_heuristic(md)
         assert out["title"] == "Actual Paper Title Goes Here"
 
@@ -161,8 +154,11 @@ class TestExtractMetadataHeuristic:
         # Dagger + space + digit pattern: `Name† 1 , Name† 1 , and Name1`
         md = (
             "## Inferring Gene Presence\n\n"
-            "John S.A. Mattick" + chr(0x2020) + " 1 , Wesley C. DeMontigny"
-            + chr(0x2020) + " 1 , and Charles F. Delwiche1\n\n"
+            "John S.A. Mattick"
+            + chr(0x2020)
+            + " 1 , Wesley C. DeMontigny"
+            + chr(0x2020)
+            + " 1 , and Charles F. Delwiche1\n\n"
             "## Abstract\n\n"
             "Increasing access...\n"
         )
@@ -213,12 +209,7 @@ class TestExtractMetadataHeuristic:
     def test_csv_authors_with_leading_line_number(self) -> None:
         # Word manuscripts with margin line-numbers can also yield
         # plain `1 Author, Author` style after Docling.
-        md = (
-            "## A Paper 1\n\n"
-            "2 Xiaoqin Huang1, Ivan Ovcharenko1*\n\n"
-            "## ABSTRACT\n\n"
-            "We present...\n"
-        )
+        md = "## A Paper 1\n\n2 Xiaoqin Huang1, Ivan Ovcharenko1*\n\n## ABSTRACT\n\nWe present...\n"
         out = extract_metadata_heuristic(md)
         assert out["authors"] == ["Xiaoqin Huang", "Ivan Ovcharenko"]
 
@@ -325,12 +316,7 @@ class TestExtractMetadataHeuristic:
         # post-title region must NOT be picked as a single author
         # unless an email confirms it. Prevents false positives like
         # treating "Introduction" or "Methods" as an author.
-        md = (
-            "## A Paper Title\n\n"
-            "Some Stray Header\n\n"
-            "## Abstract\n\n"
-            "Body text...\n"
-        )
+        md = "## A Paper Title\n\nSome Stray Header\n\n## Abstract\n\nBody text...\n"
         out = extract_metadata_heuristic(md)
         assert "authors" not in out
 

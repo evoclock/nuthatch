@@ -159,9 +159,7 @@ class SemanticDeduper:
         existing-doc text from `candidate_lookup_text[doc_id]`.
         """
         cand_emb = self.embed(candidate_text)
-        cosines = [
-            (doc_id, _cosine(cand_emb, list(emb))) for doc_id, emb in existing
-        ]
+        cosines = [(doc_id, _cosine(cand_emb, list(emb))) for doc_id, emb in existing]
         cosines.sort(key=lambda kv: kv[1], reverse=True)
         top = cosines[: self.config.top_k]
         if not top:

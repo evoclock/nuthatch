@@ -110,7 +110,7 @@ class ExtractedDocIndex:
     def tokens_for(self, doc_id: str) -> int | None:
         if doc_id in self._cache:
             return self._cache[doc_id]
-        bare = doc_id[len("doc::"):] if doc_id.startswith("doc::") else doc_id
+        bare = doc_id[len("doc::") :] if doc_id.startswith("doc::") else doc_id
         path = self._extracted_dir / f"{bare}.md"
         if not path.is_file():
             self._cache[doc_id] = None
@@ -311,9 +311,7 @@ class PerToolEstimator:
             result=result,
         )
 
-    def _estimate_community_brief_from_served(
-        self, arguments: dict[str, Any]
-    ) -> int | None:
+    def _estimate_community_brief_from_served(self, arguments: dict[str, Any]) -> int | None:
         # Counterfactual: reading the full community page that community_brief
         # summarises. Cost = token count of the full community markdown.
         if self._community_reader is None:
@@ -328,9 +326,7 @@ class PerToolEstimator:
         n, _ = count_tokens(full_page)
         return n
 
-    def _estimate_community_core_nodes_from_served(
-        self, arguments: dict[str, Any]
-    ) -> int | None:
+    def _estimate_community_core_nodes_from_served(self, arguments: dict[str, Any]) -> int | None:
         # Counterfactual: loading every member card to rank by degree manually.
         # Cost = n_members x avg_card_tokens.
         if self._community_members_fn is None:
@@ -360,9 +356,7 @@ def build_default_estimator(
     """
     cards_dir = layout.root / "cards"
     cards = CardTokenIndex(cards_dir)
-    bm25 = (
-        BM25Counterfactual(chunks_provider) if chunks_provider is not None else None
-    )
+    bm25 = BM25Counterfactual(chunks_provider) if chunks_provider is not None else None
     extracted = ExtractedDocIndex(layout.extracted_dir)
     communities_json_tokens = _load_communities_json_tokens(layout)
     communities_dir = layout.root / "communities"
@@ -374,6 +368,7 @@ def build_default_estimator(
         # Slug fallback for published KBs (mirrors server._default_community_reader).
         try:
             from nuthatch.clustering.persist import load_community_index
+
             idx = load_community_index(layout)
             if idx is not None:
                 label = idx.labels.get(int(community_id), "")
@@ -388,6 +383,7 @@ def build_default_estimator(
 
     def _community_members_fn(community_id: int) -> list[str]:
         from nuthatch.clustering.persist import load_community_index
+
         idx = load_community_index(layout)
         if idx is None:
             return []

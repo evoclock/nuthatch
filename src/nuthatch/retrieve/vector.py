@@ -76,20 +76,43 @@ class RetrievedChunk:
 _TOKEN_RE = re.compile(r"\w+")
 _STOPWORDS: frozenset[str] = frozenset(
     {
-        "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
-        "from", "has", "have", "how", "in", "into", "is", "it", "of",
-        "on", "or", "the", "to", "vs", "with", "what", "which", "why",
-        "when", "do", "does",
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "but",
+        "by",
+        "for",
+        "from",
+        "has",
+        "have",
+        "how",
+        "in",
+        "into",
+        "is",
+        "it",
+        "of",
+        "on",
+        "or",
+        "the",
+        "to",
+        "vs",
+        "with",
+        "what",
+        "which",
+        "why",
+        "when",
+        "do",
+        "does",
     }
 )
 
 
 def _tokenize(text: str) -> set[str]:
-    return {
-        t
-        for t in _TOKEN_RE.findall(text.lower())
-        if t not in _STOPWORDS and len(t) > 1
-    }
+    return {t for t in _TOKEN_RE.findall(text.lower()) if t not in _STOPWORDS and len(t) > 1}
 
 
 def _neighbour_to_chunk(n: Neighbour) -> RetrievedChunk:

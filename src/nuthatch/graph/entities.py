@@ -71,9 +71,7 @@ class ExtractedEntity:
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 _AUTHOR_YEAR_CITATION_RE = re.compile(r"\[([A-Z][A-Za-z_'-]+?)\s+(\d{4})[a-z]?\]")
-_DOI_CITATION_RE = re.compile(
-    r"\b(10\.\d{4,9}/[-._;()/:A-Z0-9]+)\b", re.IGNORECASE
-)
+_DOI_CITATION_RE = re.compile(r"\b(10\.\d{4,9}/[-._;()/:A-Z0-9]+)\b", re.IGNORECASE)
 
 
 def _slug(text: str) -> str:

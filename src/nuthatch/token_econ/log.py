@@ -93,9 +93,7 @@ class TokenLog:
 
     def append(self, record: TokenRecord | dict[str, Any]) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        payload = (
-            record.to_dict() if isinstance(record, TokenRecord) else dict(record)
-        )
+        payload = record.to_dict() if isinstance(record, TokenRecord) else dict(record)
         with self._path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(payload, default=str) + "\n")
 

@@ -70,9 +70,7 @@ ANSWER:"""
 
 
 def _format_contexts(contexts: Iterable[str]) -> str:
-    return "\n\n".join(
-        f"[passage {i + 1}]\n{text}" for i, text in enumerate(contexts)
-    )
+    return "\n\n".join(f"[passage {i + 1}]\n{text}" for i, text in enumerate(contexts))
 
 
 def run_rag_turn(

@@ -171,12 +171,15 @@ def write_testset_jsonl(examples: Iterable[TestExample], path: Any) -> int:
     with p.open("w", encoding="utf-8") as fh:
         for ex in examples:
             fh.write(
-                json.dumps({
-                    "question": ex.question,
-                    "ground_truth": ex.ground_truth,
-                    "source_chunk_id": ex.source_chunk_id,
-                    "source_doc_id": ex.source_doc_id,
-                }) + "\n"
+                json.dumps(
+                    {
+                        "question": ex.question,
+                        "ground_truth": ex.ground_truth,
+                        "source_chunk_id": ex.source_chunk_id,
+                        "source_doc_id": ex.source_doc_id,
+                    }
+                )
+                + "\n"
             )
             count += 1
     return count

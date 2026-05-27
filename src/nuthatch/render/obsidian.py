@@ -59,8 +59,8 @@ _CATPPUCCIN_HEX: tuple[str, ...] = (
     "#74C7EC",  # sapphire
     "#F5C2E7",  # flamingo
     "#179299",  # Catppuccin Latte teal (replaces lavender — deeper
-                # teal that reads better against the dark bg and
-                # avoids confusion with the mauve at slot 6)
+    # teal that reads better against the dark bg and
+    # avoids confusion with the mauve at slot 6)
     "#89DCEB",  # sky
     "#F5E0DC",  # rosewater
     "#A6ADC8",  # subtext1
@@ -108,13 +108,15 @@ def _build_obsidian_graph_config(
     on the community page itself, not on member tags)."""
     groups = []
     for cid in sorted(community_slugs):
-        groups.append({
-            "query": f"tag:#cluster/{cid}",
-            "color": {
-                "a": 1,
-                "rgb": _hex_to_obsidian_rgb(_community_color(cid)),
-            },
-        })
+        groups.append(
+            {
+                "query": f"tag:#cluster/{cid}",
+                "color": {
+                    "a": 1,
+                    "rgb": _hex_to_obsidian_rgb(_community_color(cid)),
+                },
+            }
+        )
     # Field values tuned from active use on a comparable nuthatch-
     # adjacent KB (PhD knowledge-base). Panels expand by default so
     # the user sees groups + display options on first open; arrows
@@ -220,10 +222,8 @@ def export_vault(
     if community_index:
         for cid_int, raw in community_index.labels.items():
             if isinstance(raw, str) and raw.startswith("doc::"):
-                rep_doc = raw[len("doc::"):]
-                label = str(
-                    paper_metadata.get(rep_doc, {}).get("title") or raw
-                )
+                rep_doc = raw[len("doc::") :]
+                label = str(paper_metadata.get(rep_doc, {}).get("title") or raw)
             else:
                 label = str(raw) if raw else f"community-{cid_int}"
             community_slugs[int(cid_int)] = _slugify(label)
@@ -233,13 +233,11 @@ def export_vault(
         cid = community_index.community_for(doc_id) if community_index else None
         cpath = community_index.hierarchy_for(doc_id) if community_index else None
         clabel_raw = (
-            community_index.labels.get(cid)
-            if community_index and cid is not None
-            else None
+            community_index.labels.get(cid) if community_index and cid is not None else None
         )
         # labels stored as doc_ids — resolve to paper title when possible
         if clabel_raw and clabel_raw.startswith("doc::"):
-            rep_doc = clabel_raw[len("doc::"):]
+            rep_doc = clabel_raw[len("doc::") :]
             clabel = str(paper_metadata.get(rep_doc, {}).get("title") or clabel_raw)
         else:
             clabel = clabel_raw
@@ -285,9 +283,7 @@ def export_vault(
     if community_membership:
         for community_id, members in community_membership.items():
             description = (
-                community_descriptions.get(community_id, "")
-                if community_descriptions
-                else ""
+                community_descriptions.get(community_id, "") if community_descriptions else ""
             )
             cid_int = int(community_id) if community_index else None
             clabel_page_raw = (
@@ -296,10 +292,8 @@ def export_vault(
                 else None
             )
             if clabel_page_raw and clabel_page_raw.startswith("doc::"):
-                rep_doc = clabel_page_raw[len("doc::"):]
-                clabel_page = str(
-                    paper_metadata.get(rep_doc, {}).get("title") or clabel_page_raw
-                )
+                rep_doc = clabel_page_raw[len("doc::") :]
+                clabel_page = str(paper_metadata.get(rep_doc, {}).get("title") or clabel_page_raw)
             else:
                 clabel_page = clabel_page_raw
             core_ids_raw = (
@@ -307,10 +301,7 @@ def export_vault(
                 if community_index and cid_int is not None
                 else []
             )
-            core_ids = [
-                n[len("doc::"):] if n.startswith("doc::") else n
-                for n in core_ids_raw
-            ]
+            core_ids = [n[len("doc::") :] if n.startswith("doc::") else n for n in core_ids_raw]
             page = _render_community_page(
                 community_id=community_id,
                 member_doc_ids=members,
@@ -326,9 +317,7 @@ def export_vault(
                 slug = community_slugs.get(int(community_id)) or community_id
             except (TypeError, ValueError):
                 slug = community_id
-            (communities_dir / f"{slug}.md").write_text(
-                page, encoding="utf-8"
-            )
+            (communities_dir / f"{slug}.md").write_text(page, encoding="utf-8")
             n_communities += 1
 
     # Drop .obsidian/graph.json with one colour group per community so
@@ -380,7 +369,7 @@ def _render_community_page(
     tags_yaml = "[" + ", ".join(tags) + "]"
     lines = [
         "---",
-        f"title: \"{display_title}\"",
+        f'title: "{display_title}"',
         f"id: community_{community_id}",
         "type: community",
         f"community_id: {community_id}",
@@ -562,7 +551,6 @@ def _append_log(
             "**Cards written:** N\n"
             "**Community pages written:** M\n"
             "**Notes:** any observations\n"
-            "-->\n"
-            + entry
+            "-->\n" + entry
         )
     log_path.write_text(content, encoding="utf-8")

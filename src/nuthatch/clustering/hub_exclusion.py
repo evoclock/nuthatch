@@ -107,9 +107,7 @@ def reattach_by_majority_neighbour(
             if g.is_directed()
             else list(g.neighbors(node))
         )
-        votes = Counter(
-            partition[n] for n in neighbours if n in partition
-        )
+        votes = Counter(partition[n] for n in neighbours if n in partition)
         if votes:
             top_count = max(votes.values())
             tied = sorted(c for c, count in votes.items() if count == top_count)

@@ -71,9 +71,10 @@ class TestSemanticCache:
         dropped = cache.invalidate_extractor_version("v1")
         assert dropped == 3
         # v2 entry survives.
-        assert cache.get(
-            CacheKey(content_hash="dd" * 8, extractor_version="v2", profile_name="p")
-        ) is not None
+        assert (
+            cache.get(CacheKey(content_hash="dd" * 8, extractor_version="v2", profile_name="p"))
+            is not None
+        )
 
     def test_sidecar_is_valid_json(self, tmp_path: Path) -> None:
         cache = SemanticCache(tmp_path / "cache")

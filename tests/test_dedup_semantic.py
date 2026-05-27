@@ -127,9 +127,7 @@ class TestSemanticDeduperCheck:
         assert result.duplicate_of is None
 
     def test_borderline_promoted_by_reranker(self) -> None:
-        d = self._make_deduper(
-            {"candidate": [0.9, 0.4358]}, reranker_score=0.95
-        )
+        d = self._make_deduper({"candidate": [0.9, 0.4358]}, reranker_score=0.95)
         result = d.check(
             "candidate",
             existing=[("a", [1.0, 0.0])],
@@ -141,9 +139,7 @@ class TestSemanticDeduperCheck:
         assert d._reranker.called
 
     def test_borderline_not_promoted_when_score_below_threshold(self) -> None:
-        d = self._make_deduper(
-            {"candidate": [0.9, 0.4358]}, reranker_score=0.6
-        )
+        d = self._make_deduper({"candidate": [0.9, 0.4358]}, reranker_score=0.6)
         result = d.check(
             "candidate",
             existing=[("a", [1.0, 0.0])],
@@ -156,9 +152,9 @@ class TestSemanticDeduperCheck:
         d = self._make_deduper({"candidate": [1.0, 0.0]})
         existing = [
             ("a", [0.5, 0.866]),  # cos ~0.5
-            ("b", [1.0, 0.0]),    # cos 1.0
-            ("c", [0.0, 1.0]),    # cos 0
-            ("d", [-1.0, 0.0]),   # cos -1
+            ("b", [1.0, 0.0]),  # cos 1.0
+            ("c", [0.0, 1.0]),  # cos 0
+            ("d", [-1.0, 0.0]),  # cos -1
         ]
         result = d.check("candidate", existing=existing)
         ids = [n.doc_id for n in result.neighbours]

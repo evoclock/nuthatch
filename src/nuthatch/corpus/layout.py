@@ -70,25 +70,27 @@ _STANDARD_SUBDIRS: tuple[str, ...] = (
 # are user-source dirs that should still be scanned. Files under any
 # other subdir the user creates (e.g. `arxiv/`, `bioarxiv/`,
 # `papers/2026/`) are picked up by the recursive scan.
-CORPUS_RESERVED_DIRS: frozenset[str] = frozenset({
-    CORPUS_MARKER,   # ".kg"
-    "processed",     # post-ingest originals (provenance preserved by subdir)
-    "quarantine",    # transient failures (awaiting fix or rejection)
-    "rejected",      # terminal failures (declared unfixable)
-    "cards",         # rendered markdown
-    "html",          # rendered HTML companion
-    "communities",   # rendered community pages
-    "graph",         # derived graph state
-    "exports",       # rendered outputs
-    "reports",       # generated reports (token-econ, decay)
-    "defer",         # papers deferred from ingest (e.g. post-Thursday
-                     # triage); reserved exactly like benchmark_test/
-    "benchmark_test",  # user-curated reference PDFs for OCR / extraction
-                       # benchmarks; not part of the queryable corpus and
-                       # not auto-scanned. Conventional name; users with a
-                       # different convention can opt out via the per-corpus
-                       # `scan_skip` config (see `corpus/config.py`).
-})
+CORPUS_RESERVED_DIRS: frozenset[str] = frozenset(
+    {
+        CORPUS_MARKER,  # ".kg"
+        "processed",  # post-ingest originals (provenance preserved by subdir)
+        "quarantine",  # transient failures (awaiting fix or rejection)
+        "rejected",  # terminal failures (declared unfixable)
+        "cards",  # rendered markdown
+        "html",  # rendered HTML companion
+        "communities",  # rendered community pages
+        "graph",  # derived graph state
+        "exports",  # rendered outputs
+        "reports",  # generated reports (token-econ, decay)
+        "defer",  # papers deferred from ingest (e.g. post-Thursday
+        # triage); reserved exactly like benchmark_test/
+        "benchmark_test",  # user-curated reference PDFs for OCR / extraction
+        # benchmarks; not part of the queryable corpus and
+        # not auto-scanned. Conventional name; users with a
+        # different convention can opt out via the per-corpus
+        # `scan_skip` config (see `corpus/config.py`).
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)

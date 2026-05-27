@@ -83,9 +83,7 @@ def validate_url(
     if not parsed.scheme:
         return SecurityResult(allowed=False, reason="missing_scheme")
     if parsed.scheme.lower() not in schemes:
-        return SecurityResult(
-            allowed=False, reason=f"disallowed_scheme:{parsed.scheme}"
-        )
+        return SecurityResult(allowed=False, reason=f"disallowed_scheme:{parsed.scheme}")
     if not parsed.hostname:
         return SecurityResult(allowed=False, reason="missing_host")
 

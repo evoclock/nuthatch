@@ -121,9 +121,7 @@ def validate_math(
     real, broken, samples = classify_inline_math(markdown)
     total = real + broken
     ratio = 0.0 if total == 0 else broken / total
-    needs_retry = (
-        broken >= broken_threshold and ratio >= broken_ratio_threshold
-    )
+    needs_retry = broken >= broken_threshold and ratio >= broken_ratio_threshold
     return MathValidationResult(
         real_count=real,
         broken_count=broken,

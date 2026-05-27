@@ -44,10 +44,21 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-_RESERVED = frozenset({
-    ".git", "__pycache__", "node_modules", ".venv", "venv", "dist", "build",
-    ".tox", ".pytest_cache", ".mypy_cache", ".ruff_cache",
-})
+_RESERVED = frozenset(
+    {
+        ".git",
+        "__pycache__",
+        "node_modules",
+        ".venv",
+        "venv",
+        "dist",
+        "build",
+        ".tox",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+    }
+)
 
 
 def _walk_py(root: Path) -> list[Path]:
@@ -92,9 +103,8 @@ def _parse_one(path: Path) -> dict | None:
     for node in tree.body:
         if isinstance(node, ast.ClassDef):
             classes.append(node.name)
-        elif (
-            isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
-            and not node.name.startswith("_")
+        elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and not node.name.startswith(
+            "_"
         ):
             functions.append(node.name)
 
@@ -143,13 +153,14 @@ def main(argv: list[str]) -> int:
     out.append(f'title: "{args.repo_label} per-script audit"')
     out.append("---")
     out.append("")
-    out.append(f"Generated 2026-05-26 from `{root}`. Walked all `.py` files "
-               f"outside reserved dirs ({', '.join(sorted(_RESERVED))}); "
-               f"parsed each with `ast` to lift the module docstring and "
-               f"top-level class / function declarations.")
+    out.append(
+        f"Generated 2026-05-26 from `{root}`. Walked all `.py` files "
+        f"outside reserved dirs ({', '.join(sorted(_RESERVED))}); "
+        f"parsed each with `ast` to lift the module docstring and "
+        f"top-level class / function declarations."
+    )
     out.append("")
-    out.append(f"**Counts.** {len(py_files)} Python files across "
-               f"{len(by_pkg)} top-level packages.")
+    out.append(f"**Counts.** {len(py_files)} Python files across {len(by_pkg)} top-level packages.")
     out.append("")
 
     out.append("## Package overview")
@@ -170,8 +181,8 @@ def main(argv: list[str]) -> int:
         for entry in sorted(by_pkg[pkg], key=lambda e: str(e["rel"])):
             purpose = _first_paragraph(entry.get("docstring"))
             syms = (
-                [f"`{c}`" for c in entry["classes"][:args.max_symbols]]
-                + [f"`{f}()`" for f in entry["functions"][:args.max_symbols]]
+                [f"`{c}`" for c in entry["classes"][: args.max_symbols]]
+                + [f"`{f}()`" for f in entry["functions"][: args.max_symbols]]
             )[: args.max_symbols]
             sym_str = ", ".join(syms) or "_module-level only_"
             out.append(f"| `{entry['rel']}` | {purpose} | {sym_str} |")

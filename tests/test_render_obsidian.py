@@ -45,7 +45,7 @@ class TestExportVault:
         assert rv.index_path.is_file()
         dashboard = rv.dashboard_path.read_text()
         assert "dataview" in dashboard.lower()
-        assert "FROM \"cards\"" in dashboard
+        assert 'FROM "cards"' in dashboard
 
     def test_appends_log(self, tmp_path: Path) -> None:
         layout = init_corpus(tmp_path / "c")
