@@ -97,6 +97,12 @@ specific combination of choices none of them makes:
   internal documents, and arbitrary user-defined types
 - A read-only MCP query surface that the agent cannot mutate
 
+<p align="center">
+  <img src="assets/Token_economy.png" alt="Nuthatch token-economy report: per-tool actual cost vs BM25 and card-sum baselines" width="720">
+  <br/>
+  <em>Per-tool token-economy report from <code>token_econ_report</code>. Each tool is measured against two honest baselines: BM25 (what a flat keyword search over the whole corpus would cost) for search tools, and card-token-sum (the cost of fetching every card) for subgraph and community tools. The ratio shows how much of the corpus a query actually touches. Whole-corpus headline ratios — the strawman used by most graph-RAG tools — inflate the savings figure by comparing against a ceiling nobody would pay; Nuthatch compares against what a reasonable alternative would actually cost.</em>
+</p>
+
 The corpus type is a schema profile, not a category constraint.
 Nuthatch is designed for any structured-corpus problem where
 graph-augmented retrieval helps.
