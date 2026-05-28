@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: LicenseRef-MIT-Commercial-Attribution
 
 """Standalone LLM relabel of an existing corpus's community indices.
 

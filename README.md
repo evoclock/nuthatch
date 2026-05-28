@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/evoclock/nuthatch/actions/workflows/ci.yml"><img src="https://github.com/evoclock/nuthatch/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue?style=flat" alt="License"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%20%2B%20Commercial%20Attribution-blue?style=flat" alt="License"/></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB?style=flat&logo=python&logoColor=white" alt="Python 3.12+"/>
 </p>
 
@@ -302,7 +302,19 @@ Planned work, not yet landed:
 
 ## Licence
 
-Apache 2.0. See [`LICENSE`](LICENSE).
+MIT with a Commercial Attribution Rider. See [`LICENSE`](LICENSE).
+
+In short: non-commercial, academic, and personal use are unrestricted
+beyond preservation of the copyright notice. Any use by a for-profit
+entity, or any use in a paid product or service, requires attribution
+to Julen Gamboa as the author of the original work, with a link to
+`https://github.com/evoclock/nuthatch` in the README or equivalent
+primary documentation of the commercial product.
+
+This is intentionally not an OSI-approved license. The rider exists
+because the project is built to be useful to researchers and
+attribution-aware adopters, not as free runway for unattributed
+commercial repackaging.
 
 ## Acknowledgements
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: LicenseRef-MIT-Commercial-Attribution
 
 """Interactive D3.js + Canvas visualisation of a nuthatch corpus graph.
 
@@ -643,7 +643,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
   <img src="__ICON_B64__" alt="nuthatch" />
   <span>
     <a href="https://github.com/" target="_blank" rel="noopener">nuthatch</a>
-    &middot; Apache-2.0 &middot; &copy; 2026 Julen Gamboa
+    &middot; MIT + Commercial Attribution &middot; &copy; 2026 Julen Gamboa
   </span>
 </div>
 

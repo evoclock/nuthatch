@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: LicenseRef-MIT-Commercial-Attribution
 
 """Per-query token measurement for the token-economy log.
 

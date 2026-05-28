@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: LicenseRef-MIT-Commercial-Attribution
 
 """Tests for `nuthatch.clustering.stable_ids.remap_to_previous`."""
 

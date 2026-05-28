@@ -6,7 +6,16 @@ contributors and users. Where a decision deviates from a peer tool's
 approach, the reasoning is given factually so readers can evaluate
 the trade-off for themselves rather than take our word for it.
 
-## **Licence**: Apache 2.0
+## **Licence**: MIT with Commercial Attribution Rider
+
+Non-OSI by design. Standard MIT covers the unrestricted academic and
+personal-use case the project optimises for; the rider requires README
+attribution from any for-profit entity or paid product / service that
+embeds the work. Trade-off knowingly accepted: GitHub's license
+detection will mark this as "Other" and corporate adopters that screen
+for OSI-only licenses will flag it for manual review. That is the cost
+of refusing free runway for unattributed commercial repackaging. See
+`LICENSE` for the full text.
 
 ## Architecture
 
