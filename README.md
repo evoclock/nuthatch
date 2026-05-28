@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/evoclock/nuthatch/actions/workflows/ci.yml"><img src="https://github.com/evoclock/nuthatch/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%20%2B%20Commercial%20Attribution-blue?style=flat" alt="License"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%20%2B%20Commercial%20Attribution-orange?style=flat" alt="License"/></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB?style=flat&logo=python&logoColor=white" alt="Python 3.12+"/>
 </p>
 
