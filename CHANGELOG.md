@@ -4,6 +4,47 @@ All notable changes to Nuthatch are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [0.0.3] - 2026-05-29
+
+### Changed
+
+- **Licence changed from MIT + Commercial Attribution Rider to GNU
+  Affero General Public License v3 (AGPLv3) plus a Section 7(b)
+  author-attribution clause.** AGPLv3 is OSI-approved and delivers
+  a structural source-disclosure obligation for any conveyance or
+  network use; the §7(b) additional term preserves author attribution
+  explicitly. Both obligations are waived under a commercial licence,
+  available for for-profit entities and any use in a paid product
+  or service.
+- The MIT + Rider in 0.0.2 was a social-pressure mechanism with weak
+  enforcement teeth and non-OSI status. AGPLv3 + §7(b) is a structural
+  mechanism with OSI approval, source-disclosure teeth, and the same
+  attribution preservation. This is the standard dual-licence pattern
+  used by Nextcloud, Plausible, Cal.com, and iText.
+- `pyproject.toml` licence field reverts from `{ file = "LICENSE" }`
+  custom rider back to a recognised OSI classifier:
+  `License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)`.
+- `LICENSE` now contains: project preamble, the verbatim FSF AGPLv3
+  text (canonical from <https://www.gnu.org/licenses/agpl-3.0.txt>),
+  the §7(b) additional terms section, and a commercial-licence option
+  notice pointing to a forthcoming `COMMERCIAL.md` template.
+- SPDX headers across 142 source / test / doc / script files updated
+  from `LicenseRef-MIT-Commercial-Attribution` to `AGPL-3.0-or-later`.
+- README licence badge swapped (from orange "MIT + Commercial
+  Attribution" to blue "AGPLv3 + Attribution") and the licence section
+  rewritten with plain-English guidance distinguishing open-source use
+  (courtesy attribution requested, AGPL terms apply) from commercial
+  use (commercial licence required, AGPL waived).
+- `docs/Design_Decisions.md` licence subsection rewritten with the
+  AGPLv3 rationale; explicit pointer to the 0.0.2 → 0.0.3 transition.
+- Graph-visualisation HTML footer string updated.
+
+### Roadmap
+
+- chandra-ocr to be moved to a `[chandra]` optional extra, with
+  deferred dynamic import and tesseract as the fallback OCR backend.
+  Targeted for an upcoming release.
+
 ## [0.0.2] - 2026-05-28
 
 ### Changed

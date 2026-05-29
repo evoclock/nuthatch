@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
-# SPDX-License-Identifier: LicenseRef-MIT-Commercial-Attribution
+# SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Embedding-based clustering backend (k-means on chunk vectors).
 

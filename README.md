@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/evoclock/nuthatch/actions/workflows/ci.yml"><img src="https://github.com/evoclock/nuthatch/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%20%2B%20Commercial%20Attribution-orange?style=flat" alt="License"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3%20%2B%20Attribution-blue?style=flat" alt="License"/></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB?style=flat&logo=python&logoColor=white" alt="Python 3.12+"/>
 </p>
 
@@ -302,19 +302,66 @@ Planned work, not yet landed:
 
 ## Licence
 
-MIT with a Commercial Attribution Rider. See [`LICENSE`](LICENSE).
+**GNU Affero General Public License v3 (AGPLv3)** plus a Section 7(b)
+author-attribution clause. See [`LICENSE`](LICENSE) for the full text.
 
-In short: non-commercial, academic, and personal use are unrestricted
-beyond preservation of the copyright notice. Any use by a for-profit
-entity, or any use in a paid product or service, requires attribution
-to Julen Gamboa as the author of the original work, with a link to
-`https://github.com/evoclock/nuthatch` in the README or equivalent
-primary documentation of the commercial product.
+The plain-English version:
 
-This is intentionally not an OSI-approved license. The rider exists
-because the project is built to be useful to researchers and
-attribution-aware adopters, not as free runway for unattributed
-commercial repackaging.
+- **If you are using Nuthatch in an open-source project**: you are
+  asked to credit Julen Gamboa as the original author in your README
+  or equivalent primary documentation, with a link back to this
+  repository. It's a courtesy ask; the project will not chase you to
+  the ends of the earth to enforce it. The AGPL terms still apply
+  (source disclosure on conveyance and network use), and that is the
+  load-bearing part. We support genuine open-source use without
+  friction.
+- **If you are a for-profit entity or you are using Nuthatch in a
+  paid product or service**: you need a commercial licence. AGPLv3
+  is genuinely viral for network use (Section 13) and the source-
+  disclosure obligation may not match how you want to ship. The
+  commercial licence waives those obligations. Contact the author for
+  details; pricing is flexible and we don't run a revenue-trigger.
+- **The split exists** because we do not have a problem with
+  open-source contributors and we do have a problem with the
+  pattern of enterprises that exploit open-source projects without
+  contributing back. AGPLv3 plus a commercial offering is the
+  standard, OSI-approved pattern (Nextcloud, Plausible, Cal.com,
+  iText) for distinguishing the two populations cleanly.
+
+A commercial licence template will be published in this repository
+at `COMMERCIAL.md` once finalised. Until then, reach out directly.
+
+### Why this licence (and why it changed twice in two days)
+
+If you saw this repository's commit log, the licence moved from
+Apache 2.0 (initial release) to MIT plus a Commercial Attribution
+Rider (0.0.2) to AGPLv3 plus §7(b) (0.0.3) over two days. Faster than
+is comfortable, worth explaining once instead of leaving as a thread
+on the issue tracker.
+
+Each step sharpened the same question: what mechanism actually
+distinguishes open-source use from commercial use cleanly, without
+putting friction on either side?
+
+Apache 2.0 was the default and asked nothing of either side, which
+left no leverage for the commercial-fair-use case. The MIT + Rider
+asked for attribution but was non-OSI (which scares off the compliant
+commercial adopters, the ones who would have respected the ask
+anyway) and was a social-pressure mechanism with weak enforcement
+teeth against the rest. AGPLv3 + §7(b) + a separate commercial
+licence is the standard dual-licence pattern used by Nextcloud,
+Plausible, Cal.com, and iText. AGPLv3 is OSI-approved so genuine
+open-source adoption sees no friction; Section 13's network-use
+source-disclosure obligation is the structural lever that gives the
+licence real teeth; Section 7(b) preserves author attribution as an
+enforceable term rather than a courtesy ask. The commercial licence
+is for adopters who cannot or do not want to comply with AGPL,
+priced case-by-case rather than triggered by a revenue threshold.
+
+The intent is plain. Open-source use should be friction-free. Larger
+commercial adopters should either contribute back through AGPL source
+disclosure or pay through the commercial licence. The previous two
+attempts got most of the way there; this one settles it.
 
 ## Acknowledgements
 

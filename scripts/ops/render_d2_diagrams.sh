@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
-# SPDX-License-Identifier: LicenseRef-MIT-Commercial-Attribution
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Render every D2 architecture diagram under docs/architecture/.
 # D2's theme 200 leaks two hardcoded colors (#CBA6f7 lilac strokes

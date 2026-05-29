@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
-# SPDX-License-Identifier: LicenseRef-MIT-Commercial-Attribution
+# SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Sprint 8 tests: frontmatter round-trip, supersession scan + apply,
 end-to-end decay pass orchestrator, pinned-status preservation,

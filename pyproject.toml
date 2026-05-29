@@ -1,6 +1,6 @@
 [project]
 name = "nuthatch"
-version = "0.0.2"
+version = "0.0.3"
 description = "Knowledge-graph tool for paper corpora and notes, with principled clustering (SBM) and explicit LLM context-token economy"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -20,7 +20,7 @@ keywords = [
 classifiers = [
     "Development Status :: 1 - Planning",
     "Intended Audience :: Science/Research",
-    "License :: Other/Proprietary License",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Information Analysis",

@@ -1,6 +1,6 @@
 <!--
 SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
-SPDX-License-Identifier: LicenseRef-MIT-Commercial-Attribution
+SPDX-License-Identifier: AGPL-3.0-or-later
 
 Primary tool-spec surface for any agent host that reads
 repo-root AGENTS files (Claude Code, Codex, OpenCode, Aider,

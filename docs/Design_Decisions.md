@@ -6,16 +6,23 @@ contributors and users. Where a decision deviates from a peer tool's
 approach, the reasoning is given factually so readers can evaluate
 the trade-off for themselves rather than take our word for it.
 
-## **Licence**: MIT with Commercial Attribution Rider
+## **Licence**: AGPLv3 plus a Section 7(b) author-attribution clause
 
-Non-OSI by design. Standard MIT covers the unrestricted academic and
-personal-use case the project optimises for; the rider requires README
-attribution from any for-profit entity or paid product / service that
-embeds the work. Trade-off knowingly accepted: GitHub's license
-detection will mark this as "Other" and corporate adopters that screen
-for OSI-only licenses will flag it for manual review. That is the cost
-of refusing free runway for unattributed commercial repackaging. See
-`LICENSE` for the full text.
+Dual-licensed: AGPLv3 for open use, commercial licence available for
+for-profit and paid-product use. Standard OSI-approved pattern
+(Nextcloud, Plausible, Cal.com, iText). The AGPL side delivers the
+source-disclosure obligation
+that makes commercial freeloading materially costly; the §7(b) clause
+preserves author attribution explicitly; the commercial licence
+waives both for paying customers.
+
+Supersedes the prior MIT + Commercial Attribution Rider design
+(0.0.2, landed and immediately reconsidered after a clearer
+strategy review). The rider was a social-pressure mechanism with
+weak teeth; AGPLv3 is a structural mechanism with genuine teeth, OSI
+approval, and the same effective attribution preservation via §7(b).
+See `LICENSE` for the full text and `CHANGELOG.md` 0.0.2 to 0.0.3
+for the transition.
 
 ## Architecture
 
