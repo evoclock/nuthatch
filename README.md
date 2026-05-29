@@ -152,6 +152,32 @@ Only the span-level corrections are applied and the deferred record is closed.
 **SmolDocling** is documented as a fallback (small VLM, CPU-capable) but is
 not yet wired into the routing logic.
 
+### Chandra OCR — supported, not shipped
+
+Nuthatch supports Chandra OCR as a backend because it produces the best
+results for research-grade math-aware extraction. Nuthatch does not ship
+chandra-ocr as a default dependency. The chandra-ocr model weights are
+distributed under the OpenRAIL-M licence, which carries use restrictions
+that users should not inherit silently by installing the base package.
+
+The end state, targeted for an upcoming release:
+
+- `chandra-ocr` lives in an opt-in extra installed as
+  `pip install nuthatch[chandra]`. Users accept the OpenRAIL-M
+  obligations knowingly when they choose to install it.
+- The default OCR backend is tesseract (Apache 2.0), wrapped via
+  `pytesseract`. It handles the standard text-extraction cases cleanly
+  and inherits no restrictive licence.
+- Internal call sites use deferred dynamic imports so the chandra
+  backend is loaded only when explicitly selected. A missing chandra
+  install raises a clear error pointing users to the opt-in command.
+
+For the current release, `chandra-ocr` remains in the mandatory
+dependency list while the refactor lands. The dependency-licence
+compatibility holds either way: chandra-ocr the package is Apache 2.0;
+only the model weights downloaded at runtime carry OpenRAIL-M
+obligations, and those attach to whoever downloads them.
+
 ### Embedding models
 
 | Profile | Model | Notes |

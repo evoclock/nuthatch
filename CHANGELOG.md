@@ -39,11 +39,34 @@ follow [Semantic Versioning](https://semver.org/).
   AGPLv3 rationale; explicit pointer to the 0.0.2 → 0.0.3 transition.
 - Graph-visualisation HTML footer string updated.
 
-### Roadmap
+### Chandra OCR — supported, not shipped
 
-- chandra-ocr to be moved to a `[chandra]` optional extra, with
-  deferred dynamic import and tesseract as the fallback OCR backend.
-  Targeted for an upcoming release.
+Nuthatch's position on Chandra OCR is explicit: we support Chandra as
+a backend because it is an excellent OCR engine for research-grade
+work, but we do not ship the chandra-ocr package as a default
+dependency. Chandra-ocr's model weights are distributed under the
+OpenRAIL-M licence, which carries use restrictions that Nuthatch
+users should not inherit silently by installing the base package.
+
+The end state, targeted for an upcoming release:
+
+- `chandra-ocr` lives in an opt-in extra, installed as
+  `pip install nuthatch[chandra]`. The user accepts the OpenRAIL-M
+  obligations knowingly when they choose to install it.
+- The default OCR backend is **tesseract** (Apache 2.0), wrapped via
+  pytesseract. Tesseract handles the standard text-extraction cases
+  cleanly and inherits no restrictive licence.
+- Internal call sites use deferred dynamic imports so the chandra
+  backend is only loaded when explicitly selected. A missing chandra
+  install raises a clear `ImportError` pointing users to the opt-in
+  command.
+
+For the duration of this release, `chandra-ocr` remains in the
+mandatory dependency list while the refactor lands. The licence
+compatibility holds either way: the chandra-ocr package itself is
+Apache 2.0; only the runtime-downloaded weights carry the OpenRAIL-M
+terms, and those obligations attach to whoever downloads the
+weights.
 
 ## [0.0.2] - 2026-05-28
 
