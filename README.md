@@ -339,7 +339,7 @@ The plain-English version:
   repository. It's a courtesy ask; the project will not chase you to
   the ends of the earth to enforce it. The AGPL terms still apply
   (source disclosure on conveyance and network use), and that is the
-  load-bearing part. We support genuine open-source use without
+  part with real teeth. We support genuine open-source use without
   friction.
 - **If you are a for-profit entity or you are using Nuthatch in a
   paid product or service**: you need a commercial licence. AGPLv3
@@ -392,10 +392,9 @@ attempts got most of the way there; this one settles it.
 ## Acknowledgements
 
 Designed by Julen Gamboa, who drove orchestration, design
-discussion, and implementation decisions, with Claude Code
-and Hermes (using GPT-5.5 and Minimax M2.5) as planning
-collaborators. Claude Code executed much of the implementation
-tasks under that direction.
+discussion, and implementation decisions. Claude Code and Hermes
+operated as spec-driven agents, executing implementation tasks
+under that direction.
 
 Specs and decisions are pinned in `docs/SPEC.md` and
 `docs/Design_Decisions.md` so every implementation points back
