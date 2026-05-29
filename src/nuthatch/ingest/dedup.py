@@ -21,7 +21,7 @@ import hashlib
 from pathlib import Path
 
 # 64 KiB read chunks. Tuned for "fits in CPU cache, doesn't fault on
-# tiny files". Empirical sweet spot; not load-bearing.
+# tiny files". Empirical sweet spot; not strict.
 _HASH_CHUNK_SIZE: int = 64 * 1024
 
 

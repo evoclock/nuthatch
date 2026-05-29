@@ -2531,10 +2531,9 @@ wheels = [
 
 [[package]]
 name = "nuthatch"
-version = "0.0.3"
+version = "0.0.4"
 source = { editable = "." }
 dependencies = [
-    { name = "chandra-ocr", extra = ["hf"] },
     { name = "chromadb" },
     { name = "docling" },
     { name = "easyocr" },
@@ -2553,6 +2552,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+chandra = [
+    { name = "chandra-ocr", extra = ["hf"] },
+]
 embeddings = [
     { name = "chromadb" },
     { name = "sentence-transformers" },
@@ -2569,7 +2571,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "chandra-ocr", extras = ["hf"], specifier = ">=0.2.0" },
+    { name = "chandra-ocr", extras = ["hf"], marker = "extra == 'chandra'", specifier = ">=0.2.0" },
     { name = "chromadb", specifier = ">=1.5.9" },
     { name = "chromadb", marker = "extra == 'embeddings'", specifier = ">=0.4" },
     { name = "docling", specifier = ">=2.0" },
@@ -2588,7 +2590,7 @@ requires-dist = [
     { name = "tomli-w", specifier = ">=1.0" },
     { name = "watchdog", specifier = ">=4.0" },
 ]
-provides-extras = ["embeddings"]
+provides-extras = ["embeddings", "chandra"]
 
 [package.metadata.requires-dev]
 dev = [

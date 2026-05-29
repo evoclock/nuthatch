@@ -27,7 +27,7 @@ copy was avoided. Adaptations for nuthatch:
 - Structure-aware chunking with full-document-coverage invariant
   via `nuthatch.embed.chunk.chunk_text` instead of the PhD KB's
   word-window chunker. Coverage failure raises; partial coverage is
-  the load-bearing rule from DECISIONS.md.
+  the central rule from DECISIONS.md.
 - Default model `BAAI/bge-m3` (matches the dedup default, multilingual)
   instead of PhD KB's `allenai/specter2_base` (English papers only).
 - Reset / status / query helpers analogous to the PhD KB driver's

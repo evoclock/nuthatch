@@ -1,6 +1,6 @@
 [project]
 name = "nuthatch"
-version = "0.0.3"
+version = "0.0.4"
 description = "Knowledge-graph tool for paper corpora and notes, with principled clustering (SBM) and explicit LLM context-token economy"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -32,7 +32,6 @@ classifiers = [
 # section of the README; we error helpfully when the SBM backend is
 # requested without it).
 dependencies = [
-    "chandra-ocr[hf]>=0.2.0",
     "chromadb>=1.5.9",
     "docling>=2.0",
     "easyocr>=1.7.2",
@@ -55,6 +54,14 @@ dependencies = [
 embeddings = [
     "chromadb>=0.4",
     "sentence-transformers>=2.0",
+]
+
+# Chandra OCR backend. Opt-in because the chandra-ocr model weights
+# ship under the OpenRAIL-M licence, which carries use restrictions
+# that users adopt only when they install Chandra explicitly. See
+# the README "Chandra OCR" section for the position.
+chandra = [
+    "chandra-ocr[hf]>=0.2.0",
 ]
 
 [project.scripts]

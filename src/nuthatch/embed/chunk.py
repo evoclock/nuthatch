@@ -19,7 +19,7 @@ Assumptions: structure-aware chunking prefers paragraph and section
     fixed-window slicing with overlap. The character offset is into
     the input string, so reconstruction by index is exact.
 
-The full-document-coverage invariant is the load-bearing rule: a
+The full-document-coverage invariant is the central rule: a
 knowledge graph that surfaces "the relevant section" to an LLM is
 only as honest as its chunks. Partial coverage means a query can
 miss the one paragraph where the paper's actual contribution lives.

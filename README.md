@@ -81,7 +81,7 @@ pipeline, MCP registration per agent host, and stop / resume
 semantics. The short version:
 
 ```bash
-pipx install git+https://github.com/evoclock/nuthatch.git@main
+sfw uv tool install "nuthatch @ git+https://github.com/evoclock/nuthatch.git@main"
 nuthatch init ~/my-corpus --register-as my-corpus --set-default
 
 # Drop sources anywhere under the corpus root (inbox/, arxiv/,
@@ -148,35 +148,42 @@ that has broken spans, all of its broken inline math spans are consolidated
 into a single page; Chandra OCR 2 resolves them in one pass against that page
 and the corrected expressions are traced back to their original positions.
 Only the span-level corrections are applied and the deferred record is closed.
+Math-span retry is a Chandra-specific capability; documents processed under
+the other extraction backends surface broken spans without the deferred-retry
+pass.
 
 **SmolDocling** is documented as a fallback (small VLM, CPU-capable) but is
 not yet wired into the routing logic.
 
-### Chandra OCR — supported, not shipped
+### Chandra OCR — supported, not shipped silently
 
-Nuthatch supports Chandra OCR as a backend because it produces the best
-results for research-grade math-aware extraction. Nuthatch does not ship
-chandra-ocr as a default dependency. The chandra-ocr model weights are
-distributed under the OpenRAIL-M licence, which carries use restrictions
-that users should not inherit silently by installing the base package.
+Nuthatch supports Chandra OCR as a backend because it produces the
+best results for research-grade math-aware extraction. Chandra-ocr's
+model weights are distributed under the OpenRAIL-M licence, which
+carries use restrictions that users adopt when they install Chandra.
+We surface this directly rather than treat the dependency as silent.
 
-The end state, targeted for an upcoming release:
+Chandra is therefore an opt-in extra, not a default dependency. To
+install Nuthatch with the Chandra backend:
 
-- `chandra-ocr` lives in an opt-in extra installed as
-  `pip install nuthatch[chandra]`. Users accept the OpenRAIL-M
-  obligations knowingly when they choose to install it.
-- The default OCR backend is tesseract (Apache 2.0), wrapped via
-  `pytesseract`. It handles the standard text-extraction cases cleanly
-  and inherits no restrictive licence.
-- Internal call sites use deferred dynamic imports so the chandra
-  backend is loaded only when explicitly selected. A missing chandra
-  install raises a clear error pointing users to the opt-in command.
+```bash
+sfw uv add "nuthatch[chandra]"
+```
 
-For the current release, `chandra-ocr` remains in the mandatory
-dependency list while the refactor lands. The dependency-licence
-compatibility holds either way: chandra-ocr the package is Apache 2.0;
-only the model weights downloaded at runtime carry OpenRAIL-M
-obligations, and those attach to whoever downloads them.
+Or, as a standalone tool install:
+
+```bash
+sfw uv tool install "nuthatch[chandra]"
+```
+
+The `sfw` prefix routes the install through Socket Firewall's threat-
+intel scan before any tarball lands on disk. We recommend it for
+every package install regardless of source.
+
+The dependency-licence compatibility holds at the package level:
+chandra-ocr the package is Apache 2.0; only the model weights
+downloaded at runtime carry OpenRAIL-M obligations, and those attach
+to whoever downloads them.
 
 ### Embedding models
 
