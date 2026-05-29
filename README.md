@@ -389,10 +389,10 @@ attempts got most of the way there; this one settles it.
 
 ## Acknowledgements
 
-Designed by Julen Gamboa, who drove orchestration, design
-discussion, and implementation decisions. Claude Code and Hermes
-operated as spec-driven agents, executing implementation tasks
-under that direction.
+Designed and built by Julen Gamboa, who drove system design,
+implementation, agent orchestration, and code review. Claude Code
+and Hermes operated as spec-driven agents, executing implementation
+tasks under that direction.
 
 Specs and decisions are pinned in `docs/SPEC.md` and
 `docs/Design_Decisions.md` so every implementation points back
