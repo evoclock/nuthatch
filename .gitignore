@@ -72,7 +72,10 @@ DECISIONS.md
 SPRINT_PLAN.md
 OPERATIONS.md
 
-# Internal-only architecture docs 
+# Host-local tiktoken BPE cache (offline-boot workaround; see project-planning T-0161)
+.tiktoken-cache/
+
+# Internal-only architecture docs
 docs/architecture/kestrel_*.md
 docs/architecture/kestrel_vs_nuthatch.md
 docs/architecture/deferred_*.md
