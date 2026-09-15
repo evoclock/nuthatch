@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-only
 
 """Tests for `nuthatch.ingest.source_metadata` (arxiv + bioRxiv API fetchers)
 with mocked HTTP so the suite runs offline."""

@@ -47,7 +47,7 @@ follow [Semantic Versioning](https://semver.org/).
   the §7(b) additional terms section, and a commercial-licence option
   notice pointing to a forthcoming `COMMERCIAL.md` template.
 - SPDX headers across 142 source / test / doc / script files updated
-  from `LicenseRef-MIT-Commercial-Attribution` to `AGPL-3.0-or-later`.
+  from `LicenseRef-MIT-Commercial-Attribution` to `AGPL-3.0-only`.
 - README licence badge swapped (from orange "MIT + Commercial
   Attribution" to blue "AGPLv3 + Attribution") and the licence section
   rewritten with plain-English guidance distinguishing open-source use

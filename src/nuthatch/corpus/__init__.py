@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-only
 
 """Corpus layout + registry: where a nuthatch corpus lives and how to find it."""
 
