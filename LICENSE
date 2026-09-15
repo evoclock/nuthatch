@@ -723,14 +723,17 @@ on the Software.
                           COMMERCIAL LICENCE OPTION
 ================================================================================
 
-A commercial licence that waives the obligations of the GNU Affero
-General Public License (including the network-use source-disclosure
-obligation of Section 13 and the additional terms of Section 7(b)
-above) is available for users who cannot or do not wish to comply
-with the terms of the GNU Affero General Public License.
+Commercial use, modification, and distribution are permitted under
+the GNU Affero General Public License when all AGPL obligations and
+the additional terms of Section 7(b) above are followed. This includes
+the network-use source-disclosure obligation of Section 13 and the
+required preservation of attribution.
 
-The commercial licence is intended for for-profit entities and any
-use in a paid product or service. Contact the author for details.
+A separate commercial licence is available for organisations that
+require proprietary modifications, do not wish to disclose covered
+source as required by the AGPL, need alternative attribution terms, or
+otherwise cannot or do not wish to comply with the AGPL. Contact the
+author for details.
 
 When published, the commercial licence template will be available at
 COMMERCIAL.md in this repository.

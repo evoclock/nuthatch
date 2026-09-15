@@ -326,7 +326,7 @@ Planned work, not yet landed:
 
 ## Licence
 
-**GNU Affero General Public License v3 (AGPLv3)** plus a Section 7(b)
+**GNU Affero General Public License v3 only (AGPL-3.0-only)** plus a Section 7(b)
 author-attribution clause. See [`LICENSE`](LICENSE) for the full text.
 
 The plain-English version:
@@ -339,12 +339,14 @@ The plain-English version:
   (source disclosure on conveyance and network use), and that is the
   part with real teeth. We support genuine open-source use without
   friction.
-- **If you are a for-profit entity or you are using Nuthatch in a
-  paid product or service**: you need a commercial licence. AGPLv3
-  is genuinely viral for network use (Section 13) and the source-
-  disclosure obligation may not match how you want to ship. The
-  commercial licence waives those obligations. Contact the author for
-  details; pricing is flexible and we don't run a revenue-trigger.
+- **Commercial use, including forks and substantial modifications**, is
+  permitted under the AGPL when all AGPL obligations and the Section 7(b)
+  attribution requirements are followed. This includes offering covered
+  source to network users as required by Section 13. A separate commercial
+  licence is required only when an organisation wants proprietary
+  modifications, alternative attribution terms, or otherwise cannot or does
+  not wish to comply with those obligations. Contact the author for details;
+  pricing is flexible and case-by-case.
 - **The split exists** because we do not have a problem with
   open-source contributors and we do have a problem with the
   pattern of enterprises that exploit open-source projects without
