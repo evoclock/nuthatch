@@ -29,10 +29,18 @@ class CredentialErrorKind(StrEnum):
 class CredentialError(RuntimeError):
     """Credential lookup failure that never includes the credential value."""
 
+    _SETUP_HINT = (
+        "store the key with: keyring set nuthatch <provider>-api-key "
+        "(accounts: openai-api-key, anthropic-api-key)"
+    )
+
     def __init__(self, provider: str, kind: CredentialErrorKind) -> None:
         self.provider = provider
         self.kind = kind
-        super().__init__(f"{provider} credential error: {kind.value}")
+        message = f"{provider} credential error: {kind.value}"
+        if kind is CredentialErrorKind.ABSENT:
+            message = f"{message} — {self._SETUP_HINT}"
+        super().__init__(message)
 
 
 class CredentialReader(Protocol):

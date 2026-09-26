@@ -79,7 +79,11 @@ def test_hosted_credential_failures_are_closed(
         build_llm("openai", credential_reader=reader)
 
     assert caught.value.kind is kind
-    assert str(caught.value) == f"openai credential error: {kind.value}"
+    if kind is CredentialErrorKind.ABSENT:
+        # The absent case appends a provisioning hint (no credential value).
+        assert str(caught.value).startswith(f"openai credential error: {kind.value}")
+    else:
+        assert str(caught.value) == f"openai credential error: {kind.value}"
     assert "test-only-credential" not in str(caught.value)
 
 
@@ -134,3 +138,18 @@ def test_keyring_reader_maps_closed_failures(
         KeyringCredentialReader().read("openai")
 
     assert caught.value.kind is kind
+
+
+def test_absent_error_carries_provisioning_hint_without_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_keyring(monkeypatch, None)
+
+    with pytest.raises(CredentialError) as caught:
+        KeyringCredentialReader().read("openai")
+
+    message = str(caught.value)
+    assert "keyring set nuthatch <provider>-api-key" in message
+    assert "anthropic-api-key" in message
+    # The hint names the account, never a credential value.
+    assert "ignored-environment-value" not in message

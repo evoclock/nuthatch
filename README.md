@@ -102,6 +102,27 @@ A pre-built reference corpus
 ([nuthatch-kb-demo](https://github.com/evoclock/nuthatch-kb-demo))
 is available to explore before building your own.
 
+### Hosted-provider credentials
+
+Hosted LLM stages (OpenAI, Anthropic) read their API keys from your
+operating-system credential store via Python `keyring` — never from
+environment variables. Store each key once, before the first hosted
+stage:
+
+```bash
+keyring set nuthatch openai-api-key
+keyring set nuthatch anthropic-api-key
+```
+
+If a key is missing, the pipeline fails closed with
+`openai credential error: absent_store_entry` (plus the provisioning
+hint above) rather than silently falling back. Other credential
+failures map to closed kinds too: `store_unavailable` (no usable
+keyring backend on this host), `access_denied` (locked or denied
+keychain), `invalid_credential` (blank entry). Non-sensitive settings
+such as `OLLAMA_HOST` and `NUTHATCH_ACCELERATOR` remain ordinary
+environment configuration.
+
 ## Documentation
 
 - [`docs/Design_Decisions.md`](docs/Design_Decisions.md): architectural
