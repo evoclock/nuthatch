@@ -36,6 +36,7 @@ dependencies = [
     "docling>=2.0",
     "easyocr>=1.7.2",
     "json-repair>=0.59.10",
+    "keyring>=25.0",
     "leidenalg>=0.12.0",
     "networkx>=3.6.1",
     "pdfminer-six>=20231228",

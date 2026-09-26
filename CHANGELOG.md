@@ -4,6 +4,22 @@ All notable changes to Nuthatch are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **Hosted-provider credentials moved to the OS credential store.**
+  OpenAI and Anthropic API keys are read through Python `keyring`
+  (service `nuthatch`, accounts `openai-api-key` / `anthropic-api-key`)
+  instead of the `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` environment
+  variables, which are no longer consulted. Provision with
+  `keyring set nuthatch openai-api-key` (and the `anthropic-api-key`
+  equivalent). Lookup failures are closed, value-free error kinds:
+  `absent_store_entry`, `store_unavailable`, `access_denied`,
+  `invalid_credential`. Non-sensitive endpoint/device settings
+  (`OLLAMA_HOST`, `NUTHATCH_ACCELERATOR`) remain environment-
+  configurable.
+
 ## [0.0.4] - 2026-05-29
 
 ### Changed
@@ -47,7 +63,7 @@ follow [Semantic Versioning](https://semver.org/).
   the §7(b) additional terms section, and a commercial-licence option
   notice pointing to a forthcoming `COMMERCIAL.md` template.
 - SPDX headers across 142 source / test / doc / script files updated
-  from `LicenseRef-MIT-Commercial-Attribution` to `AGPL-3.0-or-later`.
+  from `LicenseRef-MIT-Commercial-Attribution` to `AGPL-3.0-only`.
 - README licence badge swapped (from orange "MIT + Commercial
   Attribution" to blue "AGPLv3 + Attribution") and the licence section
   rewritten with plain-English guidance distinguishing open-source use

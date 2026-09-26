@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Julen Gamboa <j.a.r.gamboa@gmail.com>
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-only
 
 """LLM backend factory for the RAGAS eval harness.
 
@@ -12,10 +12,10 @@ Three backends supported out of the box:
               Magistral) get a generous `num_predict` so the
               `content` field is actually written after the
               `thinking` field consumes its budget.
-- `openai`:   OPENAI_API_KEY from env; pass any compatible model id
-              (e.g. `gpt-4o`, `gpt-4-turbo`, `o3-mini`).
-- `anthropic`: ANTHROPIC_API_KEY from env; pass any compatible model
-              id (e.g. `claude-opus-4-7`, `claude-sonnet-4-6`).
+- `openai`:   credential from the configured host credential store;
+              pass any compatible model id (e.g. `gpt-4o`, `o3-mini`).
+- `anthropic`: credential from the configured host credential store;
+               pass any compatible model id (e.g. `claude-sonnet-4-6`).
 
 Returns a tuple of `(generator_llm, judge_llm)` since RAGAS
 distinguishes the two. Both default to the same model unless an
@@ -32,6 +32,8 @@ import os
 from collections.abc import Callable
 from typing import Any
 
+from nuthatch.util.credentials import CredentialReader, KeyringCredentialReader
+
 # Default per backend so a bare `--llm-backend ollama` works without
 # also having to specify a model. Override on the CLI.
 _DEFAULT_MODEL_PER_BACKEND: dict[str, str] = {
@@ -47,6 +49,7 @@ def build_llm(
     *,
     num_predict: int = 2048,
     temperature: float = 0.0,
+    credential_reader: CredentialReader | None = None,
 ) -> Any:
     """Return a langchain-compatible LLM for the given backend / model.
 
@@ -65,10 +68,17 @@ def build_llm(
         model=model or _DEFAULT_MODEL_PER_BACKEND[backend],
         num_predict=num_predict,
         temperature=temperature,
+        credential_reader=credential_reader or KeyringCredentialReader(),
     )
 
 
-def _build_ollama(*, model: str, num_predict: int, temperature: float) -> Any:
+def _build_ollama(
+    *,
+    model: str,
+    num_predict: int,
+    temperature: float,
+    credential_reader: CredentialReader,
+) -> Any:
     from langchain_ollama import ChatOllama
 
     base_url = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
@@ -80,19 +90,31 @@ def _build_ollama(*, model: str, num_predict: int, temperature: float) -> Any:
     )
 
 
-def _build_openai(*, model: str, num_predict: int, temperature: float) -> Any:
+def _build_openai(
+    *,
+    model: str,
+    num_predict: int,
+    temperature: float,
+    credential_reader: CredentialReader,
+) -> Any:
     from langchain_openai import ChatOpenAI
 
-    if not os.environ.get("OPENAI_API_KEY"):
-        raise RuntimeError("OPENAI_API_KEY not set; required for the openai backend")
+    credential = credential_reader.read("openai")
     return ChatOpenAI(
         model=model,
+        api_key=credential,
         max_tokens=num_predict,
         temperature=temperature,
     )
 
 
-def _build_anthropic(*, model: str, num_predict: int, temperature: float) -> Any:
+def _build_anthropic(
+    *,
+    model: str,
+    num_predict: int,
+    temperature: float,
+    credential_reader: CredentialReader,
+) -> Any:
     try:
         from langchain_anthropic import ChatAnthropic
     except ImportError as exc:
@@ -101,10 +123,10 @@ def _build_anthropic(*, model: str, num_predict: int, temperature: float) -> Any
             "`sfw uv pip install --python .venv/bin/python langchain-anthropic`"
         ) from exc
 
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise RuntimeError("ANTHROPIC_API_KEY not set; required for the anthropic backend")
+    credential = credential_reader.read("anthropic")
     return ChatAnthropic(
         model=model,
+        api_key=credential,
         max_tokens=num_predict,
         temperature=temperature,
     )
